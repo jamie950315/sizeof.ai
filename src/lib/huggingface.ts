@@ -77,7 +77,7 @@ function createModelId(owner: string, name: string) {
 export function normalizeHuggingFaceModel(
   rawMetadata: unknown,
   rawConfig: unknown,
-  options: { configSourceId?: string } = {},
+  options: { allowEstimate?: boolean; configSourceId?: string } = {},
 ): HuggingFaceModel {
   const metadata = asRecord(rawMetadata)
   const config = asRecord(rawConfig)
@@ -88,9 +88,8 @@ export function normalizeHuggingFaceModel(
   const name = nameParts.join('/') || 'unknown'
   const tags = stringArray(metadata.tags)
   const cardData = asRecord(metadata.cardData)
-  const safetensors = asRecord(metadata.safetensors)
   const gguf = asRecord(metadata.gguf)
-  const parameters = positiveNumber(safetensors.total) ?? positiveNumber(gguf.total)
+  const parameters = getHuggingFaceParameterCount(metadata)
   const layers = positiveNumber(textConfig.num_hidden_layers)
   const kvHeads = positiveNumber(textConfig.num_key_value_heads)
   const attentionHeads = positiveNumber(textConfig.num_attention_heads)
@@ -153,7 +152,8 @@ export function normalizeHuggingFaceModel(
     ? asString(cardData.license_name) ?? cardLicense
     : cardLicense ?? licenseFromTag
 
-  const canEstimate = [parameters, layers, attentionLayers, maxContext]
+  const canEstimate = options.allowEstimate !== false
+    && [parameters, layers, attentionLayers, maxContext]
     .every((value) => value !== null && Number.isFinite(value) && value > 0)
     && kvCache !== null
 
@@ -197,4 +197,11 @@ export function normalizeHuggingFaceModel(
     sourceUrl,
     spec,
   }
+}
+
+export function getHuggingFaceParameterCount(rawMetadata: unknown): number | null {
+  const metadata = asRecord(rawMetadata)
+  const safetensors = asRecord(metadata.safetensors)
+  const gguf = asRecord(metadata.gguf)
+  return positiveNumber(safetensors.total) ?? positiveNumber(gguf.total)
 }

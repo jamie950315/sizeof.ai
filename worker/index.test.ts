@@ -19,7 +19,7 @@ describe('Hugging Face model API', () => {
       new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2&random=uncached'),
     )
 
-    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v3')
+    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v5')
     expect([...new URL(key.url).searchParams.keys()]).toEqual(['__sizeof_cache'])
   })
 
@@ -87,7 +87,11 @@ describe('Hugging Face model API', () => {
         return Response.json({})
       }
       if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
-        return Response.json({ id: 'Qwen/Qwen3.8-27B', sha: 'base456' })
+        return Response.json({
+          id: 'Qwen/Qwen3.8-27B',
+          sha: 'base456',
+          safetensors: { total: 27_781_427_952 },
+        })
       }
       if (url.includes('/Qwen/Qwen3.8-27B/resolve/base456/config.json')) {
         return Response.json({
@@ -118,6 +122,109 @@ describe('Hugging Face model API', () => {
     expect(body.quantizationFormat).toBe('gguf')
     expect(body.configSourceId).toBe('Qwen/Qwen3.8-27B')
     expect(body.spec.layers).toBe(64)
+  })
+
+  it('does not estimate a sidecar whose parameter count is implausible for its quantized base model', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/models/Lab/Qwen-MTP-GGUF')) {
+        return Response.json({
+          id: 'Lab/Qwen-MTP-GGUF',
+          author: 'Lab',
+          sha: 'derived123',
+          tags: [
+            'gguf',
+            'base_model:unsloth/Qwen3.8-27B-NVFP4',
+            'base_model:quantized:unsloth/Qwen3.8-27B-NVFP4',
+          ],
+          gguf: { total: 460_730_096, architecture: 'qwen35', context_length: 262144 },
+        })
+      }
+      if (url.includes('/Lab/Qwen-MTP-GGUF/resolve/derived123/config.json')) {
+        return Response.json({
+          architectures: ['Qwen3_5ForConditionalGeneration'],
+          num_hidden_layers: 64,
+          num_key_value_heads: 4,
+          num_attention_heads: 24,
+          head_dim: 256,
+          max_position_embeddings: 262144,
+        })
+      }
+      if (url.includes('/api/models/unsloth/Qwen3.8-27B-NVFP4')) {
+        return Response.json({
+          id: 'unsloth/Qwen3.8-27B-NVFP4',
+          sha: 'base456',
+          tags: ['base_model:Qwen/Qwen3.8-27B', 'base_model:quantized:Qwen/Qwen3.8-27B'],
+          safetensors: { total: 19_869_895_952 },
+        })
+      }
+      if (url.includes('/unsloth/Qwen3.8-27B-NVFP4/resolve/base456/config.json')) {
+        return Response.json({
+          architectures: ['Qwen3_5ForConditionalGeneration'],
+          num_hidden_layers: 64,
+          num_key_value_heads: 4,
+          num_attention_heads: 24,
+          head_dim: 256,
+          max_position_embeddings: 262144,
+        })
+      }
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Lab/Qwen-MTP-GGUF'),
+      fetcher,
+    )
+    const body = await response.json() as {
+      parametersB: number
+      configSourceId: string | null
+      spec: unknown
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.parametersB).toBe(0.460730096)
+    expect(body.spec).toBeNull()
+    expect(body.configSourceId).toBeNull()
+    const baseMetadataCall = String(fetcher.mock.calls[2]?.[0])
+    expect(baseMetadataCall).toContain('expand=sha')
+    expect(baseMetadataCall).toContain('expand=safetensors')
+    expect(fetcher).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not trust metadata returned for a different base model id', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/models/Lab/Model-GGUF')) {
+        return Response.json({
+          id: 'Lab/Model-GGUF',
+          sha: 'derived123',
+          tags: ['gguf', 'base_model:Qwen/Qwen3.8-27B', 'base_model:quantized:Qwen/Qwen3.8-27B'],
+          gguf: { total: 27_320_697_856, architecture: 'qwen35', context_length: 262144 },
+        })
+      }
+      if (url.includes('/Lab/Model-GGUF/resolve/derived123/config.json')) {
+        return Response.json({})
+      }
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+        return Response.json({
+          id: 'Wrong/Model',
+          sha: 'wrong456',
+          safetensors: { total: 27_781_427_952 },
+        })
+      }
+      throw new Error(`Unexpected fetch for mismatched base: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Lab/Model-GGUF'),
+      fetcher,
+    )
+    const body = await response.json() as { spec: unknown; configSourceId: string | null }
+
+    expect(response.status).toBe(200)
+    expect(body.spec).toBeNull()
+    expect(body.configSourceId).toBeNull()
+    expect(fetcher).toHaveBeenCalledTimes(3)
   })
 
   it('does not treat a GGUF LoRA adapter as a full base model', async () => {

@@ -1,4 +1,8 @@
-import { normalizeHuggingFaceModel, parseHuggingFaceModelPath } from '../src/lib/huggingface'
+import {
+  getHuggingFaceParameterCount,
+  normalizeHuggingFaceModel,
+  parseHuggingFaceModelPath,
+} from '../src/lib/huggingface'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
@@ -23,7 +27,7 @@ function apiRoute(pathname: string) {
 export function createModelCacheKey(request: Request) {
   const url = new URL(request.url)
   url.search = ''
-  url.searchParams.set('__sizeof_cache', 'hf-model-v3')
+  url.searchParams.set('__sizeof_cache', 'hf-model-v5')
   return new Request(url.toString())
 }
 
@@ -102,11 +106,12 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
     )
     let config: unknown = configResponse.ok ? await configResponse.json() : {}
     let configSourceId: string | undefined
+    let allowEstimate = true
 
     const needsBaseConfig = !configResponse.ok
       || normalizeHuggingFaceModel(metadata, config).spec === null
 
-    if (needsBaseConfig && typeof metadata === 'object' && metadata !== null) {
+    if (typeof metadata === 'object' && metadata !== null) {
       const metadataRecord = metadata as Record<string, unknown>
       const gguf = metadataRecord.gguf
       const tags = Array.isArray(metadataRecord.tags) ? metadataRecord.tags : []
@@ -133,11 +138,24 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
         const baseOwner = encodeURIComponent(baseRoute.owner)
         const baseRepo = encodeURIComponent(baseRoute.repo)
         const baseMetadataUrl = new URL(`https://huggingface.co/api/models/${baseOwner}/${baseRepo}`)
-        baseMetadataUrl.searchParams.set('expand', 'sha')
+        for (const field of ['sha', 'safetensors', 'gguf']) {
+          baseMetadataUrl.searchParams.append('expand', field)
+        }
         const baseMetadataResponse = await fetcher(baseMetadataUrl.toString(), { headers })
         if (baseMetadataResponse.ok) {
-          const baseMetadata = await baseMetadataResponse.json() as { sha?: unknown }
-          if (typeof baseMetadata.sha === 'string' && baseMetadata.sha) {
+          const baseMetadata = await baseMetadataResponse.json() as Record<string, unknown>
+          const hasExpectedBaseId = baseMetadata.id === `${baseRoute.owner}/${baseRoute.repo}`
+          const derivedParameters = getHuggingFaceParameterCount(metadata)
+          const baseParameters = getHuggingFaceParameterCount(baseMetadata)
+          const parameterRatio = derivedParameters !== null && baseParameters !== null
+            ? derivedParameters / baseParameters
+            : null
+          const hasPlausibleParameterCount = parameterRatio !== null
+            && parameterRatio >= 0.8 && parameterRatio <= 1.2
+          allowEstimate = hasExpectedBaseId && hasPlausibleParameterCount
+
+          if (typeof baseMetadata.sha === 'string' && baseMetadata.sha
+            && allowEstimate && needsBaseConfig) {
             const baseConfigResponse = await fetcher(
               `https://huggingface.co/${baseOwner}/${baseRepo}/resolve/${encodeURIComponent(baseMetadata.sha)}/config.json`,
               { headers },
@@ -147,11 +165,13 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
               configSourceId = `${baseRoute.owner}/${baseRoute.repo}`
             }
           }
+        } else {
+          allowEstimate = false
         }
       }
     }
 
-    return json(normalizeHuggingFaceModel(metadata, config, { configSourceId }))
+    return json(normalizeHuggingFaceModel(metadata, config, { allowEstimate, configSourceId }))
   } catch (error) {
     console.error(JSON.stringify({
       message: 'failed to normalize Hugging Face model',
