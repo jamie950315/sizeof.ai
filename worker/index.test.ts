@@ -16,10 +16,11 @@ describe('Hugging Face model API', () => {
 
   it('uses an internal versioned cache key independent of the public schema query', () => {
     const key = createModelCacheKey(
-      new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2'),
+      new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2&random=uncached'),
     )
 
-    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v2')
+    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v3')
+    expect([...new URL(key.url).searchParams.keys()]).toEqual(['__sizeof_cache'])
   })
 
   it('fetches metadata and config from fixed Hugging Face endpoints', async () => {
@@ -60,6 +61,7 @@ describe('Hugging Face model API', () => {
       expect.any(Object),
     )
     expect(String(fetcher.mock.calls[0]?.[0])).toContain('expand=safetensors')
+    expect(String(fetcher.mock.calls[0]?.[0])).toContain('expand=gguf')
     expect(String(fetcher.mock.calls[0]?.[0])).toContain('expand=downloads')
     expect(String(fetcher.mock.calls[0]?.[0])).toContain('expand=likes')
     expect(fetcher).toHaveBeenNthCalledWith(
@@ -67,6 +69,116 @@ describe('Hugging Face model API', () => {
       'https://huggingface.co/Qwen/Qwen3.8-27B/resolve/abc123/config.json',
       expect.any(Object),
     )
+  })
+
+  it('inherits a revision-locked base config for a full GGUF model repository', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/models/unsloth/Qwen3.8-27B-GGUF')) {
+        return Response.json({
+          id: 'unsloth/Qwen3.8-27B-GGUF',
+          author: 'unsloth',
+          sha: 'derived123',
+          tags: ['gguf', 'base_model:Qwen/Qwen3.8-27B', 'base_model:quantized:Qwen/Qwen3.8-27B'],
+          gguf: { total: 27_320_697_856, context_length: 262144 },
+        })
+      }
+      if (url.includes('/unsloth/Qwen3.8-27B-GGUF/resolve/derived123/config.json')) {
+        return Response.json({})
+      }
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+        return Response.json({ id: 'Qwen/Qwen3.8-27B', sha: 'base456' })
+      }
+      if (url.includes('/Qwen/Qwen3.8-27B/resolve/base456/config.json')) {
+        return Response.json({
+          architectures: ['Qwen3_5ForConditionalGeneration'],
+          num_hidden_layers: 64,
+          num_key_value_heads: 4,
+          num_attention_heads: 24,
+          head_dim: 256,
+          max_position_embeddings: 262144,
+        })
+      }
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/unsloth/Qwen3.8-27B-GGUF'),
+      fetcher,
+    )
+    const body = await response.json() as {
+      parametersB: number
+      quantizationFormat: string
+      configSourceId: string | null
+      spec: { layers: number }
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.parametersB).toBe(27.320697856)
+    expect(body.quantizationFormat).toBe('gguf')
+    expect(body.configSourceId).toBe('Qwen/Qwen3.8-27B')
+    expect(body.spec.layers).toBe(64)
+  })
+
+  it('does not treat a GGUF LoRA adapter as a full base model', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/models/Lab/Adapter-GGUF')) {
+        return Response.json({
+          id: 'Lab/Adapter-GGUF',
+          sha: 'adapter123',
+          tags: ['gguf', 'base_model:Qwen/Qwen3.8-27B', 'base_model:quantized:Qwen/Qwen3.8-27B'],
+          gguf: { total: 25_000_000, architecture: 'lora', context_length: 262144 },
+        })
+      }
+      if (url.includes('/Lab/Adapter-GGUF/resolve/adapter123/config.json')) {
+        return new Response('missing', { status: 404 })
+      }
+      throw new Error(`Unexpected base-model fetch for adapter: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Lab/Adapter-GGUF'),
+      fetcher,
+    )
+    const body = await response.json() as { spec: unknown; configSourceId: string | null }
+
+    expect(response.status).toBe(200)
+    expect(body.spec).toBeNull()
+    expect(body.configSourceId).toBeNull()
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not use a mutable main revision when base metadata omits sha', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/models/Lab/Model-GGUF')) {
+        return Response.json({
+          id: 'Lab/Model-GGUF',
+          sha: 'derived123',
+          tags: ['gguf', 'base_model:Qwen/Qwen3.8-27B', 'base_model:quantized:Qwen/Qwen3.8-27B'],
+          gguf: { total: 27_320_697_856, architecture: 'qwen35', context_length: 262144 },
+        })
+      }
+      if (url.includes('/Lab/Model-GGUF/resolve/derived123/config.json')) {
+        return new Response('missing', { status: 404 })
+      }
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+        return Response.json({ id: 'Qwen/Qwen3.8-27B' })
+      }
+      throw new Error(`Unexpected mutable base config fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Lab/Model-GGUF'),
+      fetcher,
+    )
+    const body = await response.json() as { spec: unknown; configSourceId: string | null }
+
+    expect(response.status).toBe(200)
+    expect(body.spec).toBeNull()
+    expect(body.configSourceId).toBeNull()
+    expect(fetcher).toHaveBeenCalledTimes(3)
   })
 
   it('rejects paths that could escape the fixed Hugging Face origin', async () => {
@@ -90,6 +202,17 @@ describe('Hugging Face model API', () => {
     expect(response.status).toBe(404)
     expect(fetcher).toHaveBeenCalledTimes(1)
     await expect(response.json()).resolves.toEqual({ error: 'Model not found or private' })
+  })
+
+  it('normalizes a metadata network failure into a JSON upstream error', async () => {
+    const fetcher = vi.fn(async () => { throw new Error('connection reset') })
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B'),
+      fetcher,
+    )
+
+    expect(response.status).toBe(502)
+    await expect(response.json()).resolves.toEqual({ error: 'Hugging Face is temporarily unavailable' })
   })
 
   it('does not reveal whether an inaccessible repository is private', async () => {

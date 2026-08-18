@@ -53,7 +53,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByText('16 / 64')).toBeInTheDocument()
     expect(screen.getByText('Full attention layers')).toBeInTheDocument()
     expect(screen.getByText('18.30')).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=3')
+    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=4')
   })
 
   it('shows a useful model-not-found state', async () => {
@@ -105,5 +105,20 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByLabelText('MLA cache layout')).toHaveValue('expanded')
     expect(screen.getByText('REPO QUANTIZATION / MXFP4-PACK-QUANTIZED')).toBeInTheDocument()
     expect(screen.getByText('HYPOTHETICAL GGUF')).toBeInTheDocument()
+  })
+
+  it('discloses when architecture comes from a quantized repository base model', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'Lab/Qwen-GGUF',
+      owner: 'Lab',
+      name: 'Qwen-GGUF',
+      quantizationFormat: 'gguf',
+      configSourceId: 'Qwen/Qwen3.8-27B',
+    })))
+
+    render(<App />)
+
+    expect(await screen.findByText(/ARCHITECTURE FROM Qwen\/Qwen3\.8-27B/)).toBeInTheDocument()
   })
 })

@@ -23,7 +23,7 @@ https://huggingface.co/Qwen/Qwen3.8-27B
 https://sizeof.ai/Qwen/Qwen3.8-27B
 ```
 
-The Worker reads public Hugging Face metadata plus the model's revision-locked `config.json`, normalizes common and nested text architectures, and caches the result at the Cloudflare edge. Models without enough machine-readable architecture data still receive a metadata page, but no VRAM estimate is shown.
+The Worker reads public Hugging Face metadata plus the model's revision-locked `config.json`, normalizes common and nested text architectures, and caches the result at the Cloudflare edge. GGUF repositories use the Hub's logical parameter metadata; when a full quantized repository lacks a usable config, sizeof.ai may inherit a revision-locked config from its explicit `base_model:quantized` relationship. Adapter and LoRA repositories never use this fallback. Models without enough machine-readable architecture data still receive a metadata page, but no VRAM estimate is shown.
 
 ## Estimation model
 

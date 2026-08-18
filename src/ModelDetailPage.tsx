@@ -61,7 +61,7 @@ export default function ModelDetailPage({ route }: Props) {
     let active = true
     setModel(null)
     setError(null)
-    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=3`)
+    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=4`)
       .then(async (response) => {
         const body = await response.json() as HuggingFaceModel | { error?: string }
         if (!response.ok) throw new Error('error' in body && body.error ? body.error : 'Unable to load model')
@@ -245,7 +245,7 @@ export default function ModelDetailPage({ route }: Props) {
             <div><span>{model.spec?.kvCache?.kind === 'mla' ? 'ATTENTION CACHE' : 'KV HEADS / HEAD DIM'}</span><strong>{model.spec?.kvCache?.kind === 'mla' ? 'MLA / ENGINE-DEPENDENT' : model.spec ? `${model.spec.kvHeads} / ${model.spec.headDim}` : '—'}</strong></div>
           </div>
           <div className="hf-source-row">
-            <span>DATA SOURCE / HUGGING FACE PUBLIC API + CONFIG.JSON</span>
+            <span>DATA SOURCE / HUGGING FACE PUBLIC API + CONFIG.JSON{model.configSourceId ? ` / ARCHITECTURE FROM ${model.configSourceId}` : ''}</span>
             <a href={model.sourceUrl} target="_blank" rel="noreferrer">VIEW ORIGINAL <ArrowUpRight size={16} /></a>
           </div>
         </section>

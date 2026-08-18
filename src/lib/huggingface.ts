@@ -24,6 +24,7 @@ export interface HuggingFaceModel {
   attentionLayers: number | null
   maxContext: number | null
   quantizationFormat: string | null
+  configSourceId: string | null
   sourceUrl: string
   spec: ModelSpec | null
 }
@@ -76,6 +77,7 @@ function createModelId(owner: string, name: string) {
 export function normalizeHuggingFaceModel(
   rawMetadata: unknown,
   rawConfig: unknown,
+  options: { configSourceId?: string } = {},
 ): HuggingFaceModel {
   const metadata = asRecord(rawMetadata)
   const config = asRecord(rawConfig)
@@ -87,7 +89,8 @@ export function normalizeHuggingFaceModel(
   const tags = stringArray(metadata.tags)
   const cardData = asRecord(metadata.cardData)
   const safetensors = asRecord(metadata.safetensors)
-  const parameters = positiveNumber(safetensors.total)
+  const gguf = asRecord(metadata.gguf)
+  const parameters = positiveNumber(safetensors.total) ?? positiveNumber(gguf.total)
   const layers = positiveNumber(textConfig.num_hidden_layers)
   const kvHeads = positiveNumber(textConfig.num_key_value_heads)
   const attentionHeads = positiveNumber(textConfig.num_attention_heads)
@@ -99,6 +102,7 @@ export function normalizeHuggingFaceModel(
       : null
   )
   const maxContext = positiveNumber(textConfig.max_position_embeddings)
+    ?? positiveNumber(gguf.context_length)
   const layerTypes = stringArray(textConfig.layer_types)
   const fullAttentionLayers = layerTypes.filter((item) => item === 'full_attention').length
   const linearAttentionConfig = asRecord(textConfig.linear_attn_config)
@@ -132,6 +136,7 @@ export function normalizeHuggingFaceModel(
       : null
   const architecture = stringArray(config.architectures)[0] ?? null
   const modelType = asString(config.model_type) ?? asString(textConfig.model_type)
+    ?? asString(gguf.architecture)
   const pipelineTag = asString(metadata.pipeline_tag)
   const sourceUrl = `https://huggingface.co/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`
   const licenseFromTag = tags.find((tag) => tag.startsWith('license:'))?.slice('license:'.length) ?? null
@@ -142,6 +147,7 @@ export function normalizeHuggingFaceModel(
     ? textQuantizationConfig
     : asRecord(config.quantization_config)
   const quantizationFormat = asString(quantizationConfig.format)
+    ?? (positiveNumber(gguf.total) !== null ? 'gguf' : null)
   const cardLicense = asString(cardData.license)
   const license = cardLicense === 'other'
     ? asString(cardData.license_name) ?? cardLicense
@@ -187,6 +193,7 @@ export function normalizeHuggingFaceModel(
     attentionLayers,
     maxContext,
     quantizationFormat,
+    configSourceId: options.configSourceId ?? null,
     sourceUrl,
     spec,
   }

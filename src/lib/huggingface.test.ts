@@ -180,6 +180,33 @@ describe('normalizeHuggingFaceModel', () => {
     expect(model.quantizationFormat).toBe('gptq')
   })
 
+  it('uses Hub GGUF metadata for logical parameters and published context', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        ...metadata,
+        id: 'unsloth/Qwen3.8-27B-GGUF',
+        safetensors: undefined,
+        gguf: {
+          total: 27_320_697_856,
+          architecture: 'qwen35',
+          context_length: 262144,
+          totalFileSize: 16_337_628_128,
+        },
+      },
+      {
+        num_hidden_layers: 64,
+        num_key_value_heads: 4,
+        num_attention_heads: 24,
+        head_dim: 256,
+      },
+    )
+
+    expect(model.parametersB).toBe(27.320697856)
+    expect(model.maxContext).toBe(262144)
+    expect(model.quantizationFormat).toBe('gguf')
+    expect(model.spec).toMatchObject({ parametersB: 27.320697856, maxContext: 262144 })
+  })
+
   it('falls back to a root quantization config for nested text architectures', () => {
     const model = normalizeHuggingFaceModel(
       metadata,
