@@ -11,6 +11,7 @@ export type HuggingFaceModelKind =
   | 'image'
   | 'video'
   | 'audio'
+  | 'embedding'
   | 'adapter'
   | 'workflow'
   | 'other'
@@ -19,6 +20,7 @@ export type HuggingFaceEstimateReason =
   | 'adapter-only'
   | 'modality-specific'
   | 'workflow-artifact'
+  | 'encoder-model'
   | 'parameter-mismatch'
   | 'unverified-base'
   | 'missing-parameters'
@@ -131,15 +133,21 @@ function classifyModel(metadata: UnknownRecord, config: UnknownRecord): HuggingF
   }
   if (contains([
     'text-to-speech', 'text-to-audio', 'automatic-speech-recognition', 'audio-to-audio',
-    'audio-classification', 'voice-cloning', 'tts',
+    'audio-classification', 'voice-cloning', 'voice-activity-detection',
+    'speaker-diarization', 'speaker-segmentation', 'music-transcription', 'audio-to-midi', 'tts',
   ])) return 'audio'
   if (contains([
     'text-to-image', 'image-to-image', 'image-generation', 'unconditional-image-generation',
-    'image-classification', 'object-detection', 'depth-estimation', 'diffusers',
+    'image-classification', 'mask-generation', 'image-segmentation', 'object-detection',
+    'depth-estimation', 'diffusers',
   ])) return 'image'
   if (contains(['comfyui', 'workflow', 'chat-template', 'chat_template'])) return 'workflow'
   if (contains([
-    'text-generation', 'text2text-generation', 'conversational', 'fill-mask',
+    'visual-document-retrieval', 'sentence-similarity', 'feature-extraction',
+    'fill-mask', 'masked-lm', 'bidirectional', 'document-retrieval', 'embedding',
+  ])) return 'embedding'
+  if (contains([
+    'text-generation', 'text2text-generation', 'conversational',
     'question-answering', 'summarization', 'translation',
   ])) return 'language'
 
@@ -176,6 +184,8 @@ export function normalizeHuggingFaceModel(
     allowEstimate?: boolean
     configSourceId?: string
     estimateReason?: HuggingFaceEstimateReason
+    modelKindOverride?: HuggingFaceModelKind
+    parameterCountOverride?: number
   } = {},
 ): HuggingFaceModel {
   const metadata = asRecord(rawMetadata)
@@ -188,7 +198,8 @@ export function normalizeHuggingFaceModel(
   const tags = stringArray(metadata.tags)
   const cardData = asRecord(metadata.cardData)
   const gguf = asRecord(metadata.gguf)
-  const parameters = getHuggingFaceParameterCount(metadata)
+  const parameters = positiveNumber(options.parameterCountOverride)
+    ?? getHuggingFaceParameterCount(metadata)
   const layers = positiveNumber(textConfig.num_hidden_layers)
   const kvHeads = positiveNumber(textConfig.num_key_value_heads)
   const attentionHeads = positiveNumber(textConfig.num_attention_heads)
@@ -236,7 +247,7 @@ export function normalizeHuggingFaceModel(
   const modelType = asString(config.model_type) ?? asString(textConfig.model_type)
     ?? asString(gguf.architecture)
   const pipelineTag = asString(metadata.pipeline_tag)
-  const modelKind = classifyModel(metadata, config)
+  const modelKind = options.modelKindOverride ?? classifyModel(metadata, config)
   const tensorSizeBytes = safetensorsSizeBytes(metadata)
   const repositorySizeBytes = positiveNumber(metadata.usedStorage)
   const sourceUrl = `https://huggingface.co/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`
@@ -247,7 +258,19 @@ export function normalizeHuggingFaceModel(
   const quantizationConfig = Object.keys(textQuantizationConfig).length > 0
     ? textQuantizationConfig
     : asRecord(config.quantization_config)
+  const mlxBitTag = asString(metadata.library_name)?.toLowerCase() === 'mlx'
+    ? tags.find((tag) => /^\d+-bit$/i.test(tag))?.toLowerCase() ?? null
+    : null
   const quantizationFormat = asString(quantizationConfig.format)
+    ?? (() => {
+      const method = asString(quantizationConfig.quant_method)
+        ?? asString(quantizationConfig.quantization_method)
+        ?? asString(quantizationConfig.method)
+      const bits = positiveNumber(quantizationConfig.bits)
+      return method ? `${method}${bits ? `-${bits}bit` : ''}` : null
+    })()
+    ?? (tags.some((tag) => tag.toLowerCase() === 'fp8') ? 'fp8' : null)
+    ?? (mlxBitTag ? `mlx-${mlxBitTag}` : null)
     ?? (positiveNumber(gguf.total) !== null ? 'gguf' : null)
   const cardLicense = asString(cardData.license)
   const license = cardLicense === 'other'
@@ -280,20 +303,22 @@ export function normalizeHuggingFaceModel(
 
   const estimateReason: HuggingFaceEstimateReason | null = spec !== null
     ? null
-    : options.estimateReason
-      ?? (modelKind === 'adapter'
-        ? 'adapter-only'
-        : modelKind === 'workflow'
-          ? 'workflow-artifact'
+    : modelKind === 'adapter'
+      ? 'adapter-only'
+      : modelKind === 'workflow'
+        ? 'workflow-artifact'
+        : modelKind === 'embedding'
+          ? 'encoder-model'
           : !isLlmMemoryModel
             ? 'modality-specific'
-            : parameters === null
-              ? 'missing-parameters'
-              : layers === null || attentionLayers === null
-                ? 'missing-layers'
-                : maxContext === null
-                  ? 'missing-context'
-                  : 'missing-kv-geometry')
+            : options.estimateReason
+              ?? (parameters === null
+                ? 'missing-parameters'
+                : layers === null || attentionLayers === null
+                  ? 'missing-layers'
+                  : maxContext === null
+                    ? 'missing-context'
+                    : 'missing-kv-geometry')
 
   return {
     id: rawId,
@@ -328,5 +353,15 @@ export function getHuggingFaceParameterCount(rawMetadata: unknown): number | nul
   const metadata = asRecord(rawMetadata)
   const safetensors = asRecord(metadata.safetensors)
   const gguf = asRecord(metadata.gguf)
-  return positiveNumber(safetensors.total) ?? positiveNumber(gguf.total)
+  const dtypeParameters = asRecord(safetensors.parameters)
+  const dtypeEntries = Object.entries(dtypeParameters)
+  const floatingDtypes = new Set(['BF16', 'F16', 'F32', 'F64'])
+  const floatingTotal = dtypeEntries.length > 0
+    && dtypeEntries.every(([dtype, count]) => floatingDtypes.has(dtype.toUpperCase())
+      && positiveNumber(count) !== null)
+    ? dtypeEntries.reduce((sum, [, count]) => sum + (positiveNumber(count) ?? 0), 0)
+    : null
+  return positiveNumber(floatingTotal)
+    ?? positiveNumber(safetensors.total)
+    ?? positiveNumber(gguf.total)
 }

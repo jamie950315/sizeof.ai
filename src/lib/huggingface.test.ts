@@ -319,6 +319,99 @@ describe('normalizeHuggingFaceModel', () => {
     expect(model.tensorSizeBytes).toBeNull()
   })
 
+  it('uses the floating dtype map when the Hub safetensors total is self-contradictory', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        ...metadata,
+        id: 'tencent/UI-Mate-27B',
+        safetensors: {
+          total: 3_054_832,
+          parameters: { BF16: 27_356_728_560 },
+        },
+      },
+      hybridConfig,
+    )
+
+    expect(model.parametersB).toBe(27.35672856)
+    expect(model.spec?.parametersB).toBe(27.35672856)
+  })
+
+  it('keeps bidirectional encoders out of autoregressive KV-cache estimates', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        id: 'LiquidAI/LFM2.5-Encoder-350M',
+        pipeline_tag: 'fill-mask',
+        tags: ['transformers', 'fill-mask', 'bidirectional', 'masked-lm', 'encoder'],
+        safetensors: { total: 354_483_968, parameters: { BF16: 354_483_968 } },
+      },
+      {
+        architectures: ['Lfm2BidirectionalForMaskedLM'],
+        model_type: 'lfm2',
+        num_hidden_layers: 16,
+        num_key_value_heads: 6,
+        num_attention_heads: 24,
+        head_dim: 64,
+        max_position_embeddings: 128000,
+      },
+    )
+
+    expect(model.modelKind).toBe('embedding')
+    expect(model.estimateReason).toBe('encoder-model')
+    expect(model.spec).toBeNull()
+  })
+
+  it('classifies segmentation and speech-analysis pipelines by their primary modality', () => {
+    const image = normalizeHuggingFaceModel(
+      {
+        id: 'facebook/sam3',
+        pipeline_tag: 'mask-generation',
+        tags: ['feature-extraction', 'mask-generation'],
+        safetensors: { total: 859_922_360, parameters: { BF16: 859_922_360 } },
+      },
+      {},
+    )
+    const audio = normalizeHuggingFaceModel(
+      {
+        id: 'pyannote/segmentation-3.0',
+        pipeline_tag: 'voice-activity-detection',
+        tags: ['speaker-segmentation', 'feature-extraction'],
+      },
+      {},
+    )
+
+    expect(image.modelKind).toBe('image')
+    expect(image.estimateReason).toBe('modality-specific')
+    expect(audio.modelKind).toBe('audio')
+    expect(audio.estimateReason).toBe('modality-specific')
+  })
+
+  it('keeps modality-specific reasons when lineage checks also fail', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        id: 'Example/Video-Quant',
+        pipeline_tag: 'image-to-video',
+        gguf: { total: 21_004_025_600 },
+      },
+      {},
+      { allowEstimate: false, estimateReason: 'parameter-mismatch' },
+    )
+
+    expect(model.modelKind).toBe('video')
+    expect(model.estimateReason).toBe('modality-specific')
+  })
+
+  it('describes quantization from method and bit fields when format is absent', () => {
+    const model = normalizeHuggingFaceModel(
+      metadata,
+      {
+        ...hybridConfig,
+        quantization_config: { quant_method: 'auto-round', bits: 4 },
+      },
+    )
+
+    expect(model.quantizationFormat).toBe('auto-round-4bit')
+  })
+
   it('does not invent a fractional head dimension', () => {
     const model = normalizeHuggingFaceModel(
       metadata,
