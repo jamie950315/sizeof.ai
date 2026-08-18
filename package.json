@@ -19,7 +19,6 @@
   "dependencies": {
     "@fontsource-variable/archivo": "latest",
     "@fontsource-variable/jetbrains-mono": "latest",
-    "@huggingface/gguf": "latest",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest"

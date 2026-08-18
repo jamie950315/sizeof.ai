@@ -15,22 +15,31 @@ import {
   type NInferManifestFacts,
   type VariantArtifactManifestFacts,
 } from '../src/lib/huggingface-variants'
-import { gguf } from '@huggingface/gguf'
-import { deriveGgufModelFacts } from '../src/lib/gguf'
+import { deriveGgufModelFacts, parseGgufMetadataPrefix } from '../src/lib/gguf'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 type GgufReader = (
   url: string,
   options: { fetch: Fetcher; additionalFetchHeaders: Record<string, string> },
-) => Promise<{ metadata: unknown; parameterCount: number }>
+) => Promise<{ metadata: unknown; parameterCount: number | null }>
 
-const readGguf: GgufReader = async (url, options) => {
-  const result = await gguf(url, {
-    computeParametersCount: true,
-    fetch: options.fetch,
-    additionalFetchHeaders: options.additionalFetchHeaders,
+export const readGguf: GgufReader = async (url, options) => {
+  const fetcher = options.fetch
+  const response = await fetcher(url, {
+    headers: {
+      ...options.additionalFetchHeaders,
+      Range: 'bytes=0-524287',
+    },
   })
-  return { metadata: result.metadata, parameterCount: result.parameterCount }
+  if (!response.ok) throw new Error('Unable to read GGUF metadata')
+  const contentLength = Number(response.headers.get('Content-Length'))
+  if (Number.isFinite(contentLength) && contentLength > 1_048_576) {
+    throw new Error('GGUF server ignored bounded Range request')
+  }
+  return {
+    metadata: parseGgufMetadataPrefix(await response.arrayBuffer()),
+    parameterCount: null,
+  }
 }
 
 const responseHeaders = {
@@ -220,7 +229,7 @@ async function discoverRepoVariants(
 export function createModelCacheKey(request: Request) {
   const url = new URL(request.url)
   url.search = ''
-  url.searchParams.set('__sizeof_cache', 'hf-model-v13')
+  url.searchParams.set('__sizeof_cache', 'hf-model-v15')
   return new Request(url.toString())
 }
 
@@ -384,8 +393,13 @@ export async function handleModelApi(
               parameterCountOverride = facts.parameterCount
               parameterCountKind = 'logical'
             }
-          } catch {
-            // GGUF parsing is best-effort; published file sizes remain usable.
+          } catch (error) {
+            console.warn(JSON.stringify({
+              message: 'unable to read full-model GGUF metadata',
+              model: modelId,
+              artifact: candidate.path,
+              error: error instanceof Error ? error.message : String(error),
+            }))
           }
         }
       }

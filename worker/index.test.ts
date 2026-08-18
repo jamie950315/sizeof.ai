@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { applyAssetCachePolicy, createModelCacheKey, handleModelApi } from './index'
+import { applyAssetCachePolicy, createModelCacheKey, handleModelApi, readGguf } from './index'
 
 describe('Hugging Face model API', () => {
   it('requires HTML shells to revalidate while leaving hashed assets cacheable', () => {
@@ -19,8 +19,28 @@ describe('Hugging Face model API', () => {
       new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2&random=uncached'),
     )
 
-    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v13')
+    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v15')
     expect([...new URL(key.url).searchParams.keys()]).toEqual(['__sizeof_cache'])
+  })
+
+  it('calls the GGUF Range fetcher without an illegal method binding', async () => {
+    const buffer = new ArrayBuffer(24)
+    const bytes = new Uint8Array(buffer)
+    bytes.set(new TextEncoder().encode('GGUF'))
+    const view = new DataView(buffer)
+    view.setUint32(4, 3, true)
+    const fetcher = async function (this: unknown) {
+      if (this !== undefined) throw new Error('Illegal invocation')
+      return new Response(buffer, {
+        status: 206,
+        headers: { 'Content-Length': String(buffer.byteLength) },
+      })
+    }
+
+    await expect(readGguf('https://huggingface.co/model.gguf', {
+      fetch: fetcher,
+      additionalFetchHeaders: {},
+    })).resolves.toEqual({ metadata: {}, parameterCount: null })
   })
 
   it('fetches metadata and config from fixed Hugging Face endpoints', async () => {

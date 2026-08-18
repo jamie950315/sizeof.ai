@@ -1,7 +1,63 @@
 import { describe, expect, it } from 'vitest'
-import { deriveGgufModelFacts } from './gguf'
+import { deriveGgufModelFacts, parseGgufMetadataPrefix } from './gguf'
+
+function ggufMetadataFixture(entries: Array<[string, string | number]>) {
+  const bytes: number[] = [...new TextEncoder().encode('GGUF')]
+  const uint32 = (value: number) => {
+    const buffer = new ArrayBuffer(4)
+    new DataView(buffer).setUint32(0, value, true)
+    bytes.push(...new Uint8Array(buffer))
+  }
+  const uint64 = (value: number) => {
+    const buffer = new ArrayBuffer(8)
+    new DataView(buffer).setBigUint64(0, BigInt(value), true)
+    bytes.push(...new Uint8Array(buffer))
+  }
+  const string = (value: string) => {
+    const encoded = new TextEncoder().encode(value)
+    uint64(encoded.length)
+    bytes.push(...encoded)
+  }
+  uint32(3)
+  uint64(0)
+  uint64(entries.length)
+  for (const [key, value] of entries) {
+    string(key)
+    if (typeof value === 'string') {
+      uint32(8)
+      string(value)
+    } else {
+      uint32(4)
+      uint32(value)
+    }
+  }
+  return new Uint8Array(bytes).buffer
+}
 
 describe('deriveGgufModelFacts', () => {
+  it('reads calculator metadata from a bounded GGUF prefix', () => {
+    const metadata = parseGgufMetadataPrefix(ggufMetadataFixture([
+      ['general.architecture', 'qwen35'],
+      ['general.type', 'model'],
+      ['general.size_label', '27B'],
+      ['qwen35.block_count', 65],
+      ['qwen35.context_length', 262_144],
+      ['qwen35.attention.head_count', 24],
+      ['qwen35.attention.head_count_kv', 4],
+      ['qwen35.attention.key_length', 256],
+      ['qwen35.nextn_predict_layers', 1],
+      ['qwen35.full_attention_interval', 4],
+    ]))
+
+    expect(metadata).toMatchObject({
+      'general.architecture': 'qwen35',
+      'general.size_label': '27B',
+      'qwen35.block_count': 65,
+      'qwen35.attention.key_length': 256,
+    })
+    expect(deriveGgufModelFacts(metadata, null)?.parameterCount).toBe(27_000_000_000)
+  })
+
   it('turns full-model GGUF metadata into calculator architecture facts', () => {
     const facts = deriveGgufModelFacts({
       'general.architecture': 'qwen35',
