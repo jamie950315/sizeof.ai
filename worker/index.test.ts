@@ -19,7 +19,7 @@ describe('Hugging Face model API', () => {
       new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2&random=uncached'),
     )
 
-    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v5')
+    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v6')
     expect([...new URL(key.url).searchParams.keys()]).toEqual(['__sizeof_cache'])
   })
 
@@ -239,7 +239,14 @@ describe('Hugging Face model API', () => {
         })
       }
       if (url.includes('/Lab/Adapter-GGUF/resolve/adapter123/config.json')) {
-        return new Response('missing', { status: 404 })
+        return Response.json({
+          architectures: ['Qwen3_5ForConditionalGeneration'],
+          num_hidden_layers: 64,
+          num_key_value_heads: 4,
+          num_attention_heads: 24,
+          head_dim: 256,
+          max_position_embeddings: 262144,
+        })
       }
       throw new Error(`Unexpected base-model fetch for adapter: ${url}`)
     })

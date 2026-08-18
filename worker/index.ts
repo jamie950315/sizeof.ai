@@ -27,7 +27,7 @@ function apiRoute(pathname: string) {
 export function createModelCacheKey(request: Request) {
   const url = new URL(request.url)
   url.search = ''
-  url.searchParams.set('__sizeof_cache', 'hf-model-v5')
+  url.searchParams.set('__sizeof_cache', 'hf-model-v6')
   return new Request(url.toString())
 }
 
@@ -132,6 +132,8 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
       const isAdapter = tags.some((tag) => typeof tag === 'string'
         && ['lora', 'peft', 'adapter'].some((marker) => tag.toLowerCase().includes(marker)))
         || ['lora', 'adapter'].some((marker) => ggufArchitecture.includes(marker))
+
+      if (isAdapter) allowEstimate = false
 
       if (hasFullGguf && hasQuantizedBaseRelation && !isAdapter && baseRoute
         && `${baseRoute.owner}/${baseRoute.repo}` !== `${route.owner}/${route.repo}`) {
