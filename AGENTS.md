@@ -14,7 +14,9 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 ## Current Status
 
 - 2026-08-18: Initial calculator, URL sharing, VRAM recommendations, catalog, methodology, responsive UI, and Cloudflare configuration implemented.
-- Pending: full verification, browser QA, Cloudflare dry-run, and production deployment.
+- 2026-08-18: Production deployment is live on `https://sizeof.ai` and `https://www.sizeof.ai` through Cloudflare Workers Static Assets.
+- Cloudflare production version: `e1ca2f34-6e6c-4051-afd3-0743e63bd43b`.
+- Browser QA covers 1280px desktop and 390px mobile; local artifacts remain ignored under `output/playwright/`.
 
 ## Commands
 
