@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
@@ -57,7 +58,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByText('16 / 64')).toBeInTheDocument()
     expect(screen.getByText('Full attention layers')).toBeInTheDocument()
     expect(screen.getByText('18.30')).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=6')
+    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=7')
   })
 
   it('shows a useful model-not-found state', async () => {
@@ -154,5 +155,66 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(profile).getByText('64.50 GiB')).toBeInTheDocument()
     expect(screen.getByText(/modality-specific runtime memory/i)).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Model VRAM calculator' })).not.toBeInTheDocument()
+  })
+
+  it('lets the user select detected repository variants and sizes VRAM from their actual weights', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      parameterCountKind: 'logical',
+      addon: null,
+      variants: [
+        {
+          id: 'q4', label: 'GGUF Q4_K_M', format: 'gguf', revision: 'sha1', path: 'q4.gguf',
+          source: 'file', role: 'model', bitsPerWeight: 4, weightSizeBytes: 10 * 1024 ** 3,
+          totalSizeBytes: 10.1 * 1024 ** 3,
+        },
+        {
+          id: 'q8', label: 'GGUF Q8_0', format: 'gguf', revision: 'sha1', path: 'q8.gguf',
+          source: 'file', role: 'model', bitsPerWeight: 8, weightSizeBytes: 20 * 1024 ** 3,
+          totalSizeBytes: 20.1 * 1024 ** 3,
+        },
+      ],
+    })))
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    const variants = await screen.findByRole('region', { name: 'Detected model variants' })
+    const selector = within(variants).getByLabelText('Repository variant')
+    expect(selector).toHaveValue('q4')
+    expect(within(variants).getByText('10.00 GiB')).toBeInTheDocument()
+    const calculator = screen.getByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByText('10.00 GiB', { selector: 'strong' })).toBeInTheDocument()
+
+    await user.selectOptions(selector, 'q8')
+
+    expect(within(variants).getByText('20.00 GiB')).toBeInTheDocument()
+    expect(within(calculator).getByText('20.00 GiB', { selector: 'strong' })).toBeInTheDocument()
+  })
+
+  it('shows an MTP addon separately and adds it to base-model VRAM', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      parameterCountKind: 'logical',
+      variants: [{
+        id: 'mtp', label: 'GGUF mtp-head', format: 'gguf', revision: 'sha1', path: 'mtp-head.gguf',
+        source: 'file', role: 'addon', bitsPerWeight: null, weightSizeBytes: 512 * 1024 ** 2,
+        totalSizeBytes: 512 * 1024 ** 2,
+      }],
+      addon: {
+        kind: 'mtp', baseModelId: 'Qwen/Qwen3.8-27B', parametersB: 0.46,
+        sizeBytes: 512 * 1024 ** 2,
+      },
+    })))
+
+    render(<App />)
+
+    const variants = await screen.findByRole('region', { name: 'Detected model variants' })
+    expect(within(variants).getByText('BASE MODEL / Qwen/Qwen3.8-27B')).toBeInTheDocument()
+    expect(within(variants).queryByText('SUPPORT ARTIFACTS')).not.toBeInTheDocument()
+
+    const calculator = screen.getByRole('region', { name: 'Model VRAM calculator' })
+    const addonLabel = within(calculator).getByText('MTP addon')
+    expect(addonLabel.parentElement).toHaveTextContent('0.50 GiB')
   })
 })

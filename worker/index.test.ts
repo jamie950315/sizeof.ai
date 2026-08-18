@@ -19,7 +19,7 @@ describe('Hugging Face model API', () => {
       new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2&random=uncached'),
     )
 
-    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v9')
+    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v13')
     expect([...new URL(key.url).searchParams.keys()]).toEqual(['__sizeof_cache'])
   })
 
@@ -70,6 +70,39 @@ describe('Hugging Face model API', () => {
       'https://huggingface.co/Qwen/Qwen3.8-27B/resolve/abc123/config.json',
       expect.any(Object),
     )
+  })
+
+  it('keeps model lookup available when optional tree data is malformed', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/tree/abc123')) return new Response('{malformed', { status: 200 })
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+        return Response.json({
+          id: 'Qwen/Qwen3.8-27B',
+          sha: 'abc123',
+          safetensors: { total: 27_781_427_952 },
+        })
+      }
+      if (url.includes('/resolve/abc123/config.json')) {
+        return Response.json({
+          num_hidden_layers: 64,
+          num_key_value_heads: 4,
+          head_dim: 256,
+          max_position_embeddings: 262_144,
+        })
+      }
+      throw new Error(`Unexpected malformed-tree fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B'),
+      fetcher,
+    )
+    const body = await response.json() as { spec: unknown; variants: unknown[] }
+
+    expect(response.status).toBe(200)
+    expect(body.spec).not.toBeNull()
+    expect(body.variants).toEqual([])
   })
 
   it('inherits a revision-locked base config for a full GGUF model repository', async () => {
@@ -125,16 +158,21 @@ describe('Hugging Face model API', () => {
     expect(body.spec.layers).toBe(64)
   })
 
-  it('does not estimate a sidecar whose parameter count is implausible for its quantized base model', async () => {
+  it('combines an MTP sidecar with its revision-locked base model', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
+      if (url.includes('/Lab/Qwen-MTP-GGUF/tree/derived123')) {
+        return Response.json([
+          { type: 'file', path: 'mtp-head.gguf', size: 503_316_480 },
+        ])
+      }
       if (url.includes('/api/models/Lab/Qwen-MTP-GGUF')) {
         return Response.json({
           id: 'Lab/Qwen-MTP-GGUF',
           author: 'Lab',
           sha: 'derived123',
           tags: [
-            'gguf',
+            'gguf', 'mtp',
             'base_model:unsloth/Qwen3.8-27B-NVFP4',
             'base_model:quantized:unsloth/Qwen3.8-27B-NVFP4',
           ],
@@ -169,6 +207,23 @@ describe('Hugging Face model API', () => {
           max_position_embeddings: 262144,
         })
       }
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+        return Response.json({
+          id: 'Qwen/Qwen3.8-27B',
+          sha: 'base789',
+          safetensors: { total: 27_781_427_952, parameters: { BF16: 27_781_427_952 } },
+        })
+      }
+      if (url.includes('/Qwen/Qwen3.8-27B/resolve/base789/config.json')) {
+        return Response.json({
+          architectures: ['Qwen3_5ForConditionalGeneration'],
+          num_hidden_layers: 64,
+          num_key_value_heads: 4,
+          num_attention_heads: 24,
+          head_dim: 256,
+          max_position_embeddings: 262144,
+        })
+      }
       throw new Error(`Unexpected fetch: ${url}`)
     })
 
@@ -179,17 +234,77 @@ describe('Hugging Face model API', () => {
     const body = await response.json() as {
       parametersB: number
       configSourceId: string | null
-      spec: unknown
+      spec: { parametersB: number }
+      addon: { kind: string; baseModelId: string; parametersB: number; sizeBytes: number }
     }
 
     expect(response.status).toBe(200)
-    expect(body.parametersB).toBe(0.460730096)
-    expect(body.spec).toBeNull()
+    expect(body.parametersB).toBe(27.781427952)
+    expect(body.spec.parametersB).toBe(27.781427952)
     expect(body.configSourceId).toBeNull()
-    const baseMetadataCall = String(fetcher.mock.calls[2]?.[0])
-    expect(baseMetadataCall).toContain('expand=sha')
-    expect(baseMetadataCall).toContain('expand=safetensors')
-    expect(fetcher).toHaveBeenCalledTimes(3)
+    expect(body.addon).toEqual({
+      kind: 'mtp',
+      baseModelId: 'Qwen/Qwen3.8-27B',
+      parametersB: 0.460730096,
+      sizeBytes: 503_316_480,
+    })
+  })
+
+  it('uses full-model GGUF metadata when a projector overrides repository-level facts', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/Lab/Composite-GGUF/tree/composite123')) {
+        return Response.json([
+          { type: 'file', path: 'Model-Q4_K_M.gguf', size: 16_810_714_432 },
+          { type: 'file', path: 'mmproj-F32.gguf', size: 1_842_940_128 },
+        ])
+      }
+      if (url.includes('/api/models/Lab/Composite-GGUF')) {
+        return Response.json({
+          id: 'Lab/Composite-GGUF',
+          sha: 'composite123',
+          tags: ['gguf', 'image-text-to-text'],
+          gguf: { total: 460_730_096, architecture: 'clip', context_length: 262_144 },
+        })
+      }
+      if (url.includes('/Lab/Composite-GGUF/resolve/composite123/config.json')) {
+        return Response.json({})
+      }
+      throw new Error(`Unexpected composite fetch: ${url}`)
+    })
+    const ggufReader = vi.fn(async () => ({
+      parameterCount: 27_320_697_856,
+      metadata: {
+        'general.architecture': 'qwen35',
+        'general.type': 'model',
+        'qwen35.block_count': 65,
+        'qwen35.context_length': 262_144,
+        'qwen35.attention.head_count': 24,
+        'qwen35.attention.head_count_kv': 4,
+        'qwen35.attention.key_length': 256,
+        'qwen35.nextn_predict_layers': 1,
+        'qwen35.full_attention_interval': 4,
+      },
+      tensorInfos: [],
+    }))
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Lab/Composite-GGUF'),
+      fetcher,
+      ggufReader,
+    )
+    const body = await response.json() as {
+      parametersB: number
+      configSourceId: string | null
+      spec: { layers: number; attentionLayers: number }
+      variants: Array<{ role: string }>
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.parametersB).toBe(27.320697856)
+    expect(body.configSourceId).toBe('GGUF / Model-Q4_K_M.gguf')
+    expect(body.spec).toMatchObject({ layers: 64, attentionLayers: 16 })
+    expect(body.variants.map((variant) => variant.role)).toEqual(['model', 'projector'])
   })
 
   it('does not trust metadata returned for a different base model id', async () => {
@@ -225,7 +340,6 @@ describe('Hugging Face model API', () => {
     expect(response.status).toBe(200)
     expect(body.spec).toBeNull()
     expect(body.configSourceId).toBeNull()
-    expect(fetcher).toHaveBeenCalledTimes(3)
   })
 
   it('does not treat a GGUF LoRA adapter as a full base model', async () => {
@@ -261,7 +375,6 @@ describe('Hugging Face model API', () => {
     expect(response.status).toBe(200)
     expect(body.spec).toBeNull()
     expect(body.configSourceId).toBeNull()
-    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
   it('uses logical base parameters for a complete packed quantized model', async () => {
@@ -379,7 +492,227 @@ describe('Hugging Face model API', () => {
     expect(body.quantizationFormat).toBe('mlx-8-bit')
   })
 
-  it('does not estimate packed quantized weights without a verifiable base relation', async () => {
+  it('discovers path-based MLX variants and uses their exact payload sizes', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/PocketAiHub/Qwen3.8-9B-Abliterated-MLX/tree/pocket123')) {
+        if (url.includes('cursor=page2')) {
+          return Response.json([
+            { type: 'file', path: '4bit/model-2.safetensors', size: 950_000_000 },
+            { type: 'file', path: '4bit/artifact-manifest.json', size: 2_816 },
+            { type: 'file', path: '8bit/model.safetensors', size: 10_400_000_000 },
+            { type: 'file', path: 'release-manifest.json', size: 2_000 },
+          ])
+        }
+        return Response.json([
+          { type: 'file', path: '4bit/config.json', size: 3_697 },
+          { type: 'file', path: '4bit/model-1.safetensors', size: 5_000_000_000 },
+        ], {
+          headers: {
+            Link: '<https://huggingface.co/api/models/PocketAiHub/Qwen3.8-9B-Abliterated-MLX/tree/pocket123?recursive=true&expand=true&limit=100&cursor=page2>; rel="next"',
+          },
+        })
+      }
+      if (url.includes('/resolve/pocket123/release-manifest.json')) {
+        return Response.json({ variants: [
+          { path: '4bit', precision: '4-bit', total_size_bytes: 5_977_078_438 },
+          { path: '8bit', precision: '8-bit', total_size_bytes: 10_453_449_005 },
+        ] })
+      }
+      if (url.includes('/resolve/pocket123/4bit/artifact-manifest.json')) {
+        return Response.json({ metadata: {
+          sourceRepository: 'empero-ai/Qwen3.8-9B',
+          sourceRevision: '0934f3d2327ff2df2197495278c4c46ae5a56bd9',
+          baseModel: 'Qwen/Qwen3.5-9B',
+        } })
+      }
+      if (url.includes('/api/models/PocketAiHub/Qwen3.8-9B-Abliterated-MLX')) {
+        return Response.json({
+          id: 'PocketAiHub/Qwen3.8-9B-Abliterated-MLX',
+          sha: 'pocket123',
+          library_name: 'mlx',
+          tags: ['mlx', '4-bit', '8-bit'],
+          siblings: [{ rfilename: 'release-manifest.json' }],
+        })
+      }
+      if (url.includes('/PocketAiHub/Qwen3.8-9B-Abliterated-MLX/resolve/pocket123/config.json')) {
+        return new Response('missing', { status: 404 })
+      }
+      if (url.includes('/api/models/Qwen/Qwen3.5-9B')) {
+        return Response.json({
+          id: 'Qwen/Qwen3.5-9B', sha: 'base456',
+          safetensors: { total: 9_653_104_368, parameters: { BF16: 9_653_104_368 } },
+        })
+      }
+      if (url.includes('/Qwen/Qwen3.5-9B/resolve/base456/config.json')) {
+        return Response.json({
+          model_type: 'qwen3_5', num_hidden_layers: 32, num_key_value_heads: 4,
+          num_attention_heads: 16, head_dim: 256, max_position_embeddings: 262144,
+        })
+      }
+      throw new Error(`Unexpected MLX variant fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(new Request(
+      'https://sizeof.ai/api/models/PocketAiHub/Qwen3.8-9B-Abliterated-MLX',
+    ), fetcher)
+    const body = await response.json() as {
+      parametersB: number
+      spec: { parametersB: number }
+      variants: Array<{ label: string; weightSizeBytes: number; totalSizeBytes: number }>
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.parametersB).toBe(9.653104368)
+    expect(body.spec.parametersB).toBe(9.653104368)
+    expect(body.variants).toEqual([
+      expect.objectContaining({
+        label: 'MLX 4-bit', weightSizeBytes: 5_950_000_000, totalSizeBytes: 5_977_078_438,
+      }),
+      expect.objectContaining({
+        label: 'MLX 8-bit', weightSizeBytes: 10_400_000_000, totalSizeBytes: 10_453_449_005,
+      }),
+    ])
+  })
+
+  it('discovers EXL variants from revision-locked branches', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/turboderp/Qwen3.8-27B-exl3/tree/main123')) {
+        return Response.json([{ type: 'file', path: 'README.md', size: 1_214 }])
+      }
+      if (url.includes('/api/models/turboderp/Qwen3.8-27B-exl3/refs')) {
+        return Response.json({ branches: [
+          { name: 'main', targetCommit: 'main123' },
+          { name: '2.00bpw', targetCommit: '2000000000000000000000000000000000000000' },
+          { name: '4.00bpw', targetCommit: '4000000000000000000000000000000000000000' },
+        ] })
+      }
+      if (url.includes('/tree/2000000000000000000000000000000000000000')) {
+        return Response.json([
+          { type: 'file', path: 'config.json', size: 4_000 },
+          { type: 'file', path: 'output-1.safetensors', size: 8_500_000_000 },
+          { type: 'file', path: 'output-2.safetensors', size: 2_278_000_000 },
+        ])
+      }
+      if (url.includes('/tree/4000000000000000000000000000000000000000')) {
+        return Response.json([
+          { type: 'file', path: 'config.json', size: 4_000 },
+          { type: 'file', path: 'output.safetensors', size: 16_884_000_000 },
+        ])
+      }
+      if (url.includes('/api/models/turboderp/Qwen3.8-27B-exl3')) {
+        return Response.json({
+          id: 'turboderp/Qwen3.8-27B-exl3', sha: 'main123',
+          tags: [
+            'exl3', 'base_model:Qwen/Qwen3.8-27B',
+            'base_model:quantized:Qwen/Qwen3.8-27B',
+          ],
+        })
+      }
+      if (url.includes('/turboderp/Qwen3.8-27B-exl3/resolve/main123/config.json')) {
+        return new Response('missing', { status: 404 })
+      }
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+        return Response.json({
+          id: 'Qwen/Qwen3.8-27B', sha: 'base456',
+          safetensors: { total: 27_781_427_952, parameters: { BF16: 27_781_427_952 } },
+        })
+      }
+      if (url.includes('/Qwen/Qwen3.8-27B/resolve/base456/config.json')) {
+        return Response.json({
+          num_hidden_layers: 64, num_key_value_heads: 4, num_attention_heads: 24,
+          head_dim: 256, max_position_embeddings: 262144,
+        })
+      }
+      throw new Error(`Unexpected EXL variant fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/turboderp/Qwen3.8-27B-exl3'),
+      fetcher,
+    )
+    const body = await response.json() as {
+      spec: { parametersB: number }
+      variants: Array<{ label: string; revision: string; weightSizeBytes: number }>
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.spec.parametersB).toBe(27.781427952)
+    expect(body.variants).toEqual([
+      expect.objectContaining({
+        label: 'EXL3 2.00 bpw', revision: '2000000000000000000000000000000000000000',
+        weightSizeBytes: 10_778_000_000,
+      }),
+      expect.objectContaining({
+        label: 'EXL3 4.00 bpw', revision: '4000000000000000000000000000000000000000',
+        weightSizeBytes: 16_884_000_000,
+      }),
+    ])
+  })
+
+  it('uses an NInfer manifest to resolve its exact artifact and pinned base model', async () => {
+    const baseSha = '1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0'
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/neroued/Qwen3.8-27B-NInfer/tree/ninfer123')) {
+        return Response.json([
+          { type: 'file', path: 'artifact-manifest.json', size: 1_720 },
+          { type: 'file', path: 'qwen3_8_27b.ninfer', size: 18_210_531_328 },
+        ])
+      }
+      if (url.includes('/resolve/ninfer123/artifact-manifest.json')) {
+        return Response.json({
+          artifact: { path: 'qwen3_8_27b.ninfer', bytes: 18_210_531_328 },
+          base: { repo_id: 'Qwen/Qwen3.8-27B', revision: baseSha },
+          weights_id: 'groupwise-int',
+        })
+      }
+      if (url.includes('/api/models/neroued/Qwen3.8-27B-NInfer')) {
+        return Response.json({
+          id: 'neroued/Qwen3.8-27B-NInfer', sha: 'ninfer123',
+          library_name: 'ninfer', tags: ['ninfer', 'quantized'],
+          siblings: [{ rfilename: 'artifact-manifest.json' }, { rfilename: 'qwen3_8_27b.ninfer' }],
+        })
+      }
+      if (url.includes('/neroued/Qwen3.8-27B-NInfer/resolve/ninfer123/config.json')) {
+        return new Response('missing', { status: 404 })
+      }
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+        expect(url).toContain(`revision=${baseSha}`)
+        return Response.json({
+          id: 'Qwen/Qwen3.8-27B', sha: baseSha,
+          safetensors: { total: 27_781_427_952, parameters: { BF16: 27_781_427_952 } },
+        })
+      }
+      if (url.includes(`/Qwen/Qwen3.8-27B/resolve/${baseSha}/config.json`)) {
+        return Response.json({
+          num_hidden_layers: 64, num_key_value_heads: 4, num_attention_heads: 24,
+          head_dim: 256, max_position_embeddings: 262144,
+        })
+      }
+      throw new Error(`Unexpected NInfer fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/neroued/Qwen3.8-27B-NInfer'),
+      fetcher,
+    )
+    const body = await response.json() as {
+      parametersB: number
+      spec: { parametersB: number }
+      variants: Array<{ format: string; weightSizeBytes: number }>
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.parametersB).toBe(27.781427952)
+    expect(body.spec.parametersB).toBe(27.781427952)
+    expect(body.variants).toEqual([
+      expect.objectContaining({ format: 'ninfer', weightSizeBytes: 18_210_531_328 }),
+    ])
+  })
+
+  it('treats packed quantized weights without a declared base as their own model', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/api/models/Lab/Qwen3.8-27B-AutoRound')) {
@@ -410,15 +743,17 @@ describe('Hugging Face model API', () => {
       fetcher,
     )
     const body = await response.json() as {
-      estimateReason: string
+      estimateReason: string | null
+      parameterCountKind: string
       quantizationFormat: string
-      spec: unknown
+      spec: { parametersB: number }
     }
 
     expect(response.status).toBe(200)
     expect(body.quantizationFormat).toBe('auto-round-4bit')
-    expect(body.estimateReason).toBe('unverified-base')
-    expect(body.spec).toBeNull()
+    expect(body.parameterCountKind).toBe('tensor-elements')
+    expect(body.estimateReason).toBeNull()
+    expect(body.spec.parametersB).toBe(11.57565976)
   })
 
   it('follows a bounded revision-locked quantized base chain for missing GGUF config', async () => {
@@ -484,7 +819,7 @@ describe('Hugging Face model API', () => {
     expect(body.spec).toMatchObject({ layers: 40, attentionLayers: 10 })
   })
 
-  it('rejects cross-version Qwen base inheritance', async () => {
+  it('honors declared metadata lineage when the repository name suggests another version', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/api/models/Lab/Qwen3.8-27B-GGUF')) {
@@ -498,19 +833,41 @@ describe('Hugging Face model API', () => {
       if (url.includes('/Lab/Qwen3.8-27B-GGUF/resolve/derived123/config.json')) {
         return new Response('missing', { status: 404 })
       }
-      throw new Error(`Cross-version base should not be fetched: ${url}`)
+      if (url.includes('/api/models/Qwen/Qwen3.6-27B')) {
+        return Response.json({
+          id: 'Qwen/Qwen3.6-27B',
+          sha: 'base456',
+          safetensors: { total: 27_781_427_952, parameters: { BF16: 27_781_427_952 } },
+        })
+      }
+      if (url.includes('/Qwen/Qwen3.6-27B/resolve/base456/config.json')) {
+        return Response.json({
+          architectures: ['Qwen3_5ForConditionalGeneration'],
+          model_type: 'qwen3_5',
+          num_hidden_layers: 64,
+          num_key_value_heads: 4,
+          num_attention_heads: 24,
+          head_dim: 256,
+          max_position_embeddings: 262144,
+        })
+      }
+      throw new Error(`Unexpected metadata-lineage fetch: ${url}`)
     })
 
     const response = await handleModelApi(
       new Request('https://sizeof.ai/api/models/Lab/Qwen3.8-27B-GGUF'),
       fetcher,
     )
-    const body = await response.json() as { spec: unknown; estimateReason: string }
+    const body = await response.json() as {
+      spec: { layers: number }
+      estimateReason: string | null
+      configSourceId: string | null
+    }
 
     expect(response.status).toBe(200)
-    expect(body.spec).toBeNull()
-    expect(body.estimateReason).toBe('unverified-base')
-    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(body.spec.layers).toBe(64)
+    expect(body.estimateReason).toBeNull()
+    expect(body.configSourceId).toBe('Qwen/Qwen3.6-27B')
   })
 
   it('allows a merged full checkpoint even when its history includes LoRA tags', async () => {
@@ -586,7 +943,6 @@ describe('Hugging Face model API', () => {
     expect(response.status).toBe(200)
     expect(body.spec).toBeNull()
     expect(body.configSourceId).toBeNull()
-    expect(fetcher).toHaveBeenCalledTimes(3)
   })
 
   it('rejects base parameters without a revision sha even when derived config is complete', async () => {

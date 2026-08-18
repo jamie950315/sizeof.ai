@@ -3,6 +3,7 @@ import {
   normalizeHuggingFaceModel,
   parseHuggingFaceModelPath,
 } from './huggingface'
+import type { HuggingFaceVariant } from './huggingface-variants'
 
 const metadata = {
   id: 'Qwen/Qwen3.8-27B',
@@ -410,6 +411,40 @@ describe('normalizeHuggingFaceModel', () => {
     )
 
     expect(model.quantizationFormat).toBe('auto-round-4bit')
+  })
+
+  it('preserves detected variants, parameter semantics, and MTP addon facts', () => {
+    const variants: HuggingFaceVariant[] = [{
+      id: 'main:model.gguf',
+      label: 'GGUF Q4_K_M',
+      format: 'gguf',
+      revision: 'mainsha',
+      path: 'model.gguf',
+      source: 'file',
+      role: 'model',
+      bitsPerWeight: 4,
+      weightSizeBytes: 1_000_000_000,
+      totalSizeBytes: 1_000_000_000,
+    }]
+    const model = normalizeHuggingFaceModel(metadata, hybridConfig, {
+      variants,
+      parameterCountKind: 'tensor-elements',
+      addon: {
+        kind: 'mtp',
+        baseModelId: 'Qwen/Qwen3.8-27B',
+        parametersB: 0.46,
+        sizeBytes: 1_000_000_000,
+      },
+    })
+
+    expect(model.variants).toEqual(variants)
+    expect(model.parameterCountKind).toBe('tensor-elements')
+    expect(model.addon).toEqual({
+      kind: 'mtp',
+      baseModelId: 'Qwen/Qwen3.8-27B',
+      parametersB: 0.46,
+      sizeBytes: 1_000_000_000,
+    })
   })
 
   it('does not invent a fractional head dimension', () => {

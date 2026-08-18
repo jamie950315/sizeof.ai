@@ -4,8 +4,34 @@ import {
   parseHuggingFaceModelPath,
 } from '../src/lib/huggingface'
 import { curatedHuggingFaceConfigs } from '../src/data/huggingface-configs'
+import {
+  applyReleaseManifest,
+  parseHuggingFaceVariants,
+  parseNInferManifest,
+  parseVariantArtifactManifest,
+  type HuggingFaceRepoSnapshot,
+  type HuggingFaceTreeEntry,
+  type HuggingFaceVariant,
+  type NInferManifestFacts,
+  type VariantArtifactManifestFacts,
+} from '../src/lib/huggingface-variants'
+import { gguf } from '@huggingface/gguf'
+import { deriveGgufModelFacts } from '../src/lib/gguf'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+type GgufReader = (
+  url: string,
+  options: { fetch: Fetcher; additionalFetchHeaders: Record<string, string> },
+) => Promise<{ metadata: unknown; parameterCount: number }>
+
+const readGguf: GgufReader = async (url, options) => {
+  const result = await gguf(url, {
+    computeParametersCount: true,
+    fetch: options.fetch,
+    additionalFetchHeaders: options.additionalFetchHeaders,
+  })
+  return { metadata: result.metadata, parameterCount: result.parameterCount }
+}
 
 const responseHeaders = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -37,17 +63,6 @@ function pairedBaseId(tags: string[], relation: 'adapter' | 'quantized') {
   return baseId && tags.includes(`base_model:${relation}:${baseId}`) ? baseId : null
 }
 
-function qwenVersion(modelId: string) {
-  const match = modelId.toLowerCase().match(/qwen[-_.]?(\d+)(?:[-_.](\d+))?/)
-  return match ? `${match[1]}.${match[2] ?? '0'}` : null
-}
-
-function hasCompatibleLineage(sourceId: string, baseId: string) {
-  const sourceQwen = qwenVersion(sourceId)
-  const baseQwen = qwenVersion(baseId)
-  return sourceQwen === null || baseQwen === null || sourceQwen === baseQwen
-}
-
 function hasPackedWeightEncoding(metadata: Record<string, unknown>, tags: string[]) {
   const safetensors = typeof metadata.safetensors === 'object' && metadata.safetensors !== null
     ? metadata.safetensors as Record<string, unknown>
@@ -63,10 +78,149 @@ function hasPackedWeightEncoding(metadata: Record<string, unknown>, tags: string
   return declaresSubBytePacking && dtypes.some((dtype) => ['I8', 'U8', 'I16', 'U16'].includes(dtype))
 }
 
+function treeEntries(value: unknown): HuggingFaceTreeEntry[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    if (typeof entry !== 'object' || entry === null) return []
+    const item = entry as Record<string, unknown>
+    if ((item.type !== 'file' && item.type !== 'directory')
+      || typeof item.path !== 'string' || typeof item.size !== 'number') return []
+    return [{ type: item.type, path: item.path, size: item.size }]
+  })
+}
+
+async function fetchRepoTree(
+  fetcher: Fetcher,
+  url: URL,
+  headers: Record<string, string>,
+) {
+  const entries: HuggingFaceTreeEntry[] = []
+  const expectedPath = url.pathname
+  let nextUrl: URL | null = url
+
+  for (let page = 0; page < 10 && nextUrl && entries.length < 1_000; page += 1) {
+    let response: Response
+    try {
+      response = await fetcher(nextUrl.toString(), { headers })
+    } catch {
+      break
+    }
+    if (!response.ok) break
+
+    try {
+      entries.push(...treeEntries(await response.json()))
+    } catch {
+      break
+    }
+    const nextLink = response.headers.get('Link')
+      ?.match(/<([^>]+)>\s*;\s*rel="?next"?/i)?.[1]
+    if (!nextLink) break
+
+    const candidate = new URL(nextLink, nextUrl)
+    nextUrl = candidate.origin === 'https://huggingface.co' && candidate.pathname === expectedPath
+      ? candidate
+      : null
+  }
+
+  return entries.slice(0, 1_000)
+}
+
+async function fetchJson(fetcher: Fetcher, url: string, headers: Record<string, string>) {
+  try {
+    const response = await fetcher(url, { headers })
+    return response.ok ? await response.json() : null
+  } catch {
+    return null
+  }
+}
+
+async function discoverRepoVariants(
+  route: { owner: string; repo: string },
+  revision: string,
+  tags: string[],
+  siblings: string[],
+  fetcher: Fetcher,
+  headers: Record<string, string>,
+): Promise<{
+  variants: HuggingFaceVariant[]
+  ninfer: NInferManifestFacts | null
+  artifactManifest: VariantArtifactManifestFacts | null
+}> {
+  const owner = encodeURIComponent(route.owner)
+  const repo = encodeURIComponent(route.repo)
+  const snapshots: HuggingFaceRepoSnapshot[] = []
+  const treeUrl = new URL(`https://huggingface.co/api/models/${owner}/${repo}/tree/${encodeURIComponent(revision)}`)
+  treeUrl.searchParams.set('recursive', 'true')
+  treeUrl.searchParams.set('expand', 'true')
+  treeUrl.searchParams.set('limit', '100')
+  const mainTree = await fetchRepoTree(fetcher, treeUrl, headers)
+  if (mainTree.length > 0) snapshots.push({ revision, label: 'main', entries: mainTree })
+
+  const tagText = tags.join(' ').toLowerCase()
+  if (/\bexl[23]\b/.test(tagText)) {
+    const refs = await fetchJson(
+      fetcher,
+      `https://huggingface.co/api/models/${owner}/${repo}/refs`,
+      headers,
+    )
+    const branches = typeof refs === 'object' && refs !== null && 'branches' in refs && Array.isArray(refs.branches)
+      ? refs.branches.flatMap((branch) => {
+          if (typeof branch !== 'object' || branch === null) return []
+          const item = branch as Record<string, unknown>
+          return typeof item.name === 'string' && /bpw/i.test(item.name)
+            && typeof item.targetCommit === 'string' && /^[a-f0-9]{40}$/i.test(item.targetCommit)
+            ? [{ name: item.name, revision: item.targetCommit }]
+            : []
+        }).slice(0, 12)
+      : []
+    const branchSnapshots = await Promise.all(branches.map(async (branch) => {
+      const url = new URL(`https://huggingface.co/api/models/${owner}/${repo}/tree/${encodeURIComponent(branch.revision)}`)
+      url.searchParams.set('recursive', 'true')
+      url.searchParams.set('expand', 'true')
+      url.searchParams.set('limit', '100')
+      const entries = await fetchRepoTree(fetcher, url, headers)
+      return entries.length > 0 ? { revision: branch.revision, label: branch.name, entries } : null
+    }))
+    snapshots.push(...branchSnapshots.filter((snapshot): snapshot is HuggingFaceRepoSnapshot => snapshot !== null))
+  }
+
+  let variants = parseHuggingFaceVariants(snapshots, tags)
+  const fileNames = new Set([...siblings, ...mainTree.map((entry) => entry.path)])
+  if (fileNames.has('release-manifest.json')) {
+    const manifest = await fetchJson(
+      fetcher,
+      `https://huggingface.co/${owner}/${repo}/resolve/${encodeURIComponent(revision)}/release-manifest.json`,
+      headers,
+    )
+    variants = applyReleaseManifest(variants, manifest)
+  }
+  const ninfer = fileNames.has('artifact-manifest.json')
+    ? parseNInferManifest(await fetchJson(
+        fetcher,
+        `https://huggingface.co/${owner}/${repo}/resolve/${encodeURIComponent(revision)}/artifact-manifest.json`,
+        headers,
+      ))
+    : null
+  const directoryVariant = variants.find((variant) => (
+    variant.role === 'model' && variant.source === 'directory' && variant.path
+  ))
+  const artifactManifestPath = directoryVariant
+    ? `${directoryVariant.path}/artifact-manifest.json`
+    : null
+  const artifactManifest = artifactManifestPath && fileNames.has(artifactManifestPath)
+    ? parseVariantArtifactManifest(await fetchJson(
+        fetcher,
+        `https://huggingface.co/${owner}/${repo}/resolve/${encodeURIComponent(revision)}/${artifactManifestPath.split('/').map(encodeURIComponent).join('/')}`,
+        headers,
+      ))
+    : null
+  return { variants, ninfer, artifactManifest }
+}
+
 export function createModelCacheKey(request: Request) {
   const url = new URL(request.url)
   url.search = ''
-  url.searchParams.set('__sizeof_cache', 'hf-model-v9')
+  url.searchParams.set('__sizeof_cache', 'hf-model-v13')
   return new Request(url.toString())
 }
 
@@ -82,7 +236,11 @@ export function applyAssetCachePolicy(response: Response) {
   })
 }
 
-export async function handleModelApi(request: Request, fetcher: Fetcher = fetch): Promise<Response> {
+export async function handleModelApi(
+  request: Request,
+  fetcher: Fetcher = fetch,
+  ggufReader: GgufReader = readGguf,
+): Promise<Response> {
   const route = apiRoute(new URL(request.url).pathname)
   if (!route) return json({ error: 'Invalid Hugging Face model path' }, 400)
 
@@ -107,6 +265,7 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
     'private',
     'safetensors',
     'sha',
+    'siblings',
     'tags',
     'usedStorage',
   ]) metadataUrl.searchParams.append('expand', field)
@@ -150,6 +309,9 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
     let estimateReason: 'adapter-only' | 'parameter-mismatch' | 'unverified-base' | undefined
     let modelKindOverride: 'language' | undefined
     let parameterCountOverride: number | undefined
+    let parameterCountKind: 'logical' | 'tensor-elements' = 'logical'
+    let variants: HuggingFaceVariant[] = []
+    let addon: NonNullable<Parameters<typeof normalizeHuggingFaceModel>[2]>['addon'] = null
 
     const modelId = `${route.owner}/${route.repo}`
     if (!configResponse.ok && curatedHuggingFaceConfigs[modelId]) {
@@ -165,6 +327,23 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
       const metadataRecord = metadata as Record<string, unknown>
       const gguf = metadataRecord.gguf
       const tags = metadataTags(metadataRecord)
+      const siblings = Array.isArray(metadataRecord.siblings)
+        ? metadataRecord.siblings.flatMap((sibling) => {
+            if (typeof sibling === 'string') return [sibling]
+            if (typeof sibling !== 'object' || sibling === null) return []
+            const file = sibling as Record<string, unknown>
+            return typeof file.rfilename === 'string' ? [file.rfilename] : []
+          })
+        : []
+      const discovered = await discoverRepoVariants(
+        route,
+        revision,
+        tags,
+        siblings,
+        fetcher,
+        headers,
+      )
+      variants = discovered.variants
       const quantizedBaseId = pairedBaseId(tags, 'quantized')
       const adapterBaseId = pairedBaseId(tags, 'adapter')
       const hasFullGguf = typeof gguf === 'object' && gguf !== null
@@ -176,19 +355,50 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
       const isAdapter = tags.some((tag) => typeof tag === 'string'
         && (['lora', 'peft'].includes(tag.toLowerCase()) || tag.toLowerCase().includes('adapter')))
         || ['lora', 'adapter'].some((marker) => ggufArchitecture.includes(marker))
+      const modelVariants = variants.filter((variant) => variant.role === 'model')
+      const addonVariants = variants.filter((variant) => variant.role === 'addon')
+      const projectorVariants = variants.filter((variant) => variant.role === 'projector')
+      const isCompositeGguf = ggufArchitecture === 'clip'
+        && modelVariants.length > 0 && projectorVariants.length > 0
+      const isMtpAddon = tags.some((tag) => /(?:^|[-_])mtp(?:$|[-_])/i.test(tag))
+        && addonVariants.length > 0 && modelVariants.length === 0
 
       const startingBaseId = quantizedBaseId ?? adapterBaseId
+        ?? discovered.ninfer?.baseModelId ?? discovered.artifactManifest?.baseModelId ?? null
+      if (!startingBaseId && modelVariants.some((variant) => variant.format === 'gguf')
+        && (isCompositeGguf || normalizeHuggingFaceModel(metadata, config).spec === null)) {
+        const candidate = modelVariants
+          .filter((variant) => variant.format === 'gguf' && !/-\d{5}-of-\d{5}\.gguf$/i.test(variant.path))
+          .sort((a, b) => a.weightSizeBytes - b.weightSizeBytes)[0]
+        if (candidate) {
+          try {
+            const path = candidate.path.split('/').map(encodeURIComponent).join('/')
+            const parsed = await ggufReader(
+              `https://huggingface.co/${owner}/${repo}/resolve/${encodeURIComponent(candidate.revision)}/${path}`,
+              { fetch: fetcher, additionalFetchHeaders: headers },
+            )
+            const facts = deriveGgufModelFacts(parsed.metadata, parsed.parameterCount)
+            if (facts) {
+              config = facts.config
+              configSourceId = `GGUF / ${candidate.path}`
+              parameterCountOverride = facts.parameterCount
+              parameterCountKind = 'logical'
+            }
+          } catch {
+            // GGUF parsing is best-effort; published file sizes remain usable.
+          }
+        }
+      }
       if (isAdapter && !adapterBaseId) {
         allowEstimate = false
         estimateReason = 'adapter-only'
       } else if (startingBaseId && `${route.owner}/${route.repo}` !== startingBaseId) {
         const chain: Array<{ id: string; metadata: Record<string, unknown> }> = []
         const seen = new Set([`${route.owner}/${route.repo}`])
-        let sourceId = `${route.owner}/${route.repo}`
         let nextBaseId: string | null = startingBaseId
 
         for (let depth = 0; depth < 3 && nextBaseId; depth += 1) {
-          if (seen.has(nextBaseId) || !hasCompatibleLineage(sourceId, nextBaseId)) {
+          if (seen.has(nextBaseId)) {
             allowEstimate = false
             estimateReason = 'unverified-base'
             break
@@ -205,6 +415,9 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
           const baseMetadataUrl = new URL(`https://huggingface.co/api/models/${baseOwner}/${baseRepo}`)
           for (const field of ['sha', 'safetensors', 'gguf', 'tags']) {
             baseMetadataUrl.searchParams.append('expand', field)
+          }
+          if (discovered.ninfer?.baseModelId === nextBaseId) {
+            baseMetadataUrl.searchParams.set('revision', discovered.ninfer.baseRevision)
           }
           const baseMetadataResponse = await fetcher(baseMetadataUrl.toString(), { headers })
           if (!baseMetadataResponse.ok) {
@@ -223,6 +436,12 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
             estimateReason = 'unverified-base'
             break
           }
+          if (discovered.ninfer?.baseModelId === nextBaseId
+            && baseMetadata.sha !== discovered.ninfer.baseRevision) {
+            allowEstimate = false
+            estimateReason = 'unverified-base'
+            break
+          }
 
           chain.push({ id: nextBaseId, metadata: baseMetadata })
           seen.add(nextBaseId)
@@ -232,12 +451,12 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
             ? immediateDerivedParameters / immediateBaseParameters
             : null
           const hardMinimumRatio = hasFullGguf ? 0.8 : 0.2
-          if (immediateRatio !== null && immediateRatio < hardMinimumRatio) {
+          if (!isMtpAddon && !isCompositeGguf
+            && immediateRatio !== null && immediateRatio < hardMinimumRatio) {
             allowEstimate = false
             estimateReason = isAdapter ? 'adapter-only' : 'parameter-mismatch'
             break
           }
-          sourceId = nextBaseId
           nextBaseId = quantizedBaseId
             ? pairedBaseId(metadataTags(baseMetadata), 'quantized')
             : null
@@ -261,8 +480,9 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
           : hasPackedWeightEncoding(metadataRecord, tags)
             ? 0.2
             : 0.45
-        const hasPlausibleParameterCount = parameterRatio !== null
-          && parameterRatio >= minimumRatio && parameterRatio <= 1.2
+        const hasPlausibleParameterCount = isMtpAddon || isCompositeGguf
+          || (modelVariants.length > 0 && derivedParameters === null && baseParameters !== null)
+          || (parameterRatio !== null && parameterRatio >= minimumRatio && parameterRatio <= 1.2)
 
         if (allowEstimate && canonicalBase) {
           allowEstimate = hasPlausibleParameterCount
@@ -275,8 +495,21 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
             estimateReason = 'adapter-only'
           }
 
-          if (quantizedBaseId && !hasFullGguf && hasPlausibleParameterCount && baseParameters !== null) {
+          if ((quantizedBaseId || discovered.ninfer || discovered.artifactManifest)
+            && (!hasFullGguf || isCompositeGguf || isMtpAddon)
+            && hasPlausibleParameterCount && baseParameters !== null) {
             parameterCountOverride = baseParameters
+          }
+
+          if (isMtpAddon && baseParameters !== null) {
+            parameterCountOverride = baseParameters
+            const addonVariant = addonVariants[0]
+            addon = {
+              kind: 'mtp',
+              baseModelId: canonicalBase.id,
+              parametersB: derivedParameters === null ? null : derivedParameters / 1_000_000_000,
+              sizeBytes: addonVariant?.weightSizeBytes ?? null,
+            }
           }
 
           const stillNeedsBaseConfig = needsBaseConfig
@@ -307,11 +540,10 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
           }
         }
       } else if (quantizedBaseId) {
-          allowEstimate = false
-          estimateReason = 'unverified-base'
-      } else if (hasPackedWeightEncoding(metadataRecord, tags)) {
         allowEstimate = false
         estimateReason = 'unverified-base'
+      } else if (hasPackedWeightEncoding(metadataRecord, tags)) {
+        parameterCountKind = 'tensor-elements'
       }
     }
 
@@ -321,6 +553,9 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
       estimateReason,
       modelKindOverride,
       parameterCountOverride,
+      parameterCountKind,
+      variants,
+      addon,
     }))
   } catch (error) {
     console.error(JSON.stringify({

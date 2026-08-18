@@ -88,16 +88,25 @@ export default function ModelDetailPage({ route }: Props) {
   const [mlaCacheMode, setMlaCacheMode] = useState<'expanded' | 'latent'>('expanded')
   const [vram, setVram] = useState(24)
   const [copied, setCopied] = useState(false)
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
     setModel(null)
     setError(null)
-    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=6`)
+    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=7`)
       .then(async (response) => {
         const body = await response.json() as HuggingFaceModel | { error?: string }
         if (!response.ok) throw new Error('error' in body && body.error ? body.error : 'Unable to load model')
-        if (active) setModel(body as HuggingFaceModel)
+        if (active) {
+          const nextModel = body as HuggingFaceModel
+          setModel(nextModel)
+          const variants = nextModel.variants ?? []
+          const defaultVariant = nextModel.addon
+            ? variants.find((variant) => variant.role === 'addon')
+            : variants.find((variant) => variant.role === 'model')
+          setSelectedVariantId(defaultVariant?.id ?? null)
+        }
       })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : 'Unable to load model')
@@ -110,9 +119,28 @@ export default function ModelDetailPage({ route }: Props) {
     return () => { document.title = 'sizeof.ai — LLM memory, measured' }
   }, [model])
 
+  const modelVariants = model?.variants ?? []
+  const selectableVariants = model?.addon
+    ? modelVariants.filter((variant) => variant.role === 'addon')
+    : modelVariants.filter((variant) => variant.role === 'model')
+  const selectedVariant = selectableVariants.find((variant) => variant.id === selectedVariantId) ?? null
+  const supportArtifacts = modelVariants.filter((variant) => (
+    variant.role !== 'model' && variant.id !== selectedVariant?.id
+  ))
   const estimate = useMemo(
-    () => model?.spec ? estimateVram(model.spec, { quantization, context, kvPrecision, mlaCacheMode }) : null,
-    [context, kvPrecision, mlaCacheMode, model, quantization],
+    () => model?.spec ? estimateVram(model.spec, {
+      quantization,
+      context,
+      kvPrecision,
+      mlaCacheMode,
+      weightBytesOverride: selectedVariant?.role === 'model'
+        ? selectedVariant.weightSizeBytes
+        : undefined,
+      additionalWeightBytes: model.addon
+        ? selectedVariant?.weightSizeBytes ?? model.addon.sizeBytes ?? undefined
+        : undefined,
+    }) : null,
+    [context, kvPrecision, mlaCacheMode, model, quantization, selectedVariant],
   )
   const fit = estimate ? classifyFit(estimate.totalGiB, vram) : null
 
@@ -156,7 +184,14 @@ export default function ModelDetailPage({ route }: Props) {
     ? [...new Set([...contexts, model.spec.maxContext])].filter((value) => value <= model.spec!.maxContext).sort((a, b) => a - b)
     : []
   const memoryParts = estimate ? [
-    { label: 'Model weights', value: estimate.weightsGiB, className: 'weights' },
+    {
+      label: model.addon ? 'Base model weights' : 'Model weights',
+      value: estimate.baseWeightsGiB,
+      className: 'weights',
+    },
+    ...(estimate.addonWeightsGiB > 0
+      ? [{ label: 'MTP addon', value: estimate.addonWeightsGiB, className: 'addon' }]
+      : []),
     { label: 'KV cache', value: estimate.kvCacheGiB, className: 'kv' },
     { label: 'Runtime buffer', value: estimate.runtimeGiB, className: 'runtime' },
   ] : []
@@ -195,7 +230,7 @@ export default function ModelDetailPage({ route }: Props) {
         </section>
 
         <section className="detail-metrics" aria-label="Model facts">
-          <div><span>PARAMETERS</span><strong>{formatParameters(model.parametersB)}</strong></div>
+          <div><span>{model.parameterCountKind === 'tensor-elements' ? 'PUBLISHED TENSOR ELEMENTS' : 'PARAMETERS'}</span><strong>{formatParameters(model.parametersB)}</strong></div>
           <div><span>NATIVE CONTEXT</span><strong>{maxContext ? formatContext(maxContext) : '—'}</strong></div>
           <div><span>DOWNLOADS / MONTH</span><strong>{formatCompact(model.downloads)}</strong></div>
           <div><span>LIKES</span><strong>{formatCompact(model.likes)}</strong></div>
@@ -211,6 +246,46 @@ export default function ModelDetailPage({ route }: Props) {
           <div><span>REPOSITORY STORAGE</span><strong>{formatBytes(model.repositorySizeBytes)}</strong></div>
         </section>
 
+        {modelVariants.length > 0 && (
+          <section className="variant-profile" aria-label="Detected model variants">
+            <div className="variant-profile-heading">
+              <div><span>DETECTED REPOSITORY VARIANTS</span><h2>Choose the artifact.</h2></div>
+              <small>Weights use the published file size. Context memory still follows the model architecture.</small>
+            </div>
+            {selectableVariants.length > 0 && (
+              <div className="variant-selector-row">
+                <label htmlFor="repository-variant">Repository variant</label>
+                <select
+                  id="repository-variant"
+                  value={selectedVariant?.id ?? ''}
+                  onChange={(event) => setSelectedVariantId(event.target.value)}
+                >
+                  {selectableVariants.map((variant) => (
+                    <option value={variant.id} key={variant.id}>{variant.label}</option>
+                  ))}
+                </select>
+                {selectedVariant && (
+                  <div className="variant-facts">
+                    <div><span>WEIGHT FILES</span><strong>{formatBytes(selectedVariant.weightSizeBytes)}</strong></div>
+                    <div><span>DOWNLOAD</span><strong>{formatBytes(selectedVariant.totalSizeBytes)}</strong></div>
+                    <div><span>FORMAT</span><strong>{selectedVariant.format.toUpperCase()}</strong></div>
+                    <div><span>SOURCE</span><strong>{selectedVariant.source.toUpperCase()}</strong></div>
+                  </div>
+                )}
+              </div>
+            )}
+            {model.addon && <div className="variant-base-line">BASE MODEL / {model.addon.baseModelId}</div>}
+            {supportArtifacts.length > 0 && (
+              <div className="support-artifacts">
+                <span>SUPPORT ARTIFACTS</span>
+                {supportArtifacts.map((variant) => (
+                  <div key={variant.id}><strong>{variant.label}</strong><small>{variant.role.toUpperCase()} / {formatBytes(variant.weightSizeBytes)}</small></div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {model.spec && estimate && fit ? (
           <section className="detail-calculator" aria-label="Model VRAM calculator">
             <div className="detail-section-title">
@@ -219,14 +294,20 @@ export default function ModelDetailPage({ route }: Props) {
             </div>
             <div className="calculator-grid detail-calc-grid">
               <div className="controls-panel">
-                <div className="control-block">
+                {!selectedVariant || selectedVariant.role !== 'model' ? <div className="control-block">
                   <div className="label-row"><label>Weight quantization</label><span>{model.quantizationFormat ? 'HYPOTHETICAL GGUF' : quantizations.find((item) => item.id === quantization)?.note}</span></div>
                   <div className="quant-grid">
                     {quantizations.map((item) => (
                       <button type="button" className={quantization === item.id ? 'active' : ''} key={item.id} onClick={() => setQuantization(item.id)}>{item.label}</button>
                     ))}
                   </div>
-                </div>
+                </div> : (
+                  <div className="control-block detected-weight-note">
+                    <div className="label-row"><label>Weight memory</label><span>DETECTED ARTIFACT</span></div>
+                    <strong>{selectedVariant.label}</strong>
+                    <p className="control-help">Uses {formatBytes(selectedVariant.weightSizeBytes)} of published weight files instead of a hypothetical conversion.</p>
+                  </div>
+                )}
                 <div className="control-block context-block">
                   <div className="label-row"><label htmlFor="detail-context">Context window</label><span>TOKENS</span></div>
                   <input id="detail-context" type="number" min="1" step="1024" value={context} onChange={(event) => setContext(Math.max(1, Number(event.target.value) || 1))} />

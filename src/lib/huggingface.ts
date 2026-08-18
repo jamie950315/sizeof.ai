@@ -1,4 +1,5 @@
 import type { ModelSpec } from '../data/models'
+import type { HuggingFaceVariant } from './huggingface-variants'
 
 export interface HuggingFaceRoute {
   owner: string
@@ -46,6 +47,14 @@ export interface HuggingFaceModel {
   modelKind: HuggingFaceModelKind
   tensorSizeBytes: number | null
   repositorySizeBytes: number | null
+  parameterCountKind: 'logical' | 'tensor-elements'
+  variants: HuggingFaceVariant[]
+  addon: {
+    kind: 'mtp'
+    baseModelId: string
+    parametersB: number | null
+    sizeBytes: number | null
+  } | null
   estimateReason: HuggingFaceEstimateReason | null
   layers: number | null
   attentionLayers: number | null
@@ -186,6 +195,9 @@ export function normalizeHuggingFaceModel(
     estimateReason?: HuggingFaceEstimateReason
     modelKindOverride?: HuggingFaceModelKind
     parameterCountOverride?: number
+    parameterCountKind?: 'logical' | 'tensor-elements'
+    variants?: HuggingFaceVariant[]
+    addon?: HuggingFaceModel['addon']
   } = {},
 ): HuggingFaceModel {
   const metadata = asRecord(rawMetadata)
@@ -338,6 +350,9 @@ export function normalizeHuggingFaceModel(
     modelKind,
     tensorSizeBytes,
     repositorySizeBytes,
+    parameterCountKind: options.parameterCountKind ?? 'logical',
+    variants: options.variants ?? [],
+    addon: options.addon ?? null,
     estimateReason,
     layers,
     attentionLayers,

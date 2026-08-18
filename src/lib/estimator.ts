@@ -13,9 +13,13 @@ export interface EstimateOptions {
   context: number
   kvPrecision: KvPrecisionId
   mlaCacheMode?: 'expanded' | 'latent'
+  weightBytesOverride?: number
+  additionalWeightBytes?: number
 }
 
 export interface VramEstimate {
+  baseWeightsGiB: number
+  addonWeightsGiB: number
   weightsGiB: number
   kvCacheGiB: number
   runtimeGiB: number
@@ -41,8 +45,11 @@ export function estimateVram(model: ModelSpec, options: EstimateOptions): VramEs
   const kvPrecision = kvPrecisions.find((item) => item.id === options.kvPrecision)
   if (!quantization || !kvPrecision) throw new Error('Unknown precision')
 
-  const weightsGiB =
-    (model.parametersB * 1_000_000_000 * quantization.bitsPerWeight) / 8 / BYTES_PER_GIB
+  const baseWeightsGiB = options.weightBytesOverride !== undefined
+    ? options.weightBytesOverride / BYTES_PER_GIB
+    : (model.parametersB * 1_000_000_000 * quantization.bitsPerWeight) / 8 / BYTES_PER_GIB
+  const addonWeightsGiB = (options.additionalWeightBytes ?? 0) / BYTES_PER_GIB
+  const weightsGiB = baseWeightsGiB + addonWeightsGiB
   if (model.kvCache?.kind === 'mla' && !options.mlaCacheMode) {
     throw new Error('MLA cache mode is required')
   }
@@ -66,6 +73,8 @@ export function estimateVram(model: ModelSpec, options: EstimateOptions): VramEs
   const runtimeGiB = (weightsGiB + kvCacheGiB) * 0.1 + 0.5
 
   return {
+    baseWeightsGiB,
+    addonWeightsGiB,
     weightsGiB,
     kvCacheGiB,
     runtimeGiB,

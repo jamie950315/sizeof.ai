@@ -28,6 +28,32 @@ describe('estimateVram', () => {
     expect(result.weightsGiB).toBeCloseTo(0.565, 3)
   })
 
+  it('uses a detected variant file size instead of a hypothetical quantization', () => {
+    const result = estimateVram(fixture, {
+      quantization: 'q4_k_m',
+      context: 4096,
+      kvPrecision: 'fp16',
+      weightBytesOverride: 2 * 1024 ** 3,
+    })
+
+    expect(result.baseWeightsGiB).toBe(2)
+    expect(result.addonWeightsGiB).toBe(0)
+    expect(result.weightsGiB).toBe(2)
+  })
+
+  it('adds an MTP sidecar to the selected base-model weights', () => {
+    const result = estimateVram(fixture, {
+      quantization: 'q4_k_m',
+      context: 4096,
+      kvPrecision: 'fp16',
+      additionalWeightBytes: 256 * 1024 ** 2,
+    })
+
+    expect(result.baseWeightsGiB).toBeCloseTo(0.5646, 4)
+    expect(result.addonWeightsGiB).toBe(0.25)
+    expect(result.weightsGiB).toBeCloseTo(0.8146, 4)
+  })
+
   it('calculates grouped-query KV cache independently from model weights', () => {
     const result = estimateVram(fixture, {
       quantization: 'q4_k_m',
