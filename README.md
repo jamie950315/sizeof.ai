@@ -10,7 +10,19 @@ sizeof.ai is a fast reference tool for estimating the VRAM required to run large
 - Shareable calculator state in the URL
 - Model recommendations for 8–80 GiB VRAM budgets
 - Searchable, source-linked model catalog
+- Dynamic Hugging Face model detail pages by replacing `huggingface.co` with `sizeof.ai`
 - Responsive, accessible interface with no account or tracking requirement
+
+## Hugging Face URL shortcut
+
+Any public Hugging Face model URL with an owner and repository path can be opened on sizeof.ai by replacing the domain:
+
+```text
+https://huggingface.co/Qwen/Qwen3.8-27B
+https://sizeof.ai/Qwen/Qwen3.8-27B
+```
+
+The Worker reads public Hugging Face metadata plus the model's revision-locked `config.json`, normalizes common and nested text architectures, and caches the result at the Cloudflare edge. Models without enough machine-readable architecture data still receive a metadata page, but no VRAM estimate is shown.
 
 ## Estimation model
 
@@ -43,7 +55,7 @@ npm run cf:check
 
 ## Cloudflare deployment
 
-The site deploys as a Cloudflare Worker with Static Assets. The Wrangler configuration includes the `sizeof.ai` and `www.sizeof.ai` custom domains, so no Pi or separate origin server is required.
+The site deploys as a Cloudflare Worker with Static Assets. The Worker serves a same-origin model metadata API for dynamic Hugging Face detail pages. The Wrangler configuration includes the `sizeof.ai` and `www.sizeof.ai` custom domains, so no Pi or separate origin server is required.
 
 ```bash
 npx wrangler login

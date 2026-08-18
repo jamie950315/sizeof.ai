@@ -43,7 +43,12 @@ export function estimateVram(model: ModelSpec, options: EstimateOptions): VramEs
   const weightsGiB =
     (model.parametersB * 1_000_000_000 * quantization.bitsPerWeight) / 8 / BYTES_PER_GIB
   const kvCacheGiB =
-    (model.layers * model.kvHeads * model.headDim * 2 * options.context * kvPrecision.bytes) /
+    ((model.attentionLayers ?? model.layers) *
+      model.kvHeads *
+      model.headDim *
+      2 *
+      options.context *
+      kvPrecision.bytes) /
     BYTES_PER_GIB
   const runtimeGiB = (weightsGiB + kvCacheGiB) * 0.1 + 0.5
 

@@ -36,4 +36,14 @@ describe('sizeof.ai app', () => {
     expect(within(catalog).getByText('Phi-4 14B')).toBeInTheDocument()
     expect(within(catalog).queryByText('Qwen3 8B')).not.toBeInTheDocument()
   })
+
+  it('explains the Hugging Face domain replacement shortcut', () => {
+    render(<App />)
+
+    expect(screen.getByText('huggingface.co/Qwen/Qwen3.8-27B')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /try the model detail page/i })).toHaveAttribute(
+      'href',
+      '/Qwen/Qwen3.8-27B',
+    )
+  })
 })

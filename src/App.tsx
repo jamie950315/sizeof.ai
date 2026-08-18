@@ -13,6 +13,7 @@ import {
   Search,
 } from 'lucide-react'
 import { models } from './data/models'
+import ModelDetailPage from './ModelDetailPage'
 import {
   kvPrecisions,
   quantizations,
@@ -25,6 +26,7 @@ import {
   parseCalculatorState,
   serializeCalculatorState,
 } from './lib/url-state'
+import { parseHuggingFaceModelPath } from './lib/huggingface'
 
 const contextPresets = [2048, 4096, 8192, 16384, 32768, 65536, 131072]
 const vramPresets = [8, 12, 16, 24, 32, 48, 64, 80]
@@ -44,6 +46,11 @@ const fitLabels: Record<Fit, string> = {
 }
 
 export default function App() {
+  const modelRoute = parseHuggingFaceModelPath(window.location.pathname)
+  return modelRoute ? <ModelDetailPage route={modelRoute} /> : <HomePage />
+}
+
+function HomePage() {
   const initial = parseCalculatorState(window.location.search)
   const initialModel = models.some((model) => model.id === initial.modelId)
     ? initial.modelId
@@ -146,6 +153,20 @@ export default function App() {
             <span>07 QUANTIZATIONS</span>
             <span>NO SIGN-UP</span>
             <span>UPDATED 18 AUG 2026</span>
+          </div>
+        </section>
+
+        <section className="hf-shortcut" aria-label="Hugging Face URL shortcut">
+          <div className="hf-shortcut-copy">
+            <span>HF URL SHORTCUT / ANY PUBLIC MODEL</span>
+            <h2>Replace one word.<br />See what fits.</h2>
+            <p>Keep the owner and model path. Replace only the Hugging Face domain with sizeof.ai.</p>
+          </div>
+          <div className="hf-url-swap">
+            <code>huggingface.co/Qwen/Qwen3.8-27B</code>
+            <ArrowDownRight size={24} />
+            <code><strong>sizeof.ai</strong>/Qwen/Qwen3.8-27B</code>
+            <a href="/Qwen/Qwen3.8-27B" aria-label="Try the model detail page">TRY IT <ArrowUpRight size={17} /></a>
           </div>
         </section>
 

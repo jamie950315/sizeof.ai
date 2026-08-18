@@ -40,6 +40,15 @@ describe('estimateVram', () => {
     expect(result.totalGiB).toBeCloseTo(1.1426, 4)
   })
 
+  it('uses only full-attention layers for hybrid model KV cache', () => {
+    const result = estimateVram(
+      { ...fixture, attentionLayers: 2 },
+      { quantization: 'q4_k_m', context: 4096, kvPrecision: 'fp16' },
+    )
+
+    expect(result.kvCacheGiB).toBeCloseTo(0.00390625, 7)
+  })
+
   it('reports requests beyond the model native context', () => {
     const result = estimateVram(fixture, {
       quantization: 'q8_0',

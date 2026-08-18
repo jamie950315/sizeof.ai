@@ -5,6 +5,7 @@ export interface ModelSpec {
   maker: string
   parametersB: number
   layers: number
+  attentionLayers?: number
   kvHeads: number
   headDim: number
   maxContext: number

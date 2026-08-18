@@ -17,6 +17,7 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-18: Production deployment is live on `https://sizeof.ai` and `https://www.sizeof.ai` through Cloudflare Workers Static Assets.
 - Cloudflare production version: `e1ca2f34-6e6c-4051-afd3-0743e63bd43b`.
 - Browser QA covers 1280px desktop and 390px mobile; local artifacts remain ignored under `output/playwright/`.
+- 2026-08-18: Hugging Face-compatible `/{owner}/{repo}` detail routes implemented with a revision-locked public metadata API, hybrid-attention-aware VRAM estimates, edge caching, and private/not-found normalization. Production deployment pending final verification.
 
 ## Commands
 
@@ -24,6 +25,7 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - `npm test`: unit and component tests
 - `npm run build`: production build
 - `npm run deploy`: deploy the Worker and static assets
+- `npx wrangler dev --port 8790`: run the complete Worker, API, and static site locally when 8787 is occupied by Executor
 
 ## Working Agreements
 
