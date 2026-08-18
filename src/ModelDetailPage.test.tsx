@@ -17,6 +17,10 @@ const apiModel = {
   tags: ['transformers', 'safetensors', 'qwen3_5'],
   architecture: 'Qwen3_5ForConditionalGeneration',
   modelType: 'qwen3_5',
+  modelKind: 'vision-language',
+  tensorSizeBytes: null,
+  repositorySizeBytes: null,
+  estimateReason: null,
   sourceUrl: 'https://huggingface.co/Qwen/Qwen3.8-27B',
   spec: {
     id: 'hf-qwen-qwen3-8-27b',
@@ -53,7 +57,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByText('16 / 64')).toBeInTheDocument()
     expect(screen.getByText('Full attention layers')).toBeInTheDocument()
     expect(screen.getByText('18.30')).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=4')
+    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=5')
   })
 
   it('shows a useful model-not-found state', async () => {
@@ -120,5 +124,35 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
 
     expect(await screen.findByText(/ARCHITECTURE FROM Qwen\/Qwen3\.8-27B/)).toBeInTheDocument()
+  })
+
+  it('shows a modality-aware resource profile when an LLM estimate is unsafe', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'black-forest-labs/FLUX.1-dev',
+      owner: 'black-forest-labs',
+      name: 'FLUX.1-dev',
+      parametersB: 11.90140832,
+      pipelineTag: 'text-to-image',
+      libraryName: 'diffusers',
+      modelKind: 'image',
+      tensorSizeBytes: 23_802_816_640,
+      repositorySizeBytes: 69_256_397_749,
+      estimateReason: 'modality-specific',
+      architecture: 'FluxTransformer2DModel',
+      modelType: 'flux',
+      spec: null,
+      sourceUrl: 'https://huggingface.co/black-forest-labs/FLUX.1-dev',
+    })))
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'FLUX.1-dev' })).toBeInTheDocument()
+    const profile = screen.getByRole('region', { name: 'Resource profile' })
+    expect(within(profile).getByText('IMAGE')).toBeInTheDocument()
+    expect(within(profile).getByText('22.17 GiB')).toBeInTheDocument()
+    expect(within(profile).getByText('64.50 GiB')).toBeInTheDocument()
+    expect(screen.getByText(/modality-specific runtime memory/i)).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Model VRAM calculator' })).not.toBeInTheDocument()
   })
 })

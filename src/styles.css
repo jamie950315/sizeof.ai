@@ -189,7 +189,7 @@ footer > span { grid-column: 1/-1; align-self: end; }
 .detail-header .detail-back:hover { color: var(--acid); }
 .detail-hero { min-height: 62vh; padding: 8vh 4vw 4vh; display: flex; flex-direction: column; border-bottom: 1px solid var(--line); position: relative; overflow: hidden; }
 .detail-hero::before { content: ''; position: absolute; inset: 0; opacity: .14; pointer-events: none; background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px); background-size: 52px 52px; mask-image: linear-gradient(to right, transparent 5%, black 70%); }
-.detail-breadcrumb, .detail-tags, .detail-hero-bottom button, .detail-metrics span, .detail-section-title > span, .architecture-grid span, .hf-source-row, .detail-state > span { font-family: 'JetBrains Mono Variable', monospace; }
+.detail-breadcrumb, .detail-tags, .detail-hero-bottom button, .detail-metrics span, .resource-profile span, .resource-profile small, .detail-section-title > span, .architecture-grid span, .hf-source-row, .detail-state > span { font-family: 'JetBrains Mono Variable', monospace; }
 .detail-breadcrumb { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 10px; letter-spacing: .13em; text-transform: uppercase; }
 .detail-hero h1 { position: relative; margin: auto 0 3vh; font-size: clamp(70px, 11.5vw, 175px); line-height: .8; letter-spacing: -.075em; overflow-wrap: anywhere; }
 .detail-hero-bottom { position: relative; display: flex; align-items: end; justify-content: space-between; gap: 30px; }
@@ -203,6 +203,13 @@ footer > span { grid-column: 1/-1; align-self: end; }
 .detail-metrics > div:last-child { border-right: 0; }
 .detail-metrics span { color: #65675f; font-size: 9px; letter-spacing: .1em; }
 .detail-metrics strong { font-size: clamp(38px, 5vw, 72px); line-height: .85; letter-spacing: -.06em; }
+.resource-profile { display: grid; grid-template-columns: 1.2fr repeat(3, 1fr); border-bottom: 1px solid var(--line); background: #131511; }
+.resource-profile > div { min-height: 145px; padding: 24px 4vw; border-right: 1px solid var(--line); display: flex; flex-direction: column; justify-content: space-between; }
+.resource-profile > div:last-child { border-right: 0; }
+.resource-profile-label { background: #1b1d18; }
+.resource-profile span, .resource-profile small { color: #777a70; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+.resource-profile small { max-width: 150px; line-height: 1.5; }
+.resource-profile strong { color: var(--paper); font-size: clamp(18px, 2vw, 30px); line-height: 1; letter-spacing: -.035em; overflow-wrap: anywhere; }
 .detail-calculator, .architecture-section { padding: 110px 4vw 130px; }
 .detail-section-title { display: grid; grid-template-columns: 1fr 2fr; align-items: start; margin-bottom: 60px; }
 .detail-section-title > span { color: var(--acid); font-size: 10px; letter-spacing: .1em; }
@@ -261,6 +268,9 @@ footer > span { grid-column: 1/-1; align-self: end; }
   .detail-metrics { grid-template-columns: 1fr 1fr; }
   .detail-metrics > div:nth-child(2) { border-right: 0; }
   .detail-metrics > div:nth-child(-n+2) { border-bottom: 1px solid #c5c6bd; }
+  .resource-profile { grid-template-columns: 1fr 1fr; }
+  .resource-profile > div:nth-child(2) { border-right: 0; }
+  .resource-profile > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
   .detail-section-title { grid-template-columns: 1fr; gap: 35px; }
   .architecture-grid { grid-template-columns: 1fr 1fr; }
 }
@@ -313,6 +323,9 @@ footer > span { grid-column: 1/-1; align-self: end; }
   .detail-tags { margin-top: 35px; }
   .detail-metrics > div { min-height: 135px; padding: 20px; }
   .detail-metrics strong { font-size: 38px; }
+  .resource-profile { grid-template-columns: 1fr; }
+  .resource-profile > div { min-height: 115px; padding: 20px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .resource-profile > div:last-child { border-bottom: 0; }
   .detail-calculator, .architecture-section { padding: 80px 20px; }
   .detail-section-title h2 { font-size: 48px; }
   .detail-calc-grid .controls-panel { min-height: 0; }

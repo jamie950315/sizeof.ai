@@ -54,6 +54,8 @@ describe('normalizeHuggingFaceModel', () => {
     const model = normalizeHuggingFaceModel(metadata, hybridConfig)
 
     expect(model.id).toBe('Qwen/Qwen3.8-27B')
+    expect(model.modelKind).toBe('vision-language')
+    expect(model.estimateReason).toBeNull()
     expect(model.parametersB).toBeCloseTo(27.7814, 4)
     expect(model.license).toBe('apache-2.0')
     expect(model.architecture).toBe('Qwen3_5ForConditionalGeneration')
@@ -233,6 +235,88 @@ describe('normalizeHuggingFaceModel', () => {
 
     expect(model.spec).toBeNull()
     expect(model.parametersB).toBeNull()
+  })
+
+  it('profiles image model tensors without applying the LLM KV-cache formula', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        id: 'black-forest-labs/FLUX.1-dev',
+        pipeline_tag: 'text-to-image',
+        library_name: 'diffusers',
+        tags: ['diffusers', 'safetensors', 'text-to-image', 'image-generation'],
+        safetensors: {
+          parameters: { BF16: 11_901_408_320 },
+          total: 11_901_408_320,
+        },
+        usedStorage: 69_256_397_749,
+      },
+      {
+        architectures: ['FluxTransformer2DModel'],
+        num_hidden_layers: 57,
+        num_key_value_heads: 24,
+        num_attention_heads: 24,
+        head_dim: 128,
+        max_position_embeddings: 4096,
+      },
+    )
+
+    expect(model).toMatchObject({
+      modelKind: 'image',
+      tensorSizeBytes: 23_802_816_640,
+      repositorySizeBytes: 69_256_397_749,
+      estimateReason: 'modality-specific',
+      spec: null,
+    })
+  })
+
+  it('classifies TTS and adapter repositories with useful unavailable reasons', () => {
+    const tts = normalizeHuggingFaceModel(
+      {
+        id: 'IndexTeam/IndexTTS-2.5',
+        pipeline_tag: 'text-to-speech',
+        library_name: 'indextts',
+        tags: ['indextts', 'text-to-speech', 'tts'],
+        usedStorage: 5_485_798_498,
+      },
+      {},
+    )
+    const adapter = normalizeHuggingFaceModel(
+      {
+        id: 'Jojocodex/minimax-h3-spatial-physics-lora',
+        pipeline_tag: 'text-to-video',
+        tags: ['lora', 'base_model:adapter:Comfy-Org/MiniMax-H3'],
+        usedStorage: 474_154_786,
+      },
+      {},
+    )
+
+    expect(tts).toMatchObject({
+      modelKind: 'audio',
+      repositorySizeBytes: 5_485_798_498,
+      tensorSizeBytes: null,
+      estimateReason: 'modality-specific',
+    })
+    expect(adapter).toMatchObject({
+      modelKind: 'adapter',
+      repositorySizeBytes: 474_154_786,
+      estimateReason: 'adapter-only',
+    })
+  })
+
+  it('does not report a partial tensor footprint when a dtype is unknown', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        id: 'Example/Future-Dtype',
+        pipeline_tag: 'text-to-image',
+        safetensors: {
+          parameters: { BF16: 100, FUTURE4: 900 },
+          total: 1000,
+        },
+      },
+      {},
+    )
+
+    expect(model.tensorSizeBytes).toBeNull()
   })
 
   it('does not invent a fractional head dimension', () => {

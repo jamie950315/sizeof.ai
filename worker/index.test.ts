@@ -19,7 +19,7 @@ describe('Hugging Face model API', () => {
       new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2&random=uncached'),
     )
 
-    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v6')
+    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v7')
     expect([...new URL(key.url).searchParams.keys()]).toEqual(['__sizeof_cache'])
   })
 
@@ -64,6 +64,7 @@ describe('Hugging Face model API', () => {
     expect(String(fetcher.mock.calls[0]?.[0])).toContain('expand=gguf')
     expect(String(fetcher.mock.calls[0]?.[0])).toContain('expand=downloads')
     expect(String(fetcher.mock.calls[0]?.[0])).toContain('expand=likes')
+    expect(String(fetcher.mock.calls[0]?.[0])).toContain('expand=usedStorage')
     expect(fetcher).toHaveBeenNthCalledWith(
       2,
       'https://huggingface.co/Qwen/Qwen3.8-27B/resolve/abc123/config.json',

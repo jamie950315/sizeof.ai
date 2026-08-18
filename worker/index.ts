@@ -27,7 +27,7 @@ function apiRoute(pathname: string) {
 export function createModelCacheKey(request: Request) {
   const url = new URL(request.url)
   url.search = ''
-  url.searchParams.set('__sizeof_cache', 'hf-model-v6')
+  url.searchParams.set('__sizeof_cache', 'hf-model-v7')
   return new Request(url.toString())
 }
 
@@ -69,6 +69,7 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
     'safetensors',
     'sha',
     'tags',
+    'usedStorage',
   ]) metadataUrl.searchParams.append('expand', field)
 
   let metadataResponse: Response
@@ -107,6 +108,7 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
     let config: unknown = configResponse.ok ? await configResponse.json() : {}
     let configSourceId: string | undefined
     let allowEstimate = true
+    let estimateReason: 'adapter-only' | 'parameter-mismatch' | 'unverified-base' | undefined
 
     const needsBaseConfig = !configResponse.ok
       || normalizeHuggingFaceModel(metadata, config).spec === null
@@ -133,7 +135,10 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
         && ['lora', 'peft', 'adapter'].some((marker) => tag.toLowerCase().includes(marker)))
         || ['lora', 'adapter'].some((marker) => ggufArchitecture.includes(marker))
 
-      if (isAdapter) allowEstimate = false
+      if (isAdapter) {
+        allowEstimate = false
+        estimateReason = 'adapter-only'
+      }
 
       if (hasFullGguf && hasQuantizedBaseRelation && !isAdapter && baseRoute
         && `${baseRoute.owner}/${baseRoute.repo}` !== `${route.owner}/${route.repo}`) {
@@ -155,6 +160,8 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
           const hasPlausibleParameterCount = parameterRatio !== null
             && parameterRatio >= 0.8 && parameterRatio <= 1.2
           allowEstimate = hasExpectedBaseId && hasPlausibleParameterCount
+          if (!hasExpectedBaseId) estimateReason = 'unverified-base'
+          else if (!hasPlausibleParameterCount) estimateReason = 'parameter-mismatch'
 
           if (typeof baseMetadata.sha === 'string' && baseMetadata.sha
             && allowEstimate && needsBaseConfig) {
@@ -169,11 +176,16 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
           }
         } else {
           allowEstimate = false
+          estimateReason = 'unverified-base'
         }
       }
     }
 
-    return json(normalizeHuggingFaceModel(metadata, config, { allowEstimate, configSourceId }))
+    return json(normalizeHuggingFaceModel(metadata, config, {
+      allowEstimate,
+      configSourceId,
+      estimateReason,
+    }))
   } catch (error) {
     console.error(JSON.stringify({
       message: 'failed to normalize Hugging Face model',

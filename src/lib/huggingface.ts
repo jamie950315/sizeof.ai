@@ -5,6 +5,27 @@ export interface HuggingFaceRoute {
   repo: string
 }
 
+export type HuggingFaceModelKind =
+  | 'language'
+  | 'vision-language'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'adapter'
+  | 'workflow'
+  | 'other'
+
+export type HuggingFaceEstimateReason =
+  | 'adapter-only'
+  | 'modality-specific'
+  | 'workflow-artifact'
+  | 'parameter-mismatch'
+  | 'unverified-base'
+  | 'missing-parameters'
+  | 'missing-layers'
+  | 'missing-context'
+  | 'missing-kv-geometry'
+
 export interface HuggingFaceModel {
   id: string
   owner: string
@@ -20,6 +41,10 @@ export interface HuggingFaceModel {
   tags: string[]
   architecture: string | null
   modelType: string | null
+  modelKind: HuggingFaceModelKind
+  tensorSizeBytes: number | null
+  repositorySizeBytes: number | null
+  estimateReason: HuggingFaceEstimateReason | null
   layers: number | null
   attentionLayers: number | null
   maxContext: number | null
@@ -54,6 +79,76 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
 }
 
+const TENSOR_DTYPE_BYTES: Record<string, number> = {
+  BOOL: 1,
+  BF16: 2,
+  F16: 2,
+  F32: 4,
+  F64: 8,
+  F8_E4M3: 1,
+  F8_E5M2: 1,
+  F4: 0.5,
+  F4_E2M1: 0.5,
+  I8: 1,
+  U8: 1,
+  I16: 2,
+  U16: 2,
+  I32: 4,
+  U32: 4,
+  I64: 8,
+  U64: 8,
+}
+
+function safetensorsSizeBytes(metadata: UnknownRecord): number | null {
+  const parameters = asRecord(asRecord(metadata.safetensors).parameters)
+  const entries = Object.entries(parameters)
+  if (entries.length === 0) return null
+
+  let total = 0
+  for (const [dtype, rawCount] of entries) {
+    const count = positiveNumber(rawCount)
+    const bytesPerParameter = TENSOR_DTYPE_BYTES[dtype.toUpperCase()]
+    if (count === null || bytesPerParameter === undefined) return null
+    total += count * bytesPerParameter
+  }
+  return Number.isFinite(total) && total > 0 ? total : null
+}
+
+function classifyModel(metadata: UnknownRecord, config: UnknownRecord): HuggingFaceModelKind {
+  const pipeline = asString(metadata.pipeline_tag)?.toLowerCase() ?? ''
+  const library = asString(metadata.library_name)?.toLowerCase() ?? ''
+  const tags = stringArray(metadata.tags).map((tag) => tag.toLowerCase())
+  const markers = new Set([pipeline, library, ...tags])
+  const contains = (values: string[]) => values.some((value) =>
+    markers.has(value) || [...markers].some((marker) => marker.includes(value)))
+
+  if (contains(['base_model:adapter:', 'lora', 'peft', 'adapter'])) return 'adapter'
+  if (contains(['image-text-to-text', 'visual-question-answering', 'document-question-answering'])) {
+    return 'vision-language'
+  }
+  if (contains(['text-to-video', 'image-to-video', 'video-generation', 'video-classification'])) {
+    return 'video'
+  }
+  if (contains([
+    'text-to-speech', 'text-to-audio', 'automatic-speech-recognition', 'audio-to-audio',
+    'audio-classification', 'voice-cloning', 'tts',
+  ])) return 'audio'
+  if (contains([
+    'text-to-image', 'image-to-image', 'image-generation', 'unconditional-image-generation',
+    'image-classification', 'object-detection', 'depth-estimation', 'diffusers',
+  ])) return 'image'
+  if (contains(['comfyui', 'workflow', 'chat-template', 'chat_template'])) return 'workflow'
+  if (contains([
+    'text-generation', 'text2text-generation', 'conversational', 'fill-mask',
+    'question-answering', 'summarization', 'translation',
+  ])) return 'language'
+
+  const textConfig = Object.keys(asRecord(config.text_config)).length > 0
+    ? asRecord(config.text_config)
+    : config
+  return positiveNumber(textConfig.num_hidden_layers) !== null ? 'language' : 'other'
+}
+
 const MODEL_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/
 
 export function parseHuggingFaceModelPath(pathname: string): HuggingFaceRoute | null {
@@ -77,7 +172,11 @@ function createModelId(owner: string, name: string) {
 export function normalizeHuggingFaceModel(
   rawMetadata: unknown,
   rawConfig: unknown,
-  options: { allowEstimate?: boolean; configSourceId?: string } = {},
+  options: {
+    allowEstimate?: boolean
+    configSourceId?: string
+    estimateReason?: HuggingFaceEstimateReason
+  } = {},
 ): HuggingFaceModel {
   const metadata = asRecord(rawMetadata)
   const config = asRecord(rawConfig)
@@ -137,6 +236,9 @@ export function normalizeHuggingFaceModel(
   const modelType = asString(config.model_type) ?? asString(textConfig.model_type)
     ?? asString(gguf.architecture)
   const pipelineTag = asString(metadata.pipeline_tag)
+  const modelKind = classifyModel(metadata, config)
+  const tensorSizeBytes = safetensorsSizeBytes(metadata)
+  const repositorySizeBytes = positiveNumber(metadata.usedStorage)
   const sourceUrl = `https://huggingface.co/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`
   const licenseFromTag = tags.find((tag) => tag.startsWith('license:'))?.slice('license:'.length) ?? null
   const lastModified = asString(metadata.lastModified)
@@ -152,7 +254,9 @@ export function normalizeHuggingFaceModel(
     ? asString(cardData.license_name) ?? cardLicense
     : cardLicense ?? licenseFromTag
 
-  const canEstimate = options.allowEstimate !== false
+  const isLlmMemoryModel = modelKind === 'language' || modelKind === 'vision-language'
+    || modelKind === 'other'
+  const canEstimate = options.allowEstimate !== false && isLlmMemoryModel
     && [parameters, layers, attentionLayers, maxContext]
     .every((value) => value !== null && Number.isFinite(value) && value > 0)
     && kvCache !== null
@@ -174,6 +278,23 @@ export function normalizeHuggingFaceModel(
     sourceUrl,
   } : null
 
+  const estimateReason: HuggingFaceEstimateReason | null = spec !== null
+    ? null
+    : options.estimateReason
+      ?? (modelKind === 'adapter'
+        ? 'adapter-only'
+        : modelKind === 'workflow'
+          ? 'workflow-artifact'
+          : !isLlmMemoryModel
+            ? 'modality-specific'
+            : parameters === null
+              ? 'missing-parameters'
+              : layers === null || attentionLayers === null
+                ? 'missing-layers'
+                : maxContext === null
+                  ? 'missing-context'
+                  : 'missing-kv-geometry')
+
   return {
     id: rawId,
     owner,
@@ -189,6 +310,10 @@ export function normalizeHuggingFaceModel(
     tags: tags.filter((tag) => !tag.startsWith('license:')).slice(0, 12),
     architecture,
     modelType,
+    modelKind,
+    tensorSizeBytes,
+    repositorySizeBytes,
+    estimateReason,
     layers,
     attentionLayers,
     maxContext,

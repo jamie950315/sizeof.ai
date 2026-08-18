@@ -24,6 +24,29 @@ const fitLabels: Record<Fit, string> = {
   'too-large': 'TOO LARGE',
 }
 
+const modelKindLabels: Record<HuggingFaceModel['modelKind'], string> = {
+  language: 'LANGUAGE',
+  'vision-language': 'VISION + LANGUAGE',
+  image: 'IMAGE',
+  video: 'VIDEO',
+  audio: 'AUDIO / SPEECH',
+  adapter: 'ADAPTER / LORA',
+  workflow: 'WORKFLOW / ARTIFACT',
+  other: 'OTHER',
+}
+
+const estimateReasonLabels: Record<NonNullable<HuggingFaceModel['estimateReason']>, string> = {
+  'adapter-only': 'This repository contains adapter weights, not a complete standalone model.',
+  'modality-specific': 'This model uses modality-specific runtime memory, so the LLM token and KV-cache formula does not apply.',
+  'workflow-artifact': 'This repository packages workflow or support files rather than one standalone model.',
+  'parameter-mismatch': 'The published parameter count does not match the declared base model, so an estimate would be unsafe.',
+  'unverified-base': 'The declared base model could not be verified safely.',
+  'missing-parameters': 'The repository does not publish a trustworthy parameter count.',
+  'missing-layers': 'The repository does not publish enough layer information for a safe estimate.',
+  'missing-context': 'The repository does not publish a native context window.',
+  'missing-kv-geometry': 'The repository does not publish enough attention geometry for KV-cache sizing.',
+}
+
 function formatCompact(value: number) {
   return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
 }
@@ -36,6 +59,13 @@ function formatContext(value: number) {
 function formatParameters(valueB: number | null) {
   if (valueB === null) return '—'
   return valueB >= 1000 ? `${(valueB / 1000).toFixed(2)}T` : `${valueB.toFixed(2)}B`
+}
+
+function formatBytes(value: number | null | undefined) {
+  if (!value) return '—'
+  const gib = value / 1024 ** 3
+  if (gib >= 0.1) return `${gib.toFixed(2)} GiB`
+  return `${(value / 1024 ** 2).toFixed(1)} MiB`
 }
 
 function Brand() {
@@ -61,7 +91,7 @@ export default function ModelDetailPage({ route }: Props) {
     let active = true
     setModel(null)
     setError(null)
-    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=4`)
+    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=5`)
       .then(async (response) => {
         const body = await response.json() as HuggingFaceModel | { error?: string }
         if (!response.ok) throw new Error('error' in body && body.error ? body.error : 'Unable to load model')
@@ -128,6 +158,10 @@ export default function ModelDetailPage({ route }: Props) {
     { label: 'KV cache', value: estimate.kvCacheGiB, className: 'kv' },
     { label: 'Runtime buffer', value: estimate.runtimeGiB, className: 'runtime' },
   ] : []
+  const modelKind = model.modelKind ?? 'other'
+  const unavailableReason = model.estimateReason
+    ? estimateReasonLabels[model.estimateReason]
+    : 'The repository does not publish enough architecture data for a safe estimate.'
 
   return (
     <div className="detail-shell">
@@ -163,6 +197,16 @@ export default function ModelDetailPage({ route }: Props) {
           <div><span>NATIVE CONTEXT</span><strong>{maxContext ? formatContext(maxContext) : '—'}</strong></div>
           <div><span>DOWNLOADS / MONTH</span><strong>{formatCompact(model.downloads)}</strong></div>
           <div><span>LIKES</span><strong>{formatCompact(model.likes)}</strong></div>
+        </section>
+
+        <section className="resource-profile" aria-label="Resource profile">
+          <div className="resource-profile-label">
+            <span>RESOURCE PROFILE</span>
+            <small>Published facts, not runtime guesses.</small>
+          </div>
+          <div><span>MODEL CATEGORY</span><strong>{modelKindLabels[modelKind]}</strong></div>
+          <div><span>PUBLISHED TENSORS</span><strong>{formatBytes(model.tensorSizeBytes)}</strong></div>
+          <div><span>REPOSITORY STORAGE</span><strong>{formatBytes(model.repositorySizeBytes)}</strong></div>
         </section>
 
         {model.spec && estimate && fit ? (
@@ -233,7 +277,7 @@ export default function ModelDetailPage({ route }: Props) {
             </div>
           </section>
         ) : (
-          <section className="detail-unavailable"><Info /><h2>VRAM estimate unavailable.</h2><p>The repository does not publish enough architecture data for a safe estimate.</p></section>
+          <section className="detail-unavailable"><Info /><h2>VRAM estimate unavailable.</h2><p>{unavailableReason}</p></section>
         )}
 
         <section className="architecture-section">
