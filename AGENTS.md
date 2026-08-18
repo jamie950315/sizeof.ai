@@ -15,11 +15,11 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 
 - 2026-08-18: Initial calculator, URL sharing, VRAM recommendations, catalog, methodology, responsive UI, and Cloudflare configuration implemented.
 - 2026-08-18: Production deployment is live on `https://sizeof.ai` and `https://www.sizeof.ai` through Cloudflare Workers Static Assets.
-- Cloudflare production version: `069000a3-e67b-4ae8-a08a-1127094a8477`.
+- Cloudflare production version: `2af377cc-9243-4be4-b113-cd2bd40de4b5`.
 - Browser QA covers 1280px desktop and 390px mobile; local artifacts remain ignored under `output/playwright/`.
 - 2026-08-18: Hugging Face-compatible `/{owner}/{repo}` detail routes are live with a revision-locked public metadata API, hybrid-attention-aware VRAM estimates, edge caching, and private/not-found normalization.
 - 2026-08-18: MLA and KDA hybrid configs now preserve published facts and expose explicit expanded-versus-latent cache modes; Kimi-K3 regression coverage and production browser verification passed.
-- 2026-08-18: Hugging Face trending Top 100 audit completed: all 100 production API lookups returned 200 with matching ids; 38 initially supported VRAM estimates and 62 were metadata-only. The largest actionable gap was 27/27 GGUF repositories missing Hub GGUF metadata support. GGUF logical parameters and guarded revision-locked base-config inheritance are implemented locally; production deployment and post-fix audit pending.
+- 2026-08-18: Hugging Face trending Top 100 production audit completed: all 100 API lookups returned 200 with matching ids. Safe VRAM estimates improved from 38 to 63; metadata-only results fell from 62 to 37. Of 27 repository names containing GGUF, 23 now have safe estimates. GGUF base-config inheritance is revision-locked and parameter-count-gated; sidecar, MTP, LoRA, PEFT, and adapter artifacts remain metadata-only when a full-model estimate cannot be trusted.
 
 ## Commands
 
