@@ -1,7 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createModelCacheKey, handleModelApi } from './index'
+import { applyAssetCachePolicy, createModelCacheKey, handleModelApi } from './index'
 
 describe('Hugging Face model API', () => {
+  it('requires HTML shells to revalidate while leaving hashed assets cacheable', () => {
+    const html = applyAssetCachePolicy(new Response('<!doctype html>', {
+      headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=3600' },
+    }))
+    const script = new Response('export {}', {
+      headers: { 'Content-Type': 'text/javascript', 'Cache-Control': 'public, max-age=31536000' },
+    })
+
+    expect(html.headers.get('Cache-Control')).toBe('no-cache')
+    expect(applyAssetCachePolicy(script)).toBe(script)
+  })
+
   it('uses an internal versioned cache key independent of the public schema query', () => {
     const key = createModelCacheKey(
       new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2'),

@@ -26,6 +26,18 @@ export function createModelCacheKey(request: Request) {
   return new Request(url.toString())
 }
 
+export function applyAssetCachePolicy(response: Response) {
+  if (!response.headers.get('Content-Type')?.includes('text/html')) return response
+
+  const headers = new Headers(response.headers)
+  headers.set('Cache-Control', 'no-cache')
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
+
 export async function handleModelApi(request: Request, fetcher: Fetcher = fetch): Promise<Response> {
   const route = apiRoute(new URL(request.url).pathname)
   if (!route) return json({ error: 'Invalid Hugging Face model path' }, 400)
@@ -91,7 +103,9 @@ export async function handleModelApi(request: Request, fetcher: Fetcher = fetch)
 export default {
   async fetch(request, env, ctx): Promise<Response> {
     const url = new URL(request.url)
-    if (!url.pathname.startsWith('/api/models/')) return env.ASSETS.fetch(request)
+    if (!url.pathname.startsWith('/api/models/')) {
+      return applyAssetCachePolicy(await env.ASSETS.fetch(request))
+    }
 
     const cache = caches.default
     const cacheKey = createModelCacheKey(request)
