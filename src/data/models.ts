@@ -1,4 +1,15 @@
-export interface ModelSpec {
+export type KvCacheLayout =
+  | { kind: 'standard'; heads: number; headDim: number }
+  | {
+      kind: 'mla'
+      heads: number
+      keyHeadDim: number
+      valueHeadDim: number
+      latentDim: number
+      ropeDim: number
+    }
+
+interface ModelSpecBase {
   id: string
   name: string
   family: string
@@ -6,13 +17,16 @@ export interface ModelSpec {
   parametersB: number
   layers: number
   attentionLayers?: number
-  kvHeads: number
-  headDim: number
   maxContext: number
   releaseYear: number
   strengths: string[]
   sourceUrl: string
 }
+
+export type ModelSpec = ModelSpecBase & (
+  | { kvCache: KvCacheLayout; kvHeads?: number; headDim?: number }
+  | { kvCache?: never; kvHeads: number; headDim: number }
+)
 
 export const models: ModelSpec[] = [
   {

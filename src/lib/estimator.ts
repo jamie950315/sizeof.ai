@@ -12,6 +12,7 @@ export interface EstimateOptions {
   quantization: QuantizationId
   context: number
   kvPrecision: KvPrecisionId
+  mlaCacheMode?: 'expanded' | 'latent'
 }
 
 export interface VramEstimate {
@@ -42,11 +43,23 @@ export function estimateVram(model: ModelSpec, options: EstimateOptions): VramEs
 
   const weightsGiB =
     (model.parametersB * 1_000_000_000 * quantization.bitsPerWeight) / 8 / BYTES_PER_GIB
+  if (model.kvCache?.kind === 'mla' && !options.mlaCacheMode) {
+    throw new Error('MLA cache mode is required')
+  }
+
+  const kvElementsPerLayer = model.kvCache?.kind === 'mla'
+    ? options.mlaCacheMode === 'latent'
+      ? model.kvCache.latentDim + model.kvCache.ropeDim
+      : model.kvCache.heads * (model.kvCache.keyHeadDim + model.kvCache.valueHeadDim)
+    : model.kvCache?.kind === 'standard'
+      ? model.kvCache.heads * model.kvCache.headDim * 2
+      : (model.kvHeads ?? 0) * (model.headDim ?? 0) * 2
+
+  if (kvElementsPerLayer <= 0) throw new Error('Unknown KV cache layout')
+
   const kvCacheGiB =
     ((model.attentionLayers ?? model.layers) *
-      model.kvHeads *
-      model.headDim *
-      2 *
+      kvElementsPerLayer *
       options.context *
       kvPrecision.bytes) /
     BYTES_PER_GIB

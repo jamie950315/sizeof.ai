@@ -18,6 +18,7 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Cloudflare production version: `50728c51-2535-4780-a717-c81570900860`.
 - Browser QA covers 1280px desktop and 390px mobile; local artifacts remain ignored under `output/playwright/`.
 - 2026-08-18: Hugging Face-compatible `/{owner}/{repo}` detail routes implemented with a revision-locked public metadata API, hybrid-attention-aware VRAM estimates, edge caching, and private/not-found normalization. Production deployment pending final verification.
+- 2026-08-18: MLA and KDA hybrid configs now preserve published facts and expose explicit expanded-versus-latent cache modes; Kimi-K3 regression coverage added. Production deployment pending final verification.
 
 ## Commands
 

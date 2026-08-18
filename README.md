@@ -11,6 +11,7 @@ sizeof.ai is a fast reference tool for estimating the VRAM required to run large
 - Model recommendations for 8–80 GiB VRAM budgets
 - Searchable, source-linked model catalog
 - Dynamic Hugging Face model detail pages by replacing `huggingface.co` with `sizeof.ai`
+- Engine-aware MLA cache estimates with expanded-reference and compressed-latent modes
 - Responsive, accessible interface with no account or tracking requirement
 
 ## Hugging Face URL shortcut
@@ -31,6 +32,8 @@ Weight memory uses the model parameter count and an approximate effective bits-p
 ```text
 layers × KV heads × head dimension × 2 (K and V) × context × bytes per cache value
 ```
+
+For MLA models, cache memory depends on the inference engine. The model detail page exposes both the repository-style expanded K/V layout and the optimized compressed-latent layout instead of presenting one engine-dependent value as universal. Published facts such as context length and layer count remain visible even when the repository does not expose enough data for an estimate. Repository-native quantization is labeled separately; GGUF choices remain hypothetical sizing scenarios.
 
 The total adds 10% of weights plus KV cache as workspace and a fixed 0.5 GiB runtime allowance. Results are planning estimates, not guarantees: inference engine, GPU offload, batch size, flash attention, multimodal projectors, and driver allocations can change real usage.
 

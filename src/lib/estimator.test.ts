@@ -40,6 +40,15 @@ describe('estimateVram', () => {
     expect(result.totalGiB).toBeCloseTo(1.1426, 4)
   })
 
+  it('calculates an explicit standard KV cache layout with the legacy formula', () => {
+    const result = estimateVram(
+      { ...fixture, kvCache: { kind: 'standard', heads: 2, headDim: 64 } },
+      { quantization: 'q4_k_m', context: 4096, kvPrecision: 'fp16' },
+    )
+
+    expect(result.kvCacheGiB).toBeCloseTo(0.0195, 4)
+  })
+
   it('uses only full-attention layers for hybrid model KV cache', () => {
     const result = estimateVram(
       { ...fixture, attentionLayers: 2 },
@@ -47,6 +56,35 @@ describe('estimateVram', () => {
     )
 
     expect(result.kvCacheGiB).toBeCloseTo(0.00390625, 7)
+  })
+
+  it('makes the engine-dependent MLA cache layout explicit', () => {
+    const model: ModelSpec = {
+      ...fixture,
+      layers: 93,
+      attentionLayers: 24,
+      kvCache: {
+        kind: 'mla',
+        heads: 96,
+        keyHeadDim: 192,
+        valueHeadDim: 128,
+        latentDim: 512,
+        ropeDim: 64,
+      },
+    }
+
+    const expanded = estimateVram(model, {
+      quantization: 'q4_k_m', context: 8192, kvPrecision: 'fp16', mlaCacheMode: 'expanded',
+    })
+    const latent = estimateVram(model, {
+      quantization: 'q4_k_m', context: 8192, kvPrecision: 'fp16', mlaCacheMode: 'latent',
+    })
+
+    expect(expanded.kvCacheGiB).toBeCloseTo(11.25, 7)
+    expect(latent.kvCacheGiB).toBeCloseTo(0.2109375, 7)
+    expect(() => estimateVram(model, {
+      quantization: 'q4_k_m', context: 8192, kvPrecision: 'fp16',
+    })).toThrow('MLA cache mode is required')
   })
 
   it('reports requests beyond the model native context', () => {

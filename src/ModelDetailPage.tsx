@@ -29,7 +29,13 @@ function formatCompact(value: number) {
 }
 
 function formatContext(value: number) {
+  if (value >= 1_000_000) return `${Math.round(value / 1_000_000)}M`
   return value >= 1000 ? `${Math.round(value / 1000)}K` : String(value)
+}
+
+function formatParameters(valueB: number | null) {
+  if (valueB === null) return '—'
+  return valueB >= 1000 ? `${(valueB / 1000).toFixed(2)}T` : `${valueB.toFixed(2)}B`
 }
 
 function Brand() {
@@ -47,6 +53,7 @@ export default function ModelDetailPage({ route }: Props) {
   const [quantization, setQuantization] = useState<QuantizationId>('q4_k_m')
   const [context, setContext] = useState(8192)
   const [kvPrecision, setKvPrecision] = useState<KvPrecisionId>('fp16')
+  const [mlaCacheMode, setMlaCacheMode] = useState<'expanded' | 'latent'>('expanded')
   const [vram, setVram] = useState(24)
   const [copied, setCopied] = useState(false)
 
@@ -54,7 +61,7 @@ export default function ModelDetailPage({ route }: Props) {
     let active = true
     setModel(null)
     setError(null)
-    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=1`)
+    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=2`)
       .then(async (response) => {
         const body = await response.json() as HuggingFaceModel | { error?: string }
         if (!response.ok) throw new Error('error' in body && body.error ? body.error : 'Unable to load model')
@@ -72,8 +79,8 @@ export default function ModelDetailPage({ route }: Props) {
   }, [model])
 
   const estimate = useMemo(
-    () => model?.spec ? estimateVram(model.spec, { quantization, context, kvPrecision }) : null,
-    [context, kvPrecision, model, quantization],
+    () => model?.spec ? estimateVram(model.spec, { quantization, context, kvPrecision, mlaCacheMode }) : null,
+    [context, kvPrecision, mlaCacheMode, model, quantization],
   )
   const fit = estimate ? classifyFit(estimate.totalGiB, vram) : null
 
@@ -110,7 +117,12 @@ export default function ModelDetailPage({ route }: Props) {
     )
   }
 
-  const fullAttentionLayers = model.spec?.attentionLayers ?? null
+  const fullAttentionLayers = model.attentionLayers ?? model.spec?.attentionLayers ?? null
+  const layers = model.layers ?? model.spec?.layers ?? null
+  const maxContext = model.maxContext ?? model.spec?.maxContext ?? null
+  const contextPresets = model.spec
+    ? [...new Set([...contexts, model.spec.maxContext])].filter((value) => value <= model.spec!.maxContext).sort((a, b) => a - b)
+    : []
   const memoryParts = estimate ? [
     { label: 'Model weights', value: estimate.weightsGiB, className: 'weights' },
     { label: 'KV cache', value: estimate.kvCacheGiB, className: 'kv' },
@@ -141,13 +153,14 @@ export default function ModelDetailPage({ route }: Props) {
             {model.license && <span>LICENSE / {model.license}</span>}
             {model.pipelineTag && <span>{model.pipelineTag}</span>}
             {model.libraryName && <span>{model.libraryName}</span>}
+            {model.quantizationFormat && <span>REPO QUANTIZATION / {model.quantizationFormat.toUpperCase()}</span>}
             <span>UPDATED / {model.lastModified ? new Date(model.lastModified).toLocaleDateString('en-CA') : 'UNKNOWN'}</span>
           </div>
         </section>
 
         <section className="detail-metrics" aria-label="Model facts">
-          <div><span>PARAMETERS</span><strong>{model.parametersB?.toFixed(2) ?? '—'}B</strong></div>
-          <div><span>NATIVE CONTEXT</span><strong>{model.spec ? formatContext(model.spec.maxContext) : '—'}</strong></div>
+          <div><span>PARAMETERS</span><strong>{formatParameters(model.parametersB)}</strong></div>
+          <div><span>NATIVE CONTEXT</span><strong>{maxContext ? formatContext(maxContext) : '—'}</strong></div>
           <div><span>DOWNLOADS / MONTH</span><strong>{formatCompact(model.downloads)}</strong></div>
           <div><span>LIKES</span><strong>{formatCompact(model.likes)}</strong></div>
         </section>
@@ -161,7 +174,7 @@ export default function ModelDetailPage({ route }: Props) {
             <div className="calculator-grid detail-calc-grid">
               <div className="controls-panel">
                 <div className="control-block">
-                  <div className="label-row"><label>Weight quantization</label><span>{quantizations.find((item) => item.id === quantization)?.note}</span></div>
+                  <div className="label-row"><label>Weight quantization</label><span>{model.quantizationFormat ? 'HYPOTHETICAL GGUF' : quantizations.find((item) => item.id === quantization)?.note}</span></div>
                   <div className="quant-grid">
                     {quantizations.map((item) => (
                       <button type="button" className={quantization === item.id ? 'active' : ''} key={item.id} onClick={() => setQuantization(item.id)}>{item.label}</button>
@@ -172,12 +185,22 @@ export default function ModelDetailPage({ route }: Props) {
                   <div className="label-row"><label htmlFor="detail-context">Context window</label><span>TOKENS</span></div>
                   <input id="detail-context" type="number" min="1" step="1024" value={context} onChange={(event) => setContext(Math.max(1, Number(event.target.value) || 1))} />
                   <div className="preset-row">
-                    {contexts.filter((value) => value <= model.spec!.maxContext).map((value) => (
+                    {contextPresets.map((value) => (
                       <button type="button" className={context === value ? 'active' : ''} key={value} onClick={() => setContext(value)}>{formatContext(value)}</button>
                     ))}
                   </div>
                   {estimate.exceedsNativeContext && <p className="warning">Above the published native context.</p>}
                 </div>
+                {model.spec.kvCache?.kind === 'mla' && (
+                  <div className="control-block mla-control">
+                    <div className="label-row"><label htmlFor="detail-mla-cache">MLA cache layout</label><span>ENGINE-DEPENDENT</span></div>
+                    <select id="detail-mla-cache" value={mlaCacheMode} onChange={(event) => setMlaCacheMode(event.target.value as 'expanded' | 'latent')}>
+                      <option value="expanded">Reference / expanded K/V</option>
+                      <option value="latent">Optimized / compressed latent</option>
+                    </select>
+                    <p className="control-help">Reference mode follows the repository implementation. Optimized MLA engines may retain only the compressed latent cache.</p>
+                  </div>
+                )}
                 <div className="split-controls">
                   <div className="control-block compact">
                     <label htmlFor="detail-kv">KV cache precision</label>
@@ -203,7 +226,9 @@ export default function ModelDetailPage({ route }: Props) {
                 <div className="breakdown-list">
                   {memoryParts.map((part) => <div key={part.label}><span><i className={part.className} />{part.label}</span><strong>{part.value.toFixed(2)} GiB</strong></div>)}
                 </div>
-                <p className="estimate-note"><Info size={15} /> Hybrid architectures count only full-attention layers toward context-scaled KV cache. Fixed linear-attention state is covered by the runtime allowance.</p>
+                <p className="estimate-note"><Info size={15} /> {model.spec.kvCache?.kind === 'mla'
+                  ? `${mlaCacheMode === 'expanded' ? 'Expanded K/V follows the repository reference cache.' : 'Compressed latent assumes an optimized MLA engine.'} Only full-attention layers scale with context; fixed linear-attention state is covered by the runtime allowance.`
+                  : 'Hybrid architectures count only full-attention layers toward context-scaled KV cache. Fixed linear-attention state is covered by the runtime allowance.'}</p>
               </div>
             </div>
           </section>
@@ -216,8 +241,8 @@ export default function ModelDetailPage({ route }: Props) {
           <div className="architecture-grid">
             <div><span>ARCHITECTURE</span><strong>{model.architecture ?? 'Not published'}</strong></div>
             <div><span>MODEL TYPE</span><strong>{model.modelType ?? 'Not published'}</strong></div>
-            <div><span>Full attention layers</span><strong>{fullAttentionLayers !== null && model.spec ? `${fullAttentionLayers} / ${model.spec.layers}` : '—'}</strong></div>
-            <div><span>KV HEADS / HEAD DIM</span><strong>{model.spec ? `${model.spec.kvHeads} / ${model.spec.headDim}` : '—'}</strong></div>
+            <div><span>Full attention layers</span><strong>{fullAttentionLayers !== null && layers ? `${fullAttentionLayers} / ${layers}` : '—'}</strong></div>
+            <div><span>{model.spec?.kvCache?.kind === 'mla' ? 'ATTENTION CACHE' : 'KV HEADS / HEAD DIM'}</span><strong>{model.spec?.kvCache?.kind === 'mla' ? 'MLA / ENGINE-DEPENDENT' : model.spec ? `${model.spec.kvHeads} / ${model.spec.headDim}` : '—'}</strong></div>
           </div>
           <div className="hf-source-row">
             <span>DATA SOURCE / HUGGING FACE PUBLIC API + CONFIG.JSON</span>

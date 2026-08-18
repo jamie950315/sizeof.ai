@@ -53,7 +53,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByText('16 / 64')).toBeInTheDocument()
     expect(screen.getByText('Full attention layers')).toBeInTheDocument()
     expect(screen.getByText('18.30')).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=1')
+    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=2')
   })
 
   it('shows a useful model-not-found state', async () => {
@@ -62,5 +62,48 @@ describe('Hugging Face-style model detail route', () => {
 
     expect(await screen.findByRole('heading', { name: /model not found/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /back to sizeof.ai/i })).toHaveAttribute('href', '/')
+  })
+
+  it('shows engine-aware MLA sizing without hiding known model facts', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'moonshotai/Kimi-K3',
+      owner: 'moonshotai',
+      name: 'Kimi-K3',
+      parametersB: 2779.931837184,
+      license: 'kimi-k3',
+      architecture: 'KimiK3ForConditionalGeneration',
+      modelType: 'kimi_k3',
+      layers: 93,
+      attentionLayers: 24,
+      maxContext: 1_048_576,
+      quantizationFormat: 'mxfp4-pack-quantized',
+      sourceUrl: 'https://huggingface.co/moonshotai/Kimi-K3',
+      spec: {
+        ...apiModel.spec,
+        id: 'hf-moonshotai-kimi-k3',
+        name: 'Kimi-K3',
+        parametersB: 2779.931837184,
+        layers: 93,
+        attentionLayers: 24,
+        maxContext: 1_048_576,
+        kvHeads: undefined,
+        headDim: undefined,
+        kvCache: {
+          kind: 'mla', heads: 96, keyHeadDim: 192, valueHeadDim: 128,
+          latentDim: 512, ropeDim: 64,
+        },
+      },
+    })))
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Kimi-K3' })).toBeInTheDocument()
+    expect(screen.getByText('2.78T')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Model facts' })).getByText('1M')).toBeInTheDocument()
+    expect(screen.getByText('24 / 93')).toBeInTheDocument()
+    expect(screen.getByLabelText('MLA cache layout')).toHaveValue('expanded')
+    expect(screen.getByText('REPO QUANTIZATION / MXFP4-PACK-QUANTIZED')).toBeInTheDocument()
+    expect(screen.getByText('HYPOTHETICAL GGUF')).toBeInTheDocument()
   })
 })

@@ -88,6 +88,8 @@ select option { background: #1b1c18; color: white; }
 .warning { color: var(--orange); font: 10px/1.5 'JetBrains Mono Variable', monospace; margin: 12px 0 0; }
 .split-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .control-block.compact select { width: 100%; color: var(--paper); background: transparent; border: 0; border-bottom: 1px solid #5c5e55; padding: 5px 0 12px; outline: none; font: 650 16px/1 'JetBrains Mono Variable', monospace; }
+.mla-control select { width: 100%; color: var(--paper); background: transparent; border: 0; border-bottom: 1px solid #5c5e55; padding: 5px 0 12px; outline: none; font: 650 15px/1 'JetBrains Mono Variable', monospace; }
+.control-help { margin: 10px 0 0; color: #777970; font-size: 9px; line-height: 1.55; }
 
 .result-panel { padding: clamp(24px, 4vw, 60px); background: #171814; display: flex; flex-direction: column; }
 .result-topline { display: flex; justify-content: space-between; align-items: center; color: #878980; font-size: 10px; letter-spacing: .09em; }

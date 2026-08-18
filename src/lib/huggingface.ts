@@ -20,6 +20,10 @@ export interface HuggingFaceModel {
   tags: string[]
   architecture: string | null
   modelType: string | null
+  layers: number | null
+  attentionLayers: number | null
+  maxContext: number | null
+  quantizationFormat: string | null
   sourceUrl: string
   spec: ModelSpec | null
 }
@@ -97,7 +101,35 @@ export function normalizeHuggingFaceModel(
   const maxContext = positiveNumber(textConfig.max_position_embeddings)
   const layerTypes = stringArray(textConfig.layer_types)
   const fullAttentionLayers = layerTypes.filter((item) => item === 'full_attention').length
-  const attentionLayers = fullAttentionLayers > 0 ? fullAttentionLayers : layers
+  const linearAttentionConfig = asRecord(textConfig.linear_attn_config)
+  const explicitFullAttentionLayers = Array.isArray(linearAttentionConfig.full_attn_layers)
+    ? new Set(linearAttentionConfig.full_attn_layers.filter((item): item is number =>
+        typeof item === 'number' && Number.isInteger(item) && item >= 0
+          && (layers === null || item <= layers),
+      )).size
+    : 0
+  const attentionLayers = fullAttentionLayers > 0
+    ? fullAttentionLayers
+    : explicitFullAttentionLayers > 0
+      ? explicitFullAttentionLayers
+      : layers
+  const kvLoraRank = positiveNumber(textConfig.kv_lora_rank)
+  const qkRopeHeadDim = positiveNumber(textConfig.qk_rope_head_dim)
+  const qkNopeHeadDim = positiveNumber(textConfig.qk_nope_head_dim)
+  const valueHeadDim = positiveNumber(textConfig.v_head_dim)
+  const kvCache = kvLoraRank !== null && qkRopeHeadDim !== null && qkNopeHeadDim !== null
+      && valueHeadDim !== null && attentionHeads !== null
+    ? {
+        kind: 'mla' as const,
+        heads: attentionHeads,
+        keyHeadDim: qkNopeHeadDim + qkRopeHeadDim,
+        valueHeadDim,
+        latentDim: kvLoraRank,
+        ropeDim: qkRopeHeadDim,
+      }
+    : kvHeads !== null && headDim !== null
+      ? { kind: 'standard' as const, heads: kvHeads, headDim }
+      : null
   const architecture = stringArray(config.architectures)[0] ?? null
   const modelType = asString(config.model_type) ?? asString(textConfig.model_type)
   const pipelineTag = asString(metadata.pipeline_tag)
@@ -105,9 +137,19 @@ export function normalizeHuggingFaceModel(
   const licenseFromTag = tags.find((tag) => tag.startsWith('license:'))?.slice('license:'.length) ?? null
   const lastModified = asString(metadata.lastModified)
   const releaseYear = lastModified ? new Date(lastModified).getUTCFullYear() : new Date().getUTCFullYear()
+  const textQuantizationConfig = asRecord(textConfig.quantization_config)
+  const quantizationConfig = Object.keys(textQuantizationConfig).length > 0
+    ? textQuantizationConfig
+    : asRecord(config.quantization_config)
+  const quantizationFormat = asString(quantizationConfig.format)
+  const cardLicense = asString(cardData.license)
+  const license = cardLicense === 'other'
+    ? asString(cardData.license_name) ?? cardLicense
+    : cardLicense ?? licenseFromTag
 
-  const canEstimate = [parameters, layers, attentionLayers, kvHeads, headDim, maxContext]
+  const canEstimate = [parameters, layers, attentionLayers, maxContext]
     .every((value) => value !== null && Number.isFinite(value) && value > 0)
+    && kvCache !== null
 
   const spec: ModelSpec | null = canEstimate ? {
     id: createModelId(owner, name),
@@ -117,8 +159,9 @@ export function normalizeHuggingFaceModel(
     parametersB: parameters! / 1_000_000_000,
     layers: layers!,
     attentionLayers: attentionLayers!,
-    kvHeads: kvHeads!,
-    headDim: headDim!,
+    kvHeads: kvCache?.kind === 'standard' ? kvCache.heads : undefined,
+    headDim: kvCache?.kind === 'standard' ? kvCache.headDim : undefined,
+    kvCache: kvCache!,
     maxContext: maxContext!,
     releaseYear: Number.isFinite(releaseYear) ? releaseYear : new Date().getUTCFullYear(),
     strengths: pipelineTag ? [pipelineTag] : [],
@@ -136,10 +179,14 @@ export function normalizeHuggingFaceModel(
     lastModified,
     pipelineTag,
     libraryName: asString(metadata.library_name),
-    license: asString(cardData.license) ?? licenseFromTag,
+    license,
     tags: tags.filter((tag) => !tag.startsWith('license:')).slice(0, 12),
     architecture,
     modelType,
+    layers,
+    attentionLayers,
+    maxContext,
+    quantizationFormat,
     sourceUrl,
     spec,
   }
