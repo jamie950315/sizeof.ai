@@ -1,0 +1,61 @@
+# sizeof.ai
+
+sizeof.ai is a fast reference tool for estimating the VRAM required to run large language models at different weight quantizations, context sizes, and KV-cache precisions. It also recommends the strongest catalog models that fit a selected VRAM budget.
+
+## Features
+
+- VRAM calculator with separate weight, KV-cache, and runtime estimates
+- Seven common GGUF weight quantizations from FP16 to Q2_K
+- Configurable context window and KV-cache precision
+- Shareable calculator state in the URL
+- Model recommendations for 8–80 GiB VRAM budgets
+- Searchable, source-linked model catalog
+- Responsive, accessible interface with no account or tracking requirement
+
+## Estimation model
+
+Weight memory uses the model parameter count and an approximate effective bits-per-weight value for each GGUF quantization. KV-cache memory is calculated for batch size one from:
+
+```text
+layers × KV heads × head dimension × 2 (K and V) × context × bytes per cache value
+```
+
+The total adds 10% of weights plus KV cache as workspace and a fixed 0.5 GiB runtime allowance. Results are planning estimates, not guarantees: inference engine, GPU offload, batch size, flash attention, multimodal projectors, and driver allocations can change real usage.
+
+## Development
+
+Node.js 24 or later is recommended.
+
+```bash
+nvm use
+npm install
+npm run dev
+```
+
+Quality checks:
+
+```bash
+npm test
+npm run typecheck
+npm run build
+npm run cf:check
+```
+
+## Cloudflare deployment
+
+The site deploys as a Cloudflare Worker with Static Assets. The Wrangler configuration includes the `sizeof.ai` and `www.sizeof.ai` custom domains, so no Pi or separate origin server is required.
+
+```bash
+npx wrangler login
+npm run deploy
+```
+
+Cloudflare creates and manages the required proxied DNS records when the custom domains are attached. Do not add an AAAA or CNAME record to a separate origin.
+
+## Model data
+
+Model architecture data lives in `src/data/models.ts`. Each entry links to its primary Hugging Face model page. Keep parameter count, layer count, KV-head count, head dimension, and native context synchronized when adding or updating a model.
+
+## License
+
+No license has been selected yet.

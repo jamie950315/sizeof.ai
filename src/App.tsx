@@ -1,0 +1,429 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Check,
+  Code2,
+  Copy,
+  Cpu,
+  Database,
+  Gauge,
+  Info,
+  MemoryStick,
+  Search,
+} from 'lucide-react'
+import { models } from './data/models'
+import {
+  kvPrecisions,
+  quantizations,
+  type KvPrecisionId,
+  type QuantizationId,
+} from './data/quantizations'
+import { estimateVram, rankModelsForVram, type Fit } from './lib/estimator'
+import {
+  defaultCalculatorState,
+  parseCalculatorState,
+  serializeCalculatorState,
+} from './lib/url-state'
+
+const contextPresets = [2048, 4096, 8192, 16384, 32768, 65536, 131072]
+const vramPresets = [8, 12, 16, 24, 32, 48, 64, 80]
+
+function formatGiB(value: number, digits = 2) {
+  return `${value.toFixed(digits)} GiB`
+}
+
+function formatContext(value: number) {
+  return value >= 1024 ? `${Math.round(value / 1024)}K` : String(value)
+}
+
+const fitLabels: Record<Fit, string> = {
+  comfortable: 'COMFORTABLE',
+  tight: 'TIGHT FIT',
+  'too-large': 'TOO LARGE',
+}
+
+export default function App() {
+  const initial = parseCalculatorState(window.location.search)
+  const initialModel = models.some((model) => model.id === initial.modelId)
+    ? initial.modelId
+    : defaultCalculatorState.modelId
+  const [modelId, setModelId] = useState(initialModel)
+  const [quantization, setQuantization] = useState<QuantizationId>(initial.quantization)
+  const [context, setContext] = useState(initial.context)
+  const [kvPrecision, setKvPrecision] = useState<KvPrecisionId>(initial.kvPrecision)
+  const [vramBudget, setVramBudget] = useState(16)
+  const [catalogQuery, setCatalogQuery] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  const model = models.find((item) => item.id === modelId) ?? models[0]
+  const estimate = estimateVram(model, { quantization, context, kvPrecision })
+  const currentFit: Fit =
+    estimate.totalGiB > vramBudget
+      ? 'too-large'
+      : estimate.totalGiB > vramBudget * 0.85
+        ? 'tight'
+        : 'comfortable'
+
+  useEffect(() => {
+    const query = serializeCalculatorState({ modelId, quantization, context, kvPrecision })
+    window.history.replaceState(null, '', `${window.location.pathname}?${query}`)
+  }, [modelId, quantization, context, kvPrecision])
+
+  const recommendations = useMemo(
+    () =>
+      rankModelsForVram(models, {
+        vramGiB: vramBudget,
+        context,
+        quantization,
+        kvPrecision,
+      }).filter((item) => item.fit !== 'too-large'),
+    [context, kvPrecision, quantization, vramBudget],
+  )
+
+  const filteredModels = useMemo(() => {
+    const query = catalogQuery.trim().toLowerCase()
+    if (!query) return models
+    return models.filter((item) =>
+      [item.name, item.family, item.maker, ...item.strengths]
+        .join(' ')
+        .toLowerCase()
+        .includes(query),
+    )
+  }, [catalogQuery])
+
+  async function copyShareLink() {
+    await navigator.clipboard.writeText(window.location.href)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1600)
+  }
+
+  const memoryParts = [
+    { label: 'Model weights', value: estimate.weightsGiB, className: 'weights' },
+    { label: 'KV cache', value: estimate.kvCacheGiB, className: 'kv' },
+    { label: 'Runtime buffer', value: estimate.runtimeGiB, className: 'runtime' },
+  ]
+
+  return (
+    <div className="site-shell">
+      <header className="site-header">
+        <a className="brand" href="#top" aria-label="sizeof.ai home">
+          <span className="brand-bracket">[</span> sizeof<span>.ai</span>{' '}
+          <span className="brand-bracket">]</span>
+        </a>
+        <nav aria-label="Main navigation">
+          <a href="#calculator">Calculator</a>
+          <a href="#recommendations">VRAM fit</a>
+          <a href="#catalog">Models</a>
+        </nav>
+        <a className="source-link" href="#method" aria-label="Calculation method">
+          <Code2 size={17} />
+          <span>Method</span>
+        </a>
+      </header>
+
+      <main id="top">
+        <section className="hero">
+          <div className="hero-kicker reveal">
+            <span className="pulse-dot" /> LLM MEMORY REFERENCE / V0.1
+          </div>
+          <h1 className="reveal delay-1">
+            KNOW WHAT FITS
+            <span>BEFORE YOU LOAD.</span>
+          </h1>
+          <div className="hero-bottom reveal delay-2">
+            <p>
+              Model weights are only half the story. Calculate the real memory footprint across
+              quantization, context, and KV cache precision.
+            </p>
+            <a href="#calculator" className="jump-link">
+              RUN A CALCULATION <ArrowDownRight size={20} />
+            </a>
+          </div>
+          <div className="hero-rule" />
+          <div className="signal-row">
+            <span>09 DENSE MODELS</span>
+            <span>07 QUANTIZATIONS</span>
+            <span>NO SIGN-UP</span>
+            <span>UPDATED 18 AUG 2026</span>
+          </div>
+        </section>
+
+        <section id="calculator" className="calculator-section" aria-label="VRAM calculator">
+          <div className="section-heading">
+            <div>
+              <span className="section-index">01</span>
+              <p>MEMORY CALCULATOR</p>
+            </div>
+            <h2>Size the model,<br />not the guess.</h2>
+          </div>
+
+          <div className="calculator-grid">
+            <div className="controls-panel">
+              <div className="control-block">
+                <label htmlFor="model-select">Model</label>
+                <div className="select-wrap">
+                  <select
+                    id="model-select"
+                    aria-label="Model"
+                    value={modelId}
+                    onChange={(event) => setModelId(event.target.value)}
+                  >
+                    {models.map((item) => (
+                      <option value={item.id} key={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                  <ArrowDownRight size={18} />
+                </div>
+                <div className="model-meta">
+                  <span>{model.maker}</span>
+                  <span>{model.parametersB}B PARAMS</span>
+                  <span>{formatContext(model.maxContext)} NATIVE</span>
+                </div>
+              </div>
+
+              <div className="control-block">
+                <div className="label-row">
+                  <label>Weight quantization</label>
+                  <span>{quantizations.find((item) => item.id === quantization)?.note}</span>
+                </div>
+                <div className="quant-grid">
+                  {quantizations.map((item) => (
+                    <button
+                      className={quantization === item.id ? 'active' : ''}
+                      type="button"
+                      key={item.id}
+                      onClick={() => setQuantization(item.id)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="control-block context-block">
+                <div className="label-row">
+                  <label htmlFor="context-input">Context window</label>
+                  <span>TOKENS</span>
+                </div>
+                <input
+                  id="context-input"
+                  type="number"
+                  min="1"
+                  step="1024"
+                  value={context}
+                  onChange={(event) => setContext(Math.max(1, Number(event.target.value) || 1))}
+                />
+                <div className="preset-row">
+                  {contextPresets.map((value) => (
+                    <button
+                      type="button"
+                      className={context === value ? 'active' : ''}
+                      key={value}
+                      onClick={() => setContext(value)}
+                    >
+                      {formatContext(value)}
+                    </button>
+                  ))}
+                </div>
+                {estimate.exceedsNativeContext && (
+                  <p className="warning">Above the published native context. Scaling may affect quality.</p>
+                )}
+              </div>
+
+              <div className="split-controls">
+                <div className="control-block compact">
+                  <label htmlFor="kv-select">KV cache precision</label>
+                  <select
+                    id="kv-select"
+                    value={kvPrecision}
+                    onChange={(event) => setKvPrecision(event.target.value as KvPrecisionId)}
+                  >
+                    {kvPrecisions.map((item) => (
+                      <option value={item.id} key={item.id}>{item.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="control-block compact">
+                  <label htmlFor="vram-select">Your VRAM</label>
+                  <select
+                    id="vram-select"
+                    value={vramBudget}
+                    onChange={(event) => setVramBudget(Number(event.target.value))}
+                  >
+                    {vramPresets.map((value) => (
+                      <option value={value} key={value}>{value} GiB</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="result-panel">
+              <div className="result-topline">
+                <span>ESTIMATED VRAM</span>
+                <span className={`fit-pill ${currentFit}`}>{fitLabels[currentFit]} ON {vramBudget} GB</span>
+              </div>
+              <div className="total-number">
+                <span>{estimate.totalGiB.toFixed(2)}</span>
+                <small>GiB</small>
+              </div>
+              <div className="memory-bar" aria-label="Memory breakdown chart">
+                {memoryParts.map((part) => (
+                  <span
+                    className={part.className}
+                    key={part.label}
+                    style={{ width: `${(part.value / estimate.totalGiB) * 100}%` }}
+                  />
+                ))}
+              </div>
+              <div className="breakdown-list">
+                {memoryParts.map((part) => (
+                  <div key={part.label}>
+                    <span><i className={part.className} />{part.label}</span>
+                    <strong>{formatGiB(part.value)}</strong>
+                  </div>
+                ))}
+              </div>
+              <div className="result-model">
+                <div>
+                  <span>CONFIGURATION</span>
+                  <strong>{model.name}</strong>
+                  <p>{quantizations.find((item) => item.id === quantization)?.label} · {formatContext(context)} context · {kvPrecision.toUpperCase()} KV</p>
+                </div>
+                <button type="button" className="copy-button" onClick={() => void copyShareLink()}>
+                  {copied ? <Check size={17} /> : <Copy size={17} />}
+                  {copied ? 'COPIED' : 'COPY LINK'}
+                </button>
+              </div>
+              <p className="estimate-note">
+                <Info size={15} /> Estimate includes weights, KV cache, 10% workspace, and a 0.5 GiB base runtime allowance. Actual use varies by engine and GPU offload.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section id="recommendations" className="recommendation-section">
+          <div className="section-heading light">
+            <div>
+              <span className="section-index">02</span>
+              <p>VRAM FIT</p>
+            </div>
+            <h2>Use every gigabyte<br />with intent.</h2>
+          </div>
+          <div className="vram-strip" aria-label="VRAM capacity">
+            {vramPresets.map((value) => (
+              <button
+                type="button"
+                key={value}
+                className={vramBudget === value ? 'active' : ''}
+                onClick={() => setVramBudget(value)}
+              >
+                <span>{value}</span> GB
+              </button>
+            ))}
+          </div>
+
+          <div className="recommendation-intro">
+            <p>TOP PICKS FOR</p>
+            <strong>{vramBudget} GB</strong>
+            <span>{formatContext(context)} context · {quantizations.find((item) => item.id === quantization)?.label}</span>
+          </div>
+          <div className="recommendation-grid">
+            {recommendations.slice(0, 3).map((item, index) => (
+              <article className="recommendation-card" key={item.model.id}>
+                <div className="card-rank">0{index + 1}</div>
+                <div className="card-maker">{item.model.maker}</div>
+                <h3>{item.model.name}</h3>
+                <div className="card-tags">
+                  {item.model.strengths.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
+                </div>
+                <div className="card-memory">
+                  <div>
+                    <span>EST. VRAM</span>
+                    <strong>{item.estimate.totalGiB.toFixed(1)} GB</strong>
+                  </div>
+                  <div>
+                    <span>HEADROOM</span>
+                    <strong>{item.headroomGiB.toFixed(1)} GB</strong>
+                  </div>
+                </div>
+                <button type="button" onClick={() => { setModelId(item.model.id); document.querySelector('#calculator')?.scrollIntoView({ behavior: 'smooth' }) }}>
+                  CALCULATE <ArrowUpRight size={17} />
+                </button>
+              </article>
+            ))}
+            {recommendations.length === 0 && (
+              <div className="empty-recommendation">No catalog model fits this setup. Try a smaller quantization or context.</div>
+            )}
+          </div>
+        </section>
+
+        <section id="catalog" className="catalog-section" aria-label="Model catalog">
+          <div className="section-heading">
+            <div>
+              <span className="section-index">03</span>
+              <p>MODEL INDEX</p>
+            </div>
+            <h2>Specs you can<br />inspect.</h2>
+          </div>
+          <div className="catalog-toolbar">
+            <div className="search-box">
+              <Search size={19} />
+              <input
+                type="search"
+                aria-label="Search model catalog"
+                placeholder="SEARCH NAME, MAKER, STRENGTH…"
+                value={catalogQuery}
+                onChange={(event) => setCatalogQuery(event.target.value)}
+              />
+            </div>
+            <span>{String(filteredModels.length).padStart(2, '0')} / {String(models.length).padStart(2, '0')} MODELS</span>
+          </div>
+          <div className="catalog-table">
+            <div className="catalog-header">
+              <span>MODEL</span><span>PARAMETERS</span><span>MAX CONTEXT</span><span>ARCHITECTURE</span><span />
+            </div>
+            {filteredModels.map((item) => (
+              <article key={item.id} className="catalog-row">
+                <div className="catalog-name">
+                  <span>{item.maker}</span>
+                  <strong>{item.name}</strong>
+                  <div>{item.strengths.map((tag) => <i key={tag}>{tag}</i>)}</div>
+                </div>
+                <div><small>PARAMETERS</small><strong>{item.parametersB}B</strong></div>
+                <div><small>MAX CONTEXT</small><strong>{formatContext(item.maxContext)}</strong></div>
+                <div><small>ARCHITECTURE</small><strong>{item.layers}L / {item.kvHeads} KVH</strong></div>
+                <div className="catalog-actions">
+                  <button type="button" onClick={() => { setModelId(item.id); document.querySelector('#calculator')?.scrollIntoView({ behavior: 'smooth' }) }}>SIZE IT</button>
+                  <a href={item.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${item.name} source`}><ArrowUpRight size={17} /></a>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="method" className="method-section">
+          <div className="method-title">
+            <span>HOW IT WORKS</span>
+            <h2>Transparent by default.</h2>
+            <p>No mystery score. Every estimate is built from the model architecture and a small set of visible assumptions.</p>
+          </div>
+          <div className="method-grid">
+            <div><Database /><span>01</span><h3>Weights</h3><p>Parameter count × effective bits per weight for the selected GGUF quantization.</p></div>
+            <div><MemoryStick /><span>02</span><h3>KV cache</h3><p>Layers × KV heads × head dimension × context × cache precision, for batch size one.</p></div>
+            <div><Cpu /><span>03</span><h3>Runtime</h3><p>A practical allowance for compute buffers, metadata, and inference-engine workspace.</p></div>
+            <div><Gauge /><span>04</span><h3>Fit</h3><p>Under 85% is comfortable; 85–100% is tight; over capacity requires partial CPU offload.</p></div>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <div className="brand"><span className="brand-bracket">[</span> sizeof<span>.ai</span> <span className="brand-bracket">]</span></div>
+        <p>LLM MEMORY, MEASURED.</p>
+        <div><a href="#calculator">Calculator</a><a href="#catalog">Model data</a><a href="#method">Method</a></div>
+        <span>ESTIMATES, NOT GUARANTEES · 2026</span>
+      </footer>
+    </div>
+  )
+}
