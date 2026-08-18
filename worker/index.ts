@@ -20,6 +20,12 @@ function apiRoute(pathname: string) {
   return parseHuggingFaceModelPath(`/${pathname.slice(prefix.length)}`)
 }
 
+export function createModelCacheKey(request: Request) {
+  const url = new URL(request.url)
+  url.searchParams.set('__sizeof_cache', 'hf-model-v2')
+  return new Request(url.toString())
+}
+
 export async function handleModelApi(request: Request, fetcher: Fetcher = fetch): Promise<Response> {
   const route = apiRoute(new URL(request.url).pathname)
   if (!route) return json({ error: 'Invalid Hugging Face model path' }, 400)
@@ -88,11 +94,12 @@ export default {
     if (!url.pathname.startsWith('/api/models/')) return env.ASSETS.fetch(request)
 
     const cache = caches.default
-    const cached = await cache.match(request)
+    const cacheKey = createModelCacheKey(request)
+    const cached = await cache.match(cacheKey)
     if (cached) return cached
 
     const response = await handleModelApi(request)
-    if (response.ok) ctx.waitUntil(cache.put(request, response.clone()))
+    if (response.ok) ctx.waitUntil(cache.put(cacheKey, response.clone()))
     return response
   },
 } satisfies ExportedHandler<Env>

@@ -1,7 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
-import { handleModelApi } from './index'
+import { createModelCacheKey, handleModelApi } from './index'
 
 describe('Hugging Face model API', () => {
+  it('uses an internal versioned cache key independent of the public schema query', () => {
+    const key = createModelCacheKey(
+      new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2'),
+    )
+
+    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v2')
+  })
+
   it('fetches metadata and config from fixed Hugging Face endpoints', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
