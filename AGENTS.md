@@ -32,7 +32,7 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-20: Memory profile now defaults to the original hypothetical bit-per-weight estimate and offers publisher tabs for verified community artifacts. Unsloth, bartowski, and mlx-community variants remain separated by source; MLX precision and OptiQ labels are derived from their declared repository names.
 - 2026-08-20: Community source tabs are capped at four and ordered by current ecosystem priority: Unsloth, LM Studio Community, mlx-community, then Bartowski. Other legacy quantization publishers are no longer discovered as source tabs.
 - 2026-08-20: Estimated weight controls use neutral bit labels from 16bit through 1bit instead of GGUF-specific names. The existing effective-bit assumptions remain unchanged, with an explicit 1 bit/weight extreme-compression estimate added.
-- Cloudflare production version: `091450d1-d55e-467c-a3a5-15b68e2c1dc1`.
+- Cloudflare production version: `1414111c-dc35-462d-8924-ad04f2d8ad1f`.
 
 ## Commands
 
