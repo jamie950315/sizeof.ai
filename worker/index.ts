@@ -396,8 +396,15 @@ export async function handleModelApi(
           baseMetadataUrl.searchParams.append('expand', 'sha')
           baseMetadataUrl.searchParams.append('expand', 'safetensors')
           const baseMetadata = await fetchJson(fetcher, baseMetadataUrl.toString(), headers)
+          const baseMetadataRoute = typeof baseMetadata === 'object' && baseMetadata !== null
+            && 'id' in baseMetadata && typeof baseMetadata.id === 'string'
+            ? parseHuggingFaceModelPath(`/${baseMetadata.id}`)
+            : null
+          const canonicalBaseId = baseMetadataRoute
+            ? `${baseMetadataRoute.owner}/${baseMetadataRoute.repo}`
+            : null
           if (typeof baseMetadata === 'object' && baseMetadata !== null
-            && 'id' in baseMetadata && baseMetadata.id === vaeBaseId
+            && canonicalBaseId !== null && canonicalBaseId.toLowerCase() === vaeBaseId.toLowerCase()
             && 'sha' in baseMetadata && typeof baseMetadata.sha === 'string' && baseMetadata.sha) {
             const base = normalizeHuggingFaceModel(baseMetadata, {})
             if (vaeWeightBytes !== null && base.tensorSizeBytes !== null) {
@@ -406,7 +413,7 @@ export async function handleModelApi(
                 title: 'Declared base + VAE weights',
                 description: 'Static weights for the VAE and its declared base model. This component set does not use an autoregressive KV cache.',
                 note: 'This is static published weight residency only. The surrounding image or video pipeline, activations, resolution, frames, and offload add runtime memory.',
-                baseModelId: vaeBaseId,
+                baseModelId: canonicalBaseId,
                 options: [{
                   id: 'declared-base-plus-vae',
                   label: 'Declared base + VAE',

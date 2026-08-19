@@ -252,9 +252,15 @@ function classifyModel(metadata: UnknownRecord, config: UnknownRecord): HuggingF
   const markers = new Set([pipeline, library, ...tags])
   const contains = (values: string[]) => values.some((value) =>
     markers.has(value) || [...markers].some((marker) => marker.includes(value)))
+  const architectureText = [
+    ...stringArray(config.architectures),
+    asString(config.model_type) ?? '',
+    asString(asRecord(config.text_config).model_type) ?? '',
+  ].join(' ').toLowerCase()
 
   if (isHuggingFaceVae(metadata, config)) return 'image'
   if (contains(['base_model:adapter:', 'lora', 'peft', 'adapter'])) return 'adapter'
+  if (contains(['comfyui', 'workflow', 'chat-template', 'chat_template'])) return 'workflow'
   if (contains(['image-text-to-text', 'visual-question-answering', 'document-question-answering'])) {
     return 'vision-language'
   }
@@ -271,7 +277,6 @@ function classifyModel(metadata: UnknownRecord, config: UnknownRecord): HuggingF
     'image-classification', 'mask-generation', 'image-segmentation', 'object-detection',
     'depth-estimation', 'diffusers',
   ])) return 'image'
-  if (contains(['comfyui', 'workflow', 'chat-template', 'chat_template'])) return 'workflow'
   if (contains([
     'visual-document-retrieval', 'sentence-similarity', 'feature-extraction',
     'fill-mask', 'masked-lm', 'bidirectional', 'document-retrieval', 'embedding',
@@ -281,10 +286,15 @@ function classifyModel(metadata: UnknownRecord, config: UnknownRecord): HuggingF
     'question-answering', 'summarization', 'translation',
   ])) return 'language'
 
-  const textConfig = Object.keys(asRecord(config.text_config)).length > 0
-    ? asRecord(config.text_config)
-    : config
-  return positiveNumber(textConfig.num_hidden_layers) !== null ? 'language' : 'other'
+  if (/(?:clip.*vision|vision.*(?:model|encoder)|image.*encoder|vit(?:model)?)/.test(architectureText)) {
+    return 'image'
+  }
+  if (/(?:audio.*(?:model|encoder)|wav2vec|whisper|hubert|speech)/.test(architectureText)) return 'audio'
+  if (/(?:bert|roberta|encoder(?:model)?|embedding)/.test(architectureText)) return 'embedding'
+  if (/(?:causallm|forcausal|gpt|llama|qwen|mistral|gemma|phi|falcon|deepseek|baichuan|mixtral|kimi)/.test(architectureText)) {
+    return 'language'
+  }
+  return 'other'
 }
 
 const MODEL_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/
@@ -418,7 +428,7 @@ export function normalizeHuggingFaceModel(
     : cardLicense ?? licenseFromTag
 
   const isLlmMemoryModel = componentKind !== 'vae'
-    && (modelKind === 'language' || modelKind === 'vision-language' || modelKind === 'other')
+    && (modelKind === 'language' || modelKind === 'vision-language')
   const canEstimate = options.allowEstimate !== false && isLlmMemoryModel
     && [parameters, layers, attentionLayers, maxContext]
     .every((value) => value !== null && Number.isFinite(value) && value > 0)

@@ -242,7 +242,7 @@ export default function ModelDetailPage({ route }: Props) {
 
         <section className="detail-metrics" aria-label="Model facts">
           <div><span>{model.parameterCountKind === 'tensor-elements' ? 'PUBLISHED TENSOR ELEMENTS' : 'PARAMETERS'}</span><strong>{formatParameters(model.parametersB)}</strong></div>
-          <div><span>NATIVE CONTEXT</span><strong>{maxContext ? formatContext(maxContext) : '—'}</strong></div>
+          {model.spec && <div><span>NATIVE CONTEXT</span><strong>{maxContext ? formatContext(maxContext) : '—'}</strong></div>}
           <div><span>DOWNLOADS / MONTH</span><strong>{formatCompact(model.downloads)}</strong></div>
           <div><span>LIKES</span><strong>{formatCompact(model.likes)}</strong></div>
         </section>
@@ -429,8 +429,10 @@ export default function ModelDetailPage({ route }: Props) {
           <div className="architecture-grid">
             <div><span>ARCHITECTURE</span><strong>{model.architecture ?? 'Not published'}</strong></div>
             <div><span>MODEL TYPE</span><strong>{model.modelType ?? 'Not published'}</strong></div>
-            <div><span>Full attention layers</span><strong>{fullAttentionLayers !== null && layers ? `${fullAttentionLayers} / ${layers}` : '—'}</strong></div>
-            <div><span>{model.spec?.kvCache?.kind === 'mla' ? 'ATTENTION CACHE' : 'KV HEADS / HEAD DIM'}</span><strong>{model.spec?.kvCache?.kind === 'mla' ? 'MLA / ENGINE-DEPENDENT' : model.spec ? `${model.spec.kvHeads} / ${model.spec.headDim}` : '—'}</strong></div>
+            {model.spec && <>
+              <div><span>Full attention layers</span><strong>{fullAttentionLayers !== null && layers ? `${fullAttentionLayers} / ${layers}` : '—'}</strong></div>
+              <div><span>{model.spec.kvCache?.kind === 'mla' ? 'ATTENTION CACHE' : 'KV HEADS / HEAD DIM'}</span><strong>{model.spec.kvCache?.kind === 'mla' ? 'MLA / ENGINE-DEPENDENT' : `${model.spec.kvHeads} / ${model.spec.headDim}`}</strong></div>
+            </>}
           </div>
           <div className="hf-source-row">
             <span>DATA SOURCE / HUGGING FACE PUBLIC API + CONFIG.JSON{model.configSourceId ? ` / ARCHITECTURE FROM ${model.configSourceId}` : ''}</span>

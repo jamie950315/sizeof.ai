@@ -105,6 +105,8 @@ describe('Hugging Face model API', () => {
       }
       if (url.includes('/resolve/abc123/config.json')) {
         return Response.json({
+          architectures: ['Qwen3_5ForCausalLM'],
+          model_type: 'qwen3_5',
           num_hidden_layers: 64,
           num_key_value_heads: 4,
           head_dim: 256,
@@ -191,6 +193,45 @@ describe('Hugging Face model API', () => {
     expect(body.resourceEstimate?.kind).toBe('preview-decoder')
   })
 
+  it('keeps explicitly tagged workflows out of modality weight estimates', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/Example/Workflow/tree/workflow123')) return Response.json([])
+      if (url.includes('/api/models/Example/Workflow')) {
+        return Response.json({
+          id: 'Example/Workflow',
+          sha: 'workflow123',
+          pipeline_tag: 'text-to-video',
+          tags: ['comfyui', 'workflow', 'text-to-video'],
+          safetensors: { parameters: { BF16: 5_000_000 } },
+        })
+      }
+      if (url.includes('/Example/Workflow/resolve/workflow123/config.json')) {
+        return new Response(null, { status: 404 })
+      }
+      throw new Error(`Unexpected workflow fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Example/Workflow'),
+      fetcher,
+    )
+    const body = await response.json() as {
+      modelKind: string
+      spec: unknown
+      resourceEstimate: unknown
+      estimateReason: string | null
+    }
+
+    expect(response.status).toBe(200)
+    expect(body).toMatchObject({
+      modelKind: 'workflow',
+      spec: null,
+      resourceEstimate: null,
+      estimateReason: 'workflow-artifact',
+    })
+  })
+
   it('adds a declared base model to a VAE static-weight estimate without KV cache', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
@@ -239,6 +280,47 @@ describe('Hugging Face model API', () => {
         { label: 'Declared base weights', sizeBytes: 16_000_000 },
         { label: 'VAE weights', sizeBytes: 2_000 },
       ] }],
+    })
+  })
+
+  it('accepts a declared VAE base whose canonical metadata only differs by casing', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/Example/Case-VAE/tree/derivedcase')) return Response.json([])
+      if (url.includes('/api/models/Example/Case-VAE')) {
+        return Response.json({
+          id: 'Example/Case-VAE',
+          sha: 'derivedcase',
+          pipeline_tag: 'image-to-image',
+          tags: ['vae', 'base_model:example/Base'],
+          safetensors: { parameters: { F16: 1_000 } },
+        })
+      }
+      if (url.includes('/Example/Case-VAE/resolve/derivedcase/config.json')) {
+        return Response.json({ architectures: ['AutoencoderKL'], model_type: 'autoencoder_kl' })
+      }
+      if (url.includes('/api/models/example/Base')) {
+        return Response.json({
+          id: 'Example/Base',
+          sha: 'basecase',
+          safetensors: { parameters: { BF16: 8_000_000 } },
+        })
+      }
+      throw new Error(`Unexpected canonical-VAE-base fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Example/Case-VAE'),
+      fetcher,
+    )
+    const body = await response.json() as {
+      resourceEstimate: { baseModelId: string | null; options: Array<{ components: Array<{ sizeBytes: number }> }> }
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.resourceEstimate).toMatchObject({
+      baseModelId: 'Example/Base',
+      options: [{ components: [{ sizeBytes: 16_000_000 }, { sizeBytes: 2_000 }] }],
     })
   })
 
@@ -800,6 +882,7 @@ describe('Hugging Face model API', () => {
       }
       if (url.includes('/Qwen/Qwen3.8-27B/resolve/base456/config.json')) {
         return Response.json({
+          architectures: ['Qwen3_5ForCausalLM'], model_type: 'qwen3_5',
           num_hidden_layers: 64, num_key_value_heads: 4, num_attention_heads: 24,
           head_dim: 256, max_position_embeddings: 262144,
         })
@@ -866,6 +949,7 @@ describe('Hugging Face model API', () => {
       }
       if (url.includes(`/Qwen/Qwen3.8-27B/resolve/${baseSha}/config.json`)) {
         return Response.json({
+          architectures: ['Qwen3_5ForCausalLM'], model_type: 'qwen3_5',
           num_hidden_layers: 64, num_key_value_heads: 4, num_attention_heads: 24,
           head_dim: 256, max_position_embeddings: 262144,
         })
@@ -1137,6 +1221,7 @@ describe('Hugging Face model API', () => {
       }
       if (url.includes('/Lab/Packed-Model/resolve/derived123/config.json')) {
         return Response.json({
+          architectures: ['ExampleForCausalLM'],
           num_hidden_layers: 32,
           num_key_value_heads: 8,
           num_attention_heads: 32,
@@ -1178,6 +1263,7 @@ describe('Hugging Face model API', () => {
       }
       if (url.includes('/Lab/Too-Deep-GGUF/resolve/derived123/config.json')) {
         return Response.json({
+          architectures: ['ExampleForCausalLM'],
           num_hidden_layers: 32,
           num_key_value_heads: 8,
           num_attention_heads: 32,

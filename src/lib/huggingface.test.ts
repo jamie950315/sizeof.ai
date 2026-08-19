@@ -384,6 +384,31 @@ describe('normalizeHuggingFaceModel', () => {
     expect(model.spec).toBeNull()
   })
 
+  it('does not infer a text-generation KV cache from Transformer layer fields alone', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        id: 'Example/CLIP-Vision',
+        safetensors: { parameters: { BF16: 1_000_000 } },
+      },
+      {
+        architectures: ['CLIPVisionModel'],
+        model_type: 'clip_vision_model',
+        num_hidden_layers: 24,
+        num_key_value_heads: 8,
+        num_attention_heads: 16,
+        head_dim: 64,
+        max_position_embeddings: 16_384,
+      },
+    )
+
+    expect(model.modelKind).toBe('image')
+    expect(model.spec).toBeNull()
+    expect(model.resourceEstimate).toMatchObject({
+      kind: 'model-weights',
+      options: [{ components: [{ sizeBytes: 2_000_000 }] }],
+    })
+  })
+
   it('gives an encoder a static loaded-weight estimate without an autoregressive spec', () => {
     const model = normalizeHuggingFaceModel(
       {

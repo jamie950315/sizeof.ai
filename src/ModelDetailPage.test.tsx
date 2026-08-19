@@ -168,6 +168,9 @@ describe('Hugging Face-style model detail route', () => {
       modelKind: 'embedding',
       tensorSizeBytes: 708_967_936,
       estimateReason: 'encoder-model',
+      layers: 16,
+      attentionLayers: 6,
+      maxContext: 128_000,
       spec: null,
       resourceEstimate: {
         kind: 'encoder',
@@ -192,6 +195,9 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.queryByRole('region', { name: 'Model VRAM calculator' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Context window')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('KV cache precision')).not.toBeInTheDocument()
+    expect(screen.queryByText('NATIVE CONTEXT')).not.toBeInTheDocument()
+    expect(screen.queryByText('Full attention layers')).not.toBeInTheDocument()
+    expect(screen.queryByText('KV HEADS / HEAD DIM')).not.toBeInTheDocument()
   })
 
   it('shows a selectable complete video pipeline without treating Base and Distillation as one load', async () => {
