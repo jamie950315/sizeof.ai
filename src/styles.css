@@ -81,6 +81,15 @@ select option { background: #1b1c18; color: white; }
 .quant-grid button { min-height: 52px; background: transparent; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); cursor: pointer; font: 600 11px/1 'JetBrains Mono Variable', monospace; transition: .18s ease; }
 .quant-grid button:hover { background: #1b1d18; }
 .quant-grid button.active { color: var(--ink); background: var(--acid); }
+.quant-browser { border-top: 1px solid var(--line); }
+.quant-tier { display: grid; grid-template-columns: 62px 1fr; min-height: 54px; border-bottom: 1px solid var(--line); }
+.quant-tier > span { padding: 18px 10px 14px 0; color: #85877e; font: 600 10px/1 'JetBrains Mono Variable', monospace; }
+.quant-tier > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; padding: 9px 0; }
+.quant-tier button { display: inline-flex; align-items: center; gap: 7px; min-height: 35px; border: 1px solid #34372f; border-radius: 8px; background: #161813; color: #b8baaf; padding: 7px 10px; cursor: pointer; font: 600 10px/1 'JetBrains Mono Variable', monospace; transition: border-color .16s ease, color .16s ease, background .16s ease; }
+.quant-tier button:hover { border-color: #696c61; color: var(--paper); }
+.quant-tier button.active { border-color: var(--acid); background: var(--acid); color: var(--ink); }
+.quant-tier button small { color: #74776d; font: inherit; }
+.quant-tier button.active small { color: #34352f; }
 .context-block input { width: 100%; border: 0; border-bottom: 1px solid #5c5e55; background: transparent; color: var(--paper); font: 650 clamp(28px, 3vw, 42px)/1 'JetBrains Mono Variable', monospace; padding: 2px 0 12px; outline: none; }
 .preset-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .preset-row button { border: 1px solid var(--line); background: none; color: #85877e; padding: 7px 10px; cursor: pointer; font: 600 9px/1 'JetBrains Mono Variable', monospace; }

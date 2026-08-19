@@ -50,22 +50,29 @@ const estimateReasonLabels: Record<NonNullable<HuggingFaceModel['estimateReason'
   'missing-kv-geometry': 'The repository does not publish enough attention geometry for KV-cache sizing.',
 }
 
-const variantPatterns: Record<QuantizationId, RegExp[]> = {
-  fp16: [/^GGUF (?:BF16|FP16)$/i],
-  q8_0: [/^GGUF Q8_0$/i],
-  q6_k: [/^GGUF Q6_K$/i],
-  q5_k_m: [/^GGUF Q5_K_M$/i],
-  q4_k_m: [/^GGUF Q4_K_M$/i],
-  q3_k_m: [/^GGUF Q3_K_M$/i, /^GGUF Q3_K_XL$/i],
-  q2_k: [/^GGUF Q2_K$/i, /^GGUF Q2_K_XL$/i],
+const quantizationBits = [1, 2, 3, 4, 5, 6, 8, 16] as const
+
+function variantBits(variant: HuggingFaceVariant) {
+  if (/\b(?:BF16|FP16)\b/i.test(variant.label)) return 16
+  const quant = variant.label.match(/(?:^|[^A-Z0-9])I?Q([1-8])(?:[^A-Z0-9]|$)/i)
+  if (quant) return Number(quant[1])
+  return variant.bitsPerWeight === null ? null : Math.round(variant.bitsPerWeight)
 }
 
-function variantForQuantization(variants: HuggingFaceVariant[], id: QuantizationId) {
-  for (const pattern of variantPatterns[id]) {
-    const match = variants.find((variant) => variant.role === 'model' && pattern.test(variant.label))
-    if (match) return match
-  }
-  return null
+function displayVariantName(variant: HuggingFaceVariant) {
+  if (/\b(?:BF16|FP16)\b/i.test(variant.label)) return variant.label.match(/\b(?:BF16|FP16)\b/i)?.[0].toUpperCase() ?? 'FP16'
+  const quant = variant.label.match(/((?:IQ|Q)[1-8](?:_[A-Z0-9]+)+)/i)
+  return quant?.[1].toUpperCase() ?? variant.label.replace(/^GGUF\s+/i, '')
+}
+
+function quantizationIdForBits(bits: number): QuantizationId {
+  if (bits >= 16) return 'fp16'
+  if (bits >= 8) return 'q8_0'
+  if (bits >= 6) return 'q6_k'
+  if (bits >= 5) return 'q5_k_m'
+  if (bits >= 4) return 'q4_k_m'
+  if (bits >= 3) return 'q3_k_m'
+  return 'q2_k'
 }
 
 function formatCompact(value: number) {
@@ -148,10 +155,11 @@ export default function ModelDetailPage({ route }: Props) {
     : modelVariants.filter((variant) => variant.role === 'model')
   const selectedVariant = selectableVariants.find((variant) => variant.id === selectedVariantId) ?? null
   const selectedCommunityVariant = selectedVariant?.provenance === 'community'
-  const quantizationChoices = quantizations.map((item) => ({
-    ...item,
-    variant: variantForQuantization(selectableVariants, item.id),
-  }))
+  const modelArtifactVariants = selectableVariants.filter((variant) => variant.role === 'model')
+  const quantizationGroups = quantizationBits.map((bits) => ({
+    bits,
+    variants: modelArtifactVariants.filter((variant) => variantBits(variant) === bits),
+  })).filter((group) => group.variants.length > 0)
   const resourceEstimate = model?.resourceEstimate ?? null
   const selectedResourceOption = resourceEstimate?.options.find((option) => option.id === selectedResourceOptionId)
     ?? resourceEstimate?.options[0]
@@ -186,9 +194,15 @@ export default function ModelDetailPage({ route }: Props) {
     window.setTimeout(() => setCopied(false), 1600)
   }
 
-  function chooseQuantization(id: QuantizationId, variant: HuggingFaceVariant | null) {
+  function chooseQuantization(id: QuantizationId) {
     setQuantization(id)
-    if (!model?.addon) setSelectedVariantId(variant?.id ?? null)
+    if (!model?.addon) setSelectedVariantId(null)
+  }
+
+  function chooseVariant(variant: HuggingFaceVariant) {
+    const bits = variantBits(variant)
+    setSelectedVariantId(variant.id)
+    if (bits !== null) setQuantization(quantizationIdForBits(bits))
   }
 
   if (error) {
@@ -346,11 +360,34 @@ export default function ModelDetailPage({ route }: Props) {
               <div className="controls-panel">
                 <div className="control-block">
                   <div className="label-row"><label>Weight quantization</label><span>{selectedVariant?.role === 'model' ? `${selectedCommunityVariant ? 'COMMUNITY' : 'REPOSITORY'} ARTIFACT / ${selectedVariant.publisher ?? model.owner}` : 'HYPOTHETICAL BIT/WEIGHT ESTIMATE'}</span></div>
-                  <div className="quant-grid">
-                    {quantizationChoices.map((item) => (
-                      <button type="button" className={quantization === item.id ? 'active' : ''} key={item.id} onClick={() => chooseQuantization(item.id, item.variant)}>{item.variant?.label.replace(/^GGUF /i, '') ?? item.label}</button>
-                    ))}
-                  </div>
+                  {modelArtifactVariants.length > 0 ? (
+                    <div className="quant-browser" role="region" aria-label="Available community quantizations">
+                      {quantizationGroups.map((group) => (
+                        <div className="quant-tier" key={group.bits}>
+                          <span>{group.bits}-bit</span>
+                          <div>
+                            {group.variants.map((variant) => (
+                              <button
+                                type="button"
+                                className={selectedVariant?.id === variant.id ? 'active' : ''}
+                                key={variant.id}
+                                onClick={() => chooseVariant(variant)}
+                              >
+                                <span>{displayVariantName(variant)}</span>
+                                <small>{formatBytes(variant.weightSizeBytes)}</small>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="quant-grid">
+                      {quantizations.map((item) => (
+                        <button type="button" className={quantization === item.id ? 'active' : ''} key={item.id} onClick={() => chooseQuantization(item.id)}>{item.label}</button>
+                      ))}
+                    </div>
+                  )}
                   {selectedVariant?.role === 'model' ? (
                     <p className="control-help quant-source">Uses the published {formatBytes(selectedVariant.weightSizeBytes)} weight artifact{selectedVariant.sourceUrl && <> from <a href={selectedVariant.sourceUrl} target="_blank" rel="noreferrer">{selectedVariant.repositoryId ?? selectedVariant.publisher} <ArrowUpRight size={12} /></a></>}.</p>
                   ) : (

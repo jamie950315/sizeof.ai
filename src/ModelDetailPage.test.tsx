@@ -276,14 +276,14 @@ describe('Hugging Face-style model detail route', () => {
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(screen.queryByRole('region', { name: 'Detected model variants' })).not.toBeInTheDocument()
-    expect(within(calculator).getByRole('button', { name: 'Q4_K_M' })).toHaveClass('active')
+    expect(within(calculator).getByRole('button', { name: /Q4_K_M.*10\.00 GiB/i })).toHaveClass('active')
     expect(within(calculator).getByText('10.00 GiB', { selector: 'strong' })).toBeInTheDocument()
 
     await user.click(within(calculator).getByRole('button', { name: '33K' }))
-    await user.click(within(calculator).getByRole('button', { name: 'Q8_0' }))
+    await user.click(within(calculator).getByRole('button', { name: /Q8_0.*20\.00 GiB/i }))
 
     expect(within(calculator).getByLabelText('Context window')).toHaveValue(32768)
-    expect(within(calculator).getByRole('button', { name: 'Q8_0' })).toHaveClass('active')
+    expect(within(calculator).getByRole('button', { name: /Q8_0.*20\.00 GiB/i })).toHaveClass('active')
     expect(within(calculator).getByText('20.00 GiB', { selector: 'strong' })).toBeInTheDocument()
   })
 
@@ -291,6 +291,13 @@ describe('Hugging Face-style model detail route', () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({
       ...apiModel,
       variants: [
+        {
+          id: 'community-iq1', label: 'GGUF IQ1_M', format: 'gguf', revision: 'sha1', path: 'iq1.gguf',
+          source: 'file', role: 'model', bitsPerWeight: 1, weightSizeBytes: 5 * 1024 ** 3,
+          totalSizeBytes: 5.1 * 1024 ** 3, provenance: 'community', publisher: 'unsloth',
+          repositoryId: 'unsloth/Qwen3.8-27B-GGUF',
+          sourceUrl: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
+        },
         {
           id: 'community-q2', label: 'GGUF Q2_K', format: 'gguf', revision: 'sha1', path: 'q2.gguf',
           source: 'file', role: 'model', bitsPerWeight: 2, weightSizeBytes: 6 * 1024 ** 3,
@@ -305,20 +312,41 @@ describe('Hugging Face-style model detail route', () => {
           repositoryId: 'unsloth/Qwen3.8-27B-GGUF',
           sourceUrl: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
         },
+        {
+          id: 'community-q4s', label: 'GGUF Q4_K_S', format: 'gguf', revision: 'sha1', path: 'q4s.gguf',
+          source: 'file', role: 'model', bitsPerWeight: 4, weightSizeBytes: 9 * 1024 ** 3,
+          totalSizeBytes: 9.1 * 1024 ** 3, provenance: 'community', publisher: 'unsloth',
+          repositoryId: 'unsloth/Qwen3.8-27B-GGUF',
+          sourceUrl: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
+        },
       ],
     })))
+    const user = userEvent.setup()
 
     render(<App />)
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(screen.queryByRole('region', { name: 'Detected model variants' })).not.toBeInTheDocument()
-    expect(within(calculator).getByRole('button', { name: 'Q4_K_M' })).toHaveClass('active')
+    const quantizations = within(calculator).getByRole('region', { name: 'Available community quantizations' })
+    expect(within(quantizations).getByText('1-bit')).toBeInTheDocument()
+    expect(within(quantizations).getByText('2-bit')).toBeInTheDocument()
+    expect(within(quantizations).getByText('4-bit')).toBeInTheDocument()
+    expect(within(quantizations).getByRole('button', { name: /IQ1_M.*5\.00 GiB/i })).toBeInTheDocument()
+    expect(within(quantizations).getByRole('button', { name: /Q4_K_S.*9\.00 GiB/i })).toBeInTheDocument()
+    expect(within(calculator).getByRole('button', { name: /Q4_K_M.*10\.00 GiB/i })).toHaveClass('active')
     expect(within(calculator).getByText(/COMMUNITY ARTIFACT \/ UNSLOTH/i)).toBeInTheDocument()
     expect(within(calculator).getByRole('link', { name: /unsloth\/Qwen3\.8-27B-GGUF/i })).toHaveAttribute(
       'href',
       'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
     )
     expect(within(calculator).getByText(/Uses the published/i)).toBeInTheDocument()
+
+    await user.click(within(calculator).getByRole('button', { name: '33K' }))
+    await user.click(within(quantizations).getByRole('button', { name: /Q4_K_S.*9\.00 GiB/i }))
+
+    expect(within(calculator).getByLabelText('Context window')).toHaveValue(32768)
+    expect(within(quantizations).getByRole('button', { name: /Q4_K_S.*9\.00 GiB/i })).toHaveClass('active')
+    expect(within(calculator).getByText('9.00 GiB', { selector: 'strong' })).toBeInTheDocument()
   })
 
   it('labels bit-per-weight sizing as hypothetical when no artifact exists', async () => {
