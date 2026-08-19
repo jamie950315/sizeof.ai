@@ -270,6 +270,29 @@ describe('normalizeHuggingFaceModel', () => {
     })
   })
 
+  it('does not turn a VAE config with layer-like fields into an autoregressive model', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        id: 'Example/Layered-VAE',
+        safetensors: { parameters: { F16: 1_000_000 } },
+      },
+      {
+        architectures: ['AutoencoderKL'],
+        model_type: 'autoencoder_kl',
+        num_hidden_layers: 8,
+        num_key_value_heads: 2,
+        num_attention_heads: 8,
+        head_dim: 64,
+        max_position_embeddings: 32_768,
+      },
+    )
+
+    expect(model.spec).toBeNull()
+    expect(model.modelKind).toBe('image')
+    expect(model.componentKind).toBe('vae')
+    expect(model.resourceEstimate?.kind).toBe('vae')
+  })
+
   it('classifies TTS and adapter repositories with useful unavailable reasons', () => {
     const tts = normalizeHuggingFaceModel(
       {
@@ -359,6 +382,41 @@ describe('normalizeHuggingFaceModel', () => {
     expect(model.modelKind).toBe('embedding')
     expect(model.estimateReason).toBe('encoder-model')
     expect(model.spec).toBeNull()
+  })
+
+  it('gives an encoder a static loaded-weight estimate without an autoregressive spec', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        id: 'LiquidAI/LFM2.5-Encoder-350M',
+        pipeline_tag: 'fill-mask',
+        tags: ['transformers', 'fill-mask', 'bidirectional', 'encoder'],
+        safetensors: { parameters: { BF16: 354_483_968 } },
+      },
+      {
+        architectures: ['Lfm2BidirectionalForMaskedLM'],
+        model_type: 'lfm2',
+        num_hidden_layers: 16,
+        num_key_value_heads: 6,
+        num_attention_heads: 24,
+        head_dim: 64,
+        max_position_embeddings: 128000,
+      },
+    )
+
+    expect(model).toMatchObject({
+      spec: null,
+      resourceEstimate: {
+        kind: 'encoder',
+        options: [{
+          id: 'published-weights',
+          label: 'Encoder weights',
+          components: [{
+            label: 'Encoder weights',
+            sizeBytes: 708_967_936,
+          }],
+        }],
+      },
+    })
   })
 
   it('classifies segmentation and speech-analysis pipelines by their primary modality', () => {

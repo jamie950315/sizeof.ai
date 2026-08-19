@@ -238,6 +238,21 @@ footer > span { grid-column: 1/-1; align-self: end; }
 .detail-calc-grid .controls-panel { min-height: 650px; display: flex; flex-direction: column; }
 .detail-calc-grid .split-controls { margin-top: auto; }
 .detail-result .total-number { margin: 12vh 0 9vh; }
+.resource-estimate .detail-calc-grid .controls-panel { min-height: 420px; }
+.resource-controls { justify-content: space-between; gap: 36px; }
+.resource-controls select { width: 100%; min-height: 58px; border: 1px solid #505249; border-radius: 0; background: #181a16; color: var(--paper); padding: 0 16px; font: 600 14px/1 'JetBrains Mono Variable', monospace; }
+.resource-controls select:focus-visible { outline: 2px solid var(--acid); outline-offset: 2px; }
+.resource-summary { border-top: 1px solid var(--line); padding-top: 22px; }
+.resource-summary > span, .resource-base, .resource-result .result-topline { color: var(--acid); font: 600 9px/1 'JetBrains Mono Variable', monospace; letter-spacing: .1em; text-transform: uppercase; }
+.resource-summary p { max-width: 500px; margin: 16px 0 0; color: #b2b4a9; font-size: clamp(18px, 2vw, 29px); line-height: 1.12; letter-spacing: -.04em; }
+.resource-base { border-top: 1px solid var(--line); padding-top: 20px; color: var(--orange); overflow-wrap: anywhere; }
+.resource-result { min-height: 420px; }
+.resource-total { margin: auto 0 36px; color: var(--paper); font: 700 clamp(62px, 8.5vw, 125px)/.78 'Archivo Variable', sans-serif; letter-spacing: -.075em; overflow-wrap: anywhere; }
+.resource-result .breakdown-list > div { gap: 18px; }
+.resource-result .breakdown-list > div > span { max-width: 70%; line-height: 1.35; overflow-wrap: anywhere; }
+.resource-result .breakdown-list strong { flex: none; }
+.artifact-identification > span { display: block; margin-top: 28px; color: var(--orange); font: 600 10px/1 'JetBrains Mono Variable', monospace; letter-spacing: .1em; }
+.artifact-identification p { max-width: 820px; line-height: 1.55; }
 .architecture-section { background: var(--paper); color: var(--ink); }
 .architecture-section .detail-section-title > span { color: #65675f; }
 .architecture-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; border-top: 1px solid #bfc0b7; border-left: 1px solid #bfc0b7; }
@@ -358,6 +373,9 @@ footer > span { grid-column: 1/-1; align-self: end; }
   .variant-base-line, .support-artifacts { padding: 18px 20px; }
   .support-artifacts > div { align-items: flex-start; flex-direction: column; }
   .detail-calculator, .architecture-section { padding: 80px 20px; }
+  .resource-controls { gap: 28px; }
+  .resource-summary p { font-size: 22px; }
+  .resource-total { margin: 56px 0 38px; font-size: 64px; }
   .detail-section-title h2 { font-size: 48px; }
   .detail-calc-grid .controls-panel { min-height: 0; }
   .detail-result .total-number { margin: 60px 0 50px; }

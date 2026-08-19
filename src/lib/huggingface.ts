@@ -17,6 +17,14 @@ export type HuggingFaceModelKind =
   | 'workflow'
   | 'other'
 
+export type HuggingFaceComponentKind =
+  | 'model'
+  | 'encoder'
+  | 'vae'
+  | 'adapter'
+  | 'workflow'
+  | 'unknown'
+
 export type HuggingFaceEstimateReason =
   | 'adapter-only'
   | 'modality-specific'
@@ -28,6 +36,37 @@ export type HuggingFaceEstimateReason =
   | 'missing-layers'
   | 'missing-context'
   | 'missing-kv-geometry'
+
+export type HuggingFaceResourceEstimateKind =
+  | 'model-weights'
+  | 'encoder'
+  | 'vae'
+  | 'preview-decoder'
+  | 'video-pipeline'
+  | 'video-lora'
+
+export interface HuggingFaceResourceComponent {
+  id: string
+  label: string
+  sizeBytes: number
+  path?: string
+  repositoryId?: string
+}
+
+export interface HuggingFaceResourceEstimateOption {
+  id: string
+  label: string
+  components: HuggingFaceResourceComponent[]
+}
+
+export interface HuggingFaceResourceEstimate {
+  kind: HuggingFaceResourceEstimateKind
+  title: string
+  description: string
+  note: string
+  baseModelId: string | null
+  options: HuggingFaceResourceEstimateOption[]
+}
 
 export interface HuggingFaceModel {
   id: string
@@ -45,10 +84,12 @@ export interface HuggingFaceModel {
   architecture: string | null
   modelType: string | null
   modelKind: HuggingFaceModelKind
+  componentKind: HuggingFaceComponentKind
   tensorSizeBytes: number | null
   repositorySizeBytes: number | null
   parameterCountKind: 'logical' | 'tensor-elements'
   variants: HuggingFaceVariant[]
+  resourceEstimate: HuggingFaceResourceEstimate | null
   addon: {
     kind: 'mtp'
     baseModelId: string
@@ -125,6 +166,85 @@ function safetensorsSizeBytes(metadata: UnknownRecord): number | null {
   return Number.isFinite(total) && total > 0 ? total : null
 }
 
+export function isHuggingFaceVae(metadataValue: unknown, configValue: unknown): boolean {
+  const metadata = asRecord(metadataValue)
+  const config = asRecord(configValue)
+  const tags = stringArray(metadata.tags).join(' ')
+  const architectures = stringArray(config.architectures).join(' ')
+  const modelType = asString(config.model_type) ?? ''
+  const text = [tags, architectures, modelType].join(' ').toLowerCase()
+  return /(?:^|[\s_\-/])vae(?:$|[\s_\-/])|autoencoder/.test(text)
+}
+
+function classifyComponentKind(
+  metadata: UnknownRecord,
+  config: UnknownRecord,
+  modelKind: HuggingFaceModelKind,
+): HuggingFaceComponentKind {
+  if (isHuggingFaceVae(metadata, config)) return 'vae'
+  if (modelKind === 'embedding') return 'encoder'
+  if (modelKind === 'adapter') return 'adapter'
+  if (modelKind === 'workflow') return 'workflow'
+  if (modelKind === 'language' || modelKind === 'vision-language'
+    || modelKind === 'image' || modelKind === 'video' || modelKind === 'audio') return 'model'
+  return 'unknown'
+}
+
+function staticResourceEstimate(
+  modelKind: HuggingFaceModelKind,
+  componentKind: HuggingFaceComponentKind,
+  tensorSizeBytes: number | null,
+): HuggingFaceResourceEstimate | null {
+  if (tensorSizeBytes === null || tensorSizeBytes <= 0) return null
+
+  if (componentKind === 'vae') {
+    return {
+      kind: 'vae',
+      title: 'VAE loaded weights',
+      description: 'Static VAE weights. This component does not use an autoregressive KV cache.',
+      note: 'This is VAE weight residency only. Image or video resolution, frames, activations, and the surrounding pipeline add runtime memory.',
+      baseModelId: null,
+      options: [{
+        id: 'published-weights',
+        label: 'VAE weights',
+        components: [{ id: 'vae-weights', label: 'VAE weights', sizeBytes: tensorSizeBytes }],
+      }],
+    }
+  }
+
+  if (modelKind === 'embedding') {
+    return {
+      kind: 'encoder',
+      title: 'Encoder loaded weights',
+      description: 'Static model weights for this bidirectional encoder. It does not use an autoregressive KV cache.',
+      note: 'This is published model-weight residency only. Batch size, sequence length, and framework activations add runtime memory.',
+      baseModelId: null,
+      options: [{
+        id: 'published-weights',
+        label: 'Encoder weights',
+        components: [{ id: 'encoder-weights', label: 'Encoder weights', sizeBytes: tensorSizeBytes }],
+      }],
+    }
+  }
+
+  if (['image', 'video', 'audio'].includes(modelKind)) {
+    return {
+      kind: 'model-weights',
+      title: 'Published loaded weights',
+      description: 'Static weights published for this non-text-generation model. It does not use an autoregressive KV cache.',
+      note: 'This is model-weight residency only, not a pipeline peak. Resolution, frames, batching, activations, and offload can add substantial runtime memory.',
+      baseModelId: null,
+      options: [{
+        id: 'published-weights',
+        label: 'Published weights',
+        components: [{ id: 'published-weights', label: 'Published weights', sizeBytes: tensorSizeBytes }],
+      }],
+    }
+  }
+
+  return null
+}
+
 function classifyModel(metadata: UnknownRecord, config: UnknownRecord): HuggingFaceModelKind {
   const pipeline = asString(metadata.pipeline_tag)?.toLowerCase() ?? ''
   const library = asString(metadata.library_name)?.toLowerCase() ?? ''
@@ -133,6 +253,7 @@ function classifyModel(metadata: UnknownRecord, config: UnknownRecord): HuggingF
   const contains = (values: string[]) => values.some((value) =>
     markers.has(value) || [...markers].some((marker) => marker.includes(value)))
 
+  if (isHuggingFaceVae(metadata, config)) return 'image'
   if (contains(['base_model:adapter:', 'lora', 'peft', 'adapter'])) return 'adapter'
   if (contains(['image-text-to-text', 'visual-question-answering', 'document-question-answering'])) {
     return 'vision-language'
@@ -197,6 +318,7 @@ export function normalizeHuggingFaceModel(
     parameterCountOverride?: number
     parameterCountKind?: 'logical' | 'tensor-elements'
     variants?: HuggingFaceVariant[]
+    resourceEstimate?: HuggingFaceResourceEstimate | null
     addon?: HuggingFaceModel['addon']
   } = {},
 ): HuggingFaceModel {
@@ -260,7 +382,13 @@ export function normalizeHuggingFaceModel(
     ?? asString(gguf.architecture)
   const pipelineTag = asString(metadata.pipeline_tag)
   const modelKind = options.modelKindOverride ?? classifyModel(metadata, config)
+  const componentKind = classifyComponentKind(metadata, config, modelKind)
   const tensorSizeBytes = safetensorsSizeBytes(metadata)
+  const resourceEstimate = options.resourceEstimate ?? staticResourceEstimate(
+    modelKind,
+    componentKind,
+    tensorSizeBytes,
+  )
   const repositorySizeBytes = positiveNumber(metadata.usedStorage)
   const sourceUrl = `https://huggingface.co/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`
   const licenseFromTag = tags.find((tag) => tag.startsWith('license:'))?.slice('license:'.length) ?? null
@@ -289,8 +417,8 @@ export function normalizeHuggingFaceModel(
     ? asString(cardData.license_name) ?? cardLicense
     : cardLicense ?? licenseFromTag
 
-  const isLlmMemoryModel = modelKind === 'language' || modelKind === 'vision-language'
-    || modelKind === 'other'
+  const isLlmMemoryModel = componentKind !== 'vae'
+    && (modelKind === 'language' || modelKind === 'vision-language' || modelKind === 'other')
   const canEstimate = options.allowEstimate !== false && isLlmMemoryModel
     && [parameters, layers, attentionLayers, maxContext]
     .every((value) => value !== null && Number.isFinite(value) && value > 0)
@@ -348,10 +476,12 @@ export function normalizeHuggingFaceModel(
     architecture,
     modelType,
     modelKind,
+    componentKind,
     tensorSizeBytes,
     repositorySizeBytes,
     parameterCountKind: options.parameterCountKind ?? 'logical',
     variants: options.variants ?? [],
+    resourceEstimate,
     addon: options.addon ?? null,
     estimateReason,
     layers,

@@ -1,9 +1,13 @@
 import {
   getHuggingFaceParameterCount,
+  isHuggingFaceVae,
   normalizeHuggingFaceModel,
   parseHuggingFaceModelPath,
+  type HuggingFaceModelKind,
+  type HuggingFaceResourceEstimate,
 } from '../src/lib/huggingface'
 import { curatedHuggingFaceConfigs } from '../src/data/huggingface-configs'
+import { curatedHuggingFaceResourceProfiles } from '../src/data/huggingface-resource-profiles'
 import {
   applyReleaseManifest,
   parseHuggingFaceVariants,
@@ -70,6 +74,11 @@ function pairedBaseId(tags: string[], relation: 'adapter' | 'quantized') {
   const baseTag = tags.find((tag) => /^base_model:[^:]+\/[^:]+$/.test(tag))
   const baseId = baseTag?.slice('base_model:'.length)
   return baseId && tags.includes(`base_model:${relation}:${baseId}`) ? baseId : null
+}
+
+function declaredBaseId(tags: string[]) {
+  const baseTag = tags.find((tag) => /^base_model:[^:]+\/[^:]+$/.test(tag))
+  return baseTag?.slice('base_model:'.length) ?? null
 }
 
 function hasPackedWeightEncoding(metadata: Record<string, unknown>, tags: string[]) {
@@ -154,6 +163,7 @@ async function discoverRepoVariants(
   variants: HuggingFaceVariant[]
   ninfer: NInferManifestFacts | null
   artifactManifest: VariantArtifactManifestFacts | null
+  mainEntries: HuggingFaceTreeEntry[]
 }> {
   const owner = encodeURIComponent(route.owner)
   const repo = encodeURIComponent(route.repo)
@@ -223,13 +233,13 @@ async function discoverRepoVariants(
         headers,
       ))
     : null
-  return { variants, ninfer, artifactManifest }
+  return { variants, ninfer, artifactManifest, mainEntries: mainTree }
 }
 
 export function createModelCacheKey(request: Request) {
   const url = new URL(request.url)
   url.search = ''
-  url.searchParams.set('__sizeof_cache', 'hf-model-v15')
+  url.searchParams.set('__sizeof_cache', 'hf-model-v16')
   return new Request(url.toString())
 }
 
@@ -316,13 +326,26 @@ export async function handleModelApi(
     let configSourceId: string | undefined
     let allowEstimate = true
     let estimateReason: 'adapter-only' | 'parameter-mismatch' | 'unverified-base' | undefined
-    let modelKindOverride: 'language' | undefined
+    let modelKindOverride: HuggingFaceModelKind | undefined
     let parameterCountOverride: number | undefined
     let parameterCountKind: 'logical' | 'tensor-elements' = 'logical'
     let variants: HuggingFaceVariant[] = []
+    let resourceEstimate: HuggingFaceResourceEstimate | undefined
     let addon: NonNullable<Parameters<typeof normalizeHuggingFaceModel>[2]>['addon'] = null
 
-    const modelId = `${route.owner}/${route.repo}`
+    const metadataRoute = typeof metadata === 'object' && metadata !== null
+      && 'id' in metadata && typeof metadata.id === 'string'
+      ? parseHuggingFaceModelPath(`/${metadata.id}`)
+      : null
+    const modelId = metadataRoute
+      ? `${metadataRoute.owner}/${metadataRoute.repo}`
+      : `${route.owner}/${route.repo}`
+    const curatedResourceProfile = curatedHuggingFaceResourceProfiles[modelId]
+    if (curatedResourceProfile) {
+      allowEstimate = false
+      modelKindOverride = curatedResourceProfile.modelKind
+      resourceEstimate = curatedResourceProfile.resourceEstimate
+    }
     if (!configResponse.ok && curatedHuggingFaceConfigs[modelId]) {
       config = curatedHuggingFaceConfigs[modelId]
       configSourceId = `sizeof.ai curated / ${modelId}`
@@ -353,6 +376,72 @@ export async function handleModelApi(
         headers,
       )
       variants = discovered.variants
+      const isVae = !curatedResourceProfile && isHuggingFaceVae(metadata, config)
+      const vae = isVae ? normalizeHuggingFaceModel(metadata, config) : null
+      const vaeArtifact = isVae
+        ? discovered.mainEntries.filter((entry) => entry.type === 'file'
+          && /\.safetensors$/i.test(entry.path) && entry.size > 0)
+        : []
+      const vaeWeightBytes = vae?.tensorSizeBytes
+        ?? (vaeArtifact.length === 1 ? vaeArtifact[0]?.size ?? null : null)
+      const vaeBaseId = isVae
+        ? declaredBaseId(tags)
+        : null
+      if (vaeBaseId) {
+        const baseRoute = parseHuggingFaceModelPath(`/${vaeBaseId}`)
+        if (baseRoute) {
+          const baseOwner = encodeURIComponent(baseRoute.owner)
+          const baseRepo = encodeURIComponent(baseRoute.repo)
+          const baseMetadataUrl = new URL(`https://huggingface.co/api/models/${baseOwner}/${baseRepo}`)
+          baseMetadataUrl.searchParams.append('expand', 'sha')
+          baseMetadataUrl.searchParams.append('expand', 'safetensors')
+          const baseMetadata = await fetchJson(fetcher, baseMetadataUrl.toString(), headers)
+          if (typeof baseMetadata === 'object' && baseMetadata !== null
+            && 'id' in baseMetadata && baseMetadata.id === vaeBaseId
+            && 'sha' in baseMetadata && typeof baseMetadata.sha === 'string' && baseMetadata.sha) {
+            const base = normalizeHuggingFaceModel(baseMetadata, {})
+            if (vaeWeightBytes !== null && base.tensorSizeBytes !== null) {
+              resourceEstimate = {
+                kind: 'vae',
+                title: 'Declared base + VAE weights',
+                description: 'Static weights for the VAE and its declared base model. This component set does not use an autoregressive KV cache.',
+                note: 'This is static published weight residency only. The surrounding image or video pipeline, activations, resolution, frames, and offload add runtime memory.',
+                baseModelId: vaeBaseId,
+                options: [{
+                  id: 'declared-base-plus-vae',
+                  label: 'Declared base + VAE',
+                  components: [
+                    { id: 'declared-base', label: 'Declared base weights', sizeBytes: base.tensorSizeBytes },
+                    { id: 'vae-weights', label: 'VAE weights', sizeBytes: vaeWeightBytes },
+                  ],
+                }],
+              }
+            }
+          }
+        }
+      }
+      if (isVae && !resourceEstimate && vaeWeightBytes !== null) {
+        const path = vaeArtifact.length === 1 ? vaeArtifact[0]?.path : undefined
+        resourceEstimate = {
+          kind: 'vae',
+          title: 'VAE loaded weights',
+          description: 'Static VAE weights. This component does not use an autoregressive KV cache.',
+          note: path
+            ? 'This is the published VAE file footprint because the Hub does not publish tensor dtype metadata. Resolution, frames, activations, and the surrounding pipeline add runtime memory.'
+            : 'This is VAE weight residency only. Image or video resolution, frames, activations, and the surrounding pipeline add runtime memory.',
+          baseModelId: null,
+          options: [{
+            id: 'published-weights',
+            label: path ? 'Published VAE weight file' : 'VAE weights',
+            components: [{
+              id: 'vae-weights',
+              label: path ? 'VAE weight file' : 'VAE weights',
+              path,
+              sizeBytes: vaeWeightBytes,
+            }],
+          }],
+        }
+      }
       const quantizedBaseId = pairedBaseId(tags, 'quantized')
       const adapterBaseId = pairedBaseId(tags, 'adapter')
       const hasFullGguf = typeof gguf === 'object' && gguf !== null
@@ -569,6 +658,7 @@ export async function handleModelApi(
       parameterCountOverride,
       parameterCountKind,
       variants,
+      resourceEstimate,
       addon,
     }))
   } catch (error) {

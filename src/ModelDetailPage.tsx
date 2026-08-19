@@ -89,12 +89,13 @@ export default function ModelDetailPage({ route }: Props) {
   const [vram, setVram] = useState(24)
   const [copied, setCopied] = useState(false)
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
+  const [selectedResourceOptionId, setSelectedResourceOptionId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
     setModel(null)
     setError(null)
-    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=7`)
+    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=8`)
       .then(async (response) => {
         const body = await response.json() as HuggingFaceModel | { error?: string }
         if (!response.ok) throw new Error('error' in body && body.error ? body.error : 'Unable to load model')
@@ -106,6 +107,7 @@ export default function ModelDetailPage({ route }: Props) {
             ? variants.find((variant) => variant.role === 'addon')
             : variants.find((variant) => variant.role === 'model')
           setSelectedVariantId(defaultVariant?.id ?? null)
+          setSelectedResourceOptionId(nextModel.resourceEstimate?.options[0]?.id ?? null)
         }
       })
       .catch((reason: unknown) => {
@@ -124,6 +126,14 @@ export default function ModelDetailPage({ route }: Props) {
     ? modelVariants.filter((variant) => variant.role === 'addon')
     : modelVariants.filter((variant) => variant.role === 'model')
   const selectedVariant = selectableVariants.find((variant) => variant.id === selectedVariantId) ?? null
+  const resourceEstimate = model?.resourceEstimate ?? null
+  const selectedResourceOption = resourceEstimate?.options.find((option) => option.id === selectedResourceOptionId)
+    ?? resourceEstimate?.options[0]
+    ?? null
+  const resourceTotalBytes = selectedResourceOption?.components.reduce(
+    (total, component) => total + component.sizeBytes,
+    0,
+  ) ?? 0
   const supportArtifacts = modelVariants.filter((variant) => (
     variant.role !== 'model' && variant.id !== selectedVariant?.id
   ))
@@ -199,6 +209,7 @@ export default function ModelDetailPage({ route }: Props) {
   const unavailableReason = model.estimateReason
     ? estimateReasonLabels[model.estimateReason]
     : 'The repository does not publish enough architecture data for a safe estimate.'
+  const needsIdentification = !resourceEstimate && modelKind === 'workflow'
 
   return (
     <div className="detail-shell">
@@ -358,6 +369,56 @@ export default function ModelDetailPage({ route }: Props) {
                   : 'Hybrid architectures count only full-attention layers toward context-scaled KV cache. Fixed linear-attention state is covered by the runtime allowance.'}</p>
               </div>
             </div>
+          </section>
+        ) : resourceEstimate && selectedResourceOption ? (
+          <section className="detail-calculator resource-estimate" aria-label="Model load estimate">
+            <div className="detail-section-title">
+              <span>01 / STATIC MODEL MEMORY</span>
+              <h2>{resourceEstimate.title}.</h2>
+            </div>
+            <div className="calculator-grid detail-calc-grid">
+              <div className="controls-panel resource-controls">
+                {resourceEstimate.options.length > 1 && (
+                  <div className="control-block">
+                    <div className="label-row"><label htmlFor="resource-option">Published weight set</label><span>SELECT ONE</span></div>
+                    <select
+                      id="resource-option"
+                      value={selectedResourceOption.id}
+                      onChange={(event) => setSelectedResourceOptionId(event.target.value)}
+                    >
+                      {resourceEstimate.options.map((option) => (
+                        <option value={option.id} key={option.id}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="resource-summary">
+                  <span>WHAT THIS COUNTS</span>
+                  <p>{resourceEstimate.description}</p>
+                </div>
+                {resourceEstimate.baseModelId && <div className="resource-base">DECLARED BASE / {resourceEstimate.baseModelId}</div>}
+              </div>
+              <div className="result-panel detail-result resource-result">
+                <div className="result-topline"><span>ESTIMATED STATIC VRAM</span><span>NO KV CACHE</span></div>
+                <div className="resource-total">{formatBytes(resourceTotalBytes)}</div>
+                <div className="breakdown-list">
+                  {selectedResourceOption.components.map((component) => (
+                    <div key={component.id}>
+                      <span>{component.label}{component.path ? ` / ${component.path}` : ''}</span>
+                      <strong>{formatBytes(component.sizeBytes)}</strong>
+                    </div>
+                  ))}
+                </div>
+                <p className="estimate-note"><Info size={15} /> {resourceEstimate.note}</p>
+              </div>
+            </div>
+          </section>
+        ) : needsIdentification ? (
+          <section className="detail-unavailable artifact-identification" aria-label="Artifact identification needed">
+            <Info />
+            <span>INPUT NEEDED</span>
+            <h2>What is this artifact?</h2>
+            <p>Its public files do not establish whether it is a standalone model, VAE, adapter, or workflow component. To size it safely, identify the component type, the model or workflow that loads it, and whether it is required or optional.</p>
           </section>
         ) : (
           <section className="detail-unavailable"><Info /><h2>VRAM estimate unavailable.</h2><p>{unavailableReason}</p></section>

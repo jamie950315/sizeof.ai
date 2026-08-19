@@ -19,7 +19,7 @@ describe('Hugging Face model API', () => {
       new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2&random=uncached'),
     )
 
-    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v15')
+    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v16')
     expect([...new URL(key.url).searchParams.keys()]).toEqual(['__sizeof_cache'])
   })
 
@@ -123,6 +123,165 @@ describe('Hugging Face model API', () => {
     expect(response.status).toBe(200)
     expect(body.spec).not.toBeNull()
     expect(body.variants).toEqual([])
+  })
+
+  it('returns the verified Tiny VAE preview-decoder weight profile', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/models/Kijai/MiniMax-H3-TAE')) {
+        return Response.json({
+          id: 'Kijai/MiniMax-H3-TAE',
+          sha: 'a213ac8bf2f148b4f32372279a7f207846978900',
+          tags: [],
+          siblings: [{ rfilename: 'vae_approx/taeh3.safetensors' }],
+          usedStorage: 9_791_388,
+        })
+      }
+      if (url.includes('/Kijai/MiniMax-H3-TAE/resolve/')) return new Response(null, { status: 404 })
+      if (url.includes('/Kijai/MiniMax-H3-TAE/tree/')) return Response.json([])
+      throw new Error(`Unexpected Tiny VAE fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Kijai/MiniMax-H3-TAE'),
+      fetcher,
+    )
+    const body = await response.json() as {
+      modelKind: string
+      spec: unknown
+      resourceEstimate: {
+        kind: string
+        baseModelId: string | null
+        options: Array<{ components: Array<{ path: string; sizeBytes: number }> }>
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.modelKind).toBe('video')
+    expect(body.spec).toBeNull()
+    expect(body.resourceEstimate).toMatchObject({
+      kind: 'preview-decoder',
+      baseModelId: null,
+      options: [{ components: [{ path: 'vae_approx/taeh3.safetensors', sizeBytes: 9_791_388 }] }],
+    })
+  })
+
+  it('uses the Hugging Face canonical id when resolving a curated resource profile', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/kijai/MiniMax-H3-TAE/tree/')) return Response.json([])
+      if (url.includes('/api/models/kijai/MiniMax-H3-TAE')) {
+        return Response.json({
+          id: 'Kijai/MiniMax-H3-TAE',
+          sha: 'a213ac8bf2f148b4f32372279a7f207846978900',
+          tags: [],
+        })
+      }
+      if (url.includes('/kijai/MiniMax-H3-TAE/resolve/')) return new Response(null, { status: 404 })
+      throw new Error(`Unexpected canonical-id fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/kijai/MiniMax-H3-TAE'),
+      fetcher,
+    )
+    const body = await response.json() as { resourceEstimate: { kind: string } | null }
+
+    expect(response.status).toBe(200)
+    expect(body.resourceEstimate?.kind).toBe('preview-decoder')
+  })
+
+  it('adds a declared base model to a VAE static-weight estimate without KV cache', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/models/Example/Video-VAE')) {
+        return Response.json({
+          id: 'Example/Video-VAE',
+          sha: 'derived123',
+          pipeline_tag: 'image-to-image',
+          tags: ['vae', 'base_model:Example/Base'],
+          safetensors: { parameters: { F16: 1_000 } },
+        })
+      }
+      if (url.includes('/Example/Video-VAE/resolve/derived123/config.json')) {
+        return Response.json({ architectures: ['AutoencoderKL'], model_type: 'autoencoder_kl' })
+      }
+      if (url.includes('/Example/Video-VAE/tree/derived123')) return Response.json([])
+      if (url.includes('/api/models/Example/Base')) {
+        return Response.json({
+          id: 'Example/Base',
+          sha: 'base456',
+          safetensors: { parameters: { BF16: 8_000_000 } },
+        })
+      }
+      throw new Error(`Unexpected declared-VAE-base fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Example/Video-VAE'),
+      fetcher,
+    )
+    const body = await response.json() as {
+      spec: unknown
+      resourceEstimate: {
+        kind: string
+        baseModelId: string | null
+        options: Array<{ components: Array<{ label: string; sizeBytes: number }> }>
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.spec).toBeNull()
+    expect(body.resourceEstimate).toMatchObject({
+      kind: 'vae',
+      baseModelId: 'Example/Base',
+      options: [{ components: [
+        { label: 'Declared base weights', sizeBytes: 16_000_000 },
+        { label: 'VAE weights', sizeBytes: 2_000 },
+      ] }],
+    })
+  })
+
+  it('uses a single published VAE artifact when Hub tensor metadata is absent', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/Example/File-VAE/tree/filevae123')) {
+        return Response.json([{ type: 'file', path: 'vae/model.safetensors', size: 2_400 }])
+      }
+      if (url.includes('/api/models/Example/File-VAE')) {
+        return Response.json({
+          id: 'Example/File-VAE',
+          sha: 'filevae123',
+          pipeline_tag: 'image-to-image',
+          tags: ['vae'],
+        })
+      }
+      if (url.includes('/Example/File-VAE/resolve/filevae123/config.json')) {
+        return Response.json({ architectures: ['AutoencoderKL'], model_type: 'autoencoder_kl' })
+      }
+      throw new Error(`Unexpected VAE-artifact fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Example/File-VAE'),
+      fetcher,
+    )
+    const body = await response.json() as {
+      spec: unknown
+      resourceEstimate: {
+        kind: string
+        baseModelId: string | null
+        options: Array<{ components: Array<{ label: string; path: string; sizeBytes: number }> }>
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.spec).toBeNull()
+    expect(body.resourceEstimate).toMatchObject({
+      kind: 'vae',
+      baseModelId: null,
+      options: [{ components: [{ label: 'VAE weight file', path: 'vae/model.safetensors', sizeBytes: 2_400 }] }],
+    })
   })
 
   it('inherits a revision-locked base config for a full GGUF model repository', async () => {

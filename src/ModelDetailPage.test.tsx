@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { curatedHuggingFaceResourceProfiles } from './data/huggingface-resource-profiles'
 
 const apiModel = {
   id: 'Qwen/Qwen3.8-27B',
@@ -58,7 +59,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByText('16 / 64')).toBeInTheDocument()
     expect(screen.getByText('Full attention layers')).toBeInTheDocument()
     expect(screen.getByText('18.30')).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=7')
+    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=8')
   })
 
   it('shows a useful model-not-found state', async () => {
@@ -155,6 +156,94 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(profile).getByText('64.50 GiB')).toBeInTheDocument()
     expect(screen.getByText(/modality-specific runtime memory/i)).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Model VRAM calculator' })).not.toBeInTheDocument()
+  })
+
+  it('shows an encoder load estimate without context or KV-cache controls', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'LiquidAI/LFM2.5-Encoder-350M',
+      owner: 'LiquidAI',
+      name: 'LFM2.5-Encoder-350M',
+      pipelineTag: 'fill-mask',
+      modelKind: 'embedding',
+      tensorSizeBytes: 708_967_936,
+      estimateReason: 'encoder-model',
+      spec: null,
+      resourceEstimate: {
+        kind: 'encoder',
+        title: 'Encoder loaded weights',
+        description: 'Static model weights for this bidirectional encoder. It does not use an autoregressive KV cache.',
+        note: 'This is published model-weight residency only. Batch size, sequence length, and framework activations add runtime memory.',
+        baseModelId: null,
+        options: [{
+          id: 'published-weights',
+          label: 'Encoder weights',
+          components: [{ id: 'encoder-weights', label: 'Encoder weights', sizeBytes: 708_967_936 }],
+        }],
+      },
+    })))
+
+    render(<App />)
+
+    const estimate = await screen.findByRole('region', { name: 'Model load estimate' })
+    expect(within(estimate).getByRole('heading', { name: 'Encoder loaded weights.' })).toBeInTheDocument()
+    expect(within(estimate).getByText('0.66 GiB', { selector: '.resource-total' })).toBeInTheDocument()
+    expect(within(estimate).getByText(/does not use an autoregressive KV cache/i)).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Model VRAM calculator' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Context window')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('KV cache precision')).not.toBeInTheDocument()
+  })
+
+  it('shows a selectable complete video pipeline without treating Base and Distillation as one load', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'Wan-AI/Wan2.2-Animate-2-14B',
+      owner: 'Wan-AI',
+      name: 'Wan2.2-Animate-2-14B',
+      pipelineTag: 'text-to-video',
+      modelKind: 'video',
+      estimateReason: 'modality-specific',
+      spec: null,
+      resourceEstimate: curatedHuggingFaceResourceProfiles['Wan-AI/Wan2.2-Animate-2-14B']?.resourceEstimate,
+    })))
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    const estimate = await screen.findByRole('region', { name: 'Model load estimate' })
+    const selector = within(estimate).getByLabelText('Published weight set')
+    expect(selector).toHaveValue('base-bf16')
+    expect(within(estimate).getByText('46.29 GiB', { selector: '.resource-total' })).toBeInTheDocument()
+    expect(within(estimate).getByText(/wan_animate_2_bf16\.safetensors/)).toBeInTheDocument()
+    expect(within(estimate).getByText('NO KV CACHE')).toBeInTheDocument()
+
+    await user.selectOptions(selector, 'distillation-bf16')
+
+    expect(within(estimate).getByText(/wan_animate_2_bf16_distillation\.safetensors/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Context window')).not.toBeInTheDocument()
+  })
+
+  it('asks for an unknown workflow artifact classification instead of inventing a VRAM figure', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'Example/Unknown-Workflow',
+      owner: 'Example',
+      name: 'Unknown-Workflow',
+      modelKind: 'workflow',
+      tensorSizeBytes: null,
+      repositorySizeBytes: 42_000_000,
+      estimateReason: 'workflow-artifact',
+      spec: null,
+      resourceEstimate: null,
+    })))
+
+    render(<App />)
+
+    const prompt = await screen.findByRole('region', { name: 'Artifact identification needed' })
+    expect(within(prompt).getByRole('heading', { name: 'What is this artifact?' })).toBeInTheDocument()
+    expect(within(prompt).getByText(/standalone model, VAE, adapter, or workflow component/i)).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Model VRAM calculator' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Model load estimate' })).not.toBeInTheDocument()
   })
 
   it('lets the user select detected repository variants and sizes VRAM from their actual weights', async () => {
