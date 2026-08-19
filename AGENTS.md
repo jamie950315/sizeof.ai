@@ -24,6 +24,9 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-19: Hugging Face trending ranks 101–200 audit rerun completed against the live integration: 100/100 lookups succeeded, 61 expose safe VRAM estimates, 39 remain metadata-only, and 50 expose detected repository variants. Metadata-only reasons were 28 modality-specific, 3 missing-parameters, 3 adapter-only, 3 workflow-artifact, and 2 encoder-model.
 - 2026-08-19: Multi-artifact repositories now expose selectable GGUF, MLX, EXL2/EXL3, NInfer, and packed safetensors variants using revision-locked file sizes. Sharded GGUF files are grouped, built-in MTP variants are labeled, and projectors remain support artifacts.
 - 2026-08-19: Declared metadata lineage takes precedence over repository naming. Directory artifact manifests and NInfer manifests can supply base relationships; repositories without a declared base are treated as self-contained when their own config or bounded GGUF metadata supplies safe architecture facts. True MTP sidecars are modeled as base weights plus addon weights.
+- 2026-08-20: Non-text-generation pages now use static published-weight profiles rather than LLM KV-cache calculations. Vision, video, audio, VAE, and encoder pages hide autoregressive context and KV fields; unknown workflows ask for artifact identification instead of inventing a VRAM figure.
+- 2026-08-20: VAE profiles combine a declared, verified base plus VAE weights when available (including canonical-ID casing differences), otherwise report the VAE artifact alone. Kijai/MiniMax-H3-TAE, Wan-AI/Wan2.2-Animate-2-14B, Inner-Reflections/MiniMax-H3-Looping-Sketch-Anime, LiquidAI/LFM2.5-Encoder-350M, and workflow artifacts were verified locally and on the public API.
+- Cloudflare production version: `12913d88-f11e-462e-9c72-4ef77839cb3e`.
 
 ## Commands
 
