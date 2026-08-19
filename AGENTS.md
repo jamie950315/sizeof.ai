@@ -29,7 +29,7 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-20: Base-model pages now prefer verified quantizations from trusted community publishers, led by unsloth, and use published artifact sizes. Pages explicitly distinguish community artifacts from hypothetical bit-per-weight fallback estimates.
 - 2026-08-20: Community quantizations are integrated into the original Memory profile button grid instead of a separate artifact section, so quantization, context, KV precision, and VRAM remain adjustable together.
 - 2026-08-20: Community artifact selection now uses a Hugging Face-style bit-grouped chip browser inside Memory profile, exposing every detected full-model quantization and its published GiB size while preserving context controls.
-- Cloudflare production version: `4a7f3faf-039e-4c88-8cc5-56fe4a6bcfd0`.
+- Cloudflare production version: `50cf1e3e-3b6f-4133-af0f-d79f4b0f9d26`.
 
 ## Commands
 
