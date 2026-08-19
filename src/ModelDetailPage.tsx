@@ -11,6 +11,7 @@ import {
 import { kvPrecisions, quantizations, type KvPrecisionId, type QuantizationId } from './data/quantizations'
 import { classifyFit, estimateVram, type Fit } from './lib/estimator'
 import type { HuggingFaceModel, HuggingFaceRoute } from './lib/huggingface'
+import type { HuggingFaceVariant } from './lib/huggingface-variants'
 
 interface Props {
   route: HuggingFaceRoute
@@ -47,6 +48,24 @@ const estimateReasonLabels: Record<NonNullable<HuggingFaceModel['estimateReason'
   'missing-layers': 'The repository does not publish enough layer information for a safe estimate.',
   'missing-context': 'The repository does not publish a native context window.',
   'missing-kv-geometry': 'The repository does not publish enough attention geometry for KV-cache sizing.',
+}
+
+const variantPatterns: Record<QuantizationId, RegExp[]> = {
+  fp16: [/^GGUF (?:BF16|FP16)$/i],
+  q8_0: [/^GGUF Q8_0$/i],
+  q6_k: [/^GGUF Q6_K$/i],
+  q5_k_m: [/^GGUF Q5_K_M$/i],
+  q4_k_m: [/^GGUF Q4_K_M$/i],
+  q3_k_m: [/^GGUF Q3_K_M$/i, /^GGUF Q3_K_XL$/i],
+  q2_k: [/^GGUF Q2_K$/i, /^GGUF Q2_K_XL$/i],
+}
+
+function variantForQuantization(variants: HuggingFaceVariant[], id: QuantizationId) {
+  for (const pattern of variantPatterns[id]) {
+    const match = variants.find((variant) => variant.role === 'model' && pattern.test(variant.label))
+    if (match) return match
+  }
+  return null
 }
 
 function formatCompact(value: number) {
@@ -129,6 +148,10 @@ export default function ModelDetailPage({ route }: Props) {
     : modelVariants.filter((variant) => variant.role === 'model')
   const selectedVariant = selectableVariants.find((variant) => variant.id === selectedVariantId) ?? null
   const selectedCommunityVariant = selectedVariant?.provenance === 'community'
+  const quantizationChoices = quantizations.map((item) => ({
+    ...item,
+    variant: variantForQuantization(selectableVariants, item.id),
+  }))
   const resourceEstimate = model?.resourceEstimate ?? null
   const selectedResourceOption = resourceEstimate?.options.find((option) => option.id === selectedResourceOptionId)
     ?? resourceEstimate?.options[0]
@@ -161,6 +184,11 @@ export default function ModelDetailPage({ route }: Props) {
     await navigator.clipboard.writeText(window.location.href)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1600)
+  }
+
+  function chooseQuantization(id: QuantizationId, variant: HuggingFaceVariant | null) {
+    setQuantization(id)
+    if (!model?.addon) setSelectedVariantId(variant?.id ?? null)
   }
 
   if (error) {
@@ -260,7 +288,7 @@ export default function ModelDetailPage({ route }: Props) {
           <div><span>REPOSITORY STORAGE</span><strong>{formatBytes(model.repositorySizeBytes)}</strong></div>
         </section>
 
-        {modelVariants.length > 0 && (
+        {model.addon && modelVariants.length > 0 && (
           <section className="variant-profile" aria-label="Detected model variants">
             <div className="variant-profile-heading">
               <div><span>{modelVariants.some((variant) => variant.provenance === 'community') ? 'COMMUNITY QUANTIZATION' : 'DETECTED REPOSITORY VARIANTS'}</span><h2>Choose the artifact.</h2></div>
@@ -316,21 +344,19 @@ export default function ModelDetailPage({ route }: Props) {
             </div>
             <div className="calculator-grid detail-calc-grid">
               <div className="controls-panel">
-                {!selectedVariant || selectedVariant.role !== 'model' ? <div className="control-block">
-                  <div className="label-row"><label>Weight quantization</label><span>HYPOTHETICAL BIT/WEIGHT ESTIMATE</span></div>
+                <div className="control-block">
+                  <div className="label-row"><label>Weight quantization</label><span>{selectedVariant?.role === 'model' ? `${selectedCommunityVariant ? 'COMMUNITY' : 'REPOSITORY'} ARTIFACT / ${selectedVariant.publisher ?? model.owner}` : 'HYPOTHETICAL BIT/WEIGHT ESTIMATE'}</span></div>
                   <div className="quant-grid">
-                    {quantizations.map((item) => (
-                      <button type="button" className={quantization === item.id ? 'active' : ''} key={item.id} onClick={() => setQuantization(item.id)}>{item.label}</button>
+                    {quantizationChoices.map((item) => (
+                      <button type="button" className={quantization === item.id ? 'active' : ''} key={item.id} onClick={() => chooseQuantization(item.id, item.variant)}>{item.variant?.label.replace(/^GGUF /i, '') ?? item.label}</button>
                     ))}
                   </div>
-                  <p className="control-help">No matching published quantized artifact was found. Weight memory is estimated from parameters × effective bits per weight.</p>
-                </div> : (
-                  <div className="control-block detected-weight-note">
-                    <div className="label-row"><label>Weight memory</label><span>{selectedCommunityVariant ? 'ACTUAL COMMUNITY ARTIFACT' : 'ACTUAL REPOSITORY ARTIFACT'}</span></div>
-                    <strong>{selectedVariant.label}</strong>
-                    <p className="control-help">Uses {formatBytes(selectedVariant.weightSizeBytes)} of published weight files instead of a hypothetical conversion.</p>
-                  </div>
-                )}
+                  {selectedVariant?.role === 'model' ? (
+                    <p className="control-help quant-source">Uses the published {formatBytes(selectedVariant.weightSizeBytes)} weight artifact{selectedVariant.sourceUrl && <> from <a href={selectedVariant.sourceUrl} target="_blank" rel="noreferrer">{selectedVariant.repositoryId ?? selectedVariant.publisher} <ArrowUpRight size={12} /></a></>}.</p>
+                  ) : (
+                    <p className="control-help">No matching published quantized artifact was found. Weight memory is estimated from parameters × effective bits per weight.</p>
+                  )}
+                </div>
                 <div className="control-block context-block">
                   <div className="label-row"><label htmlFor="detail-context">Context window</label><span>TOKENS</span></div>
                   <input id="detail-context" type="number" min="1" step="1024" value={context} onChange={(event) => setContext(Math.max(1, Number(event.target.value) || 1))} />

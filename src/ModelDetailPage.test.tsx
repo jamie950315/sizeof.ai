@@ -252,7 +252,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.queryByRole('region', { name: 'Model load estimate' })).not.toBeInTheDocument()
   })
 
-  it('lets the user select detected repository variants and sizes VRAM from their actual weights', async () => {
+  it('keeps actual repository quantizations inside the calculator with context controls', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({
       ...apiModel,
       parameterCountKind: 'logical',
@@ -274,16 +274,16 @@ describe('Hugging Face-style model detail route', () => {
 
     render(<App />)
 
-    const variants = await screen.findByRole('region', { name: 'Detected model variants' })
-    const selector = within(variants).getByLabelText('Repository variant')
-    expect(selector).toHaveValue('q4')
-    expect(within(variants).getByText('10.00 GiB')).toBeInTheDocument()
-    const calculator = screen.getByRole('region', { name: 'Model VRAM calculator' })
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(screen.queryByRole('region', { name: 'Detected model variants' })).not.toBeInTheDocument()
+    expect(within(calculator).getByRole('button', { name: 'Q4_K_M' })).toHaveClass('active')
     expect(within(calculator).getByText('10.00 GiB', { selector: 'strong' })).toBeInTheDocument()
 
-    await user.selectOptions(selector, 'q8')
+    await user.click(within(calculator).getByRole('button', { name: '33K' }))
+    await user.click(within(calculator).getByRole('button', { name: 'Q8_0' }))
 
-    expect(within(variants).getByText('20.00 GiB')).toBeInTheDocument()
+    expect(within(calculator).getByLabelText('Context window')).toHaveValue(32768)
+    expect(within(calculator).getByRole('button', { name: 'Q8_0' })).toHaveClass('active')
     expect(within(calculator).getByText('20.00 GiB', { selector: 'strong' })).toBeInTheDocument()
   })
 
@@ -310,15 +310,15 @@ describe('Hugging Face-style model detail route', () => {
 
     render(<App />)
 
-    const variants = await screen.findByRole('region', { name: 'Detected model variants' })
-    expect(within(variants).getByLabelText('Repository variant')).toHaveValue('community-q4')
-    expect(within(variants).getByText('COMMUNITY QUANTIZATION')).toBeInTheDocument()
-    expect(within(variants).getByText('unsloth/Qwen3.8-27B-GGUF')).toBeInTheDocument()
-    expect(within(variants).getByRole('link', { name: /view community repository/i })).toHaveAttribute(
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(screen.queryByRole('region', { name: 'Detected model variants' })).not.toBeInTheDocument()
+    expect(within(calculator).getByRole('button', { name: 'Q4_K_M' })).toHaveClass('active')
+    expect(within(calculator).getByText(/COMMUNITY ARTIFACT \/ UNSLOTH/i)).toBeInTheDocument()
+    expect(within(calculator).getByRole('link', { name: /unsloth\/Qwen3\.8-27B-GGUF/i })).toHaveAttribute(
       'href',
       'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
     )
-    expect(within(screen.getByRole('region', { name: 'Model VRAM calculator' })).getByText('ACTUAL COMMUNITY ARTIFACT')).toBeInTheDocument()
+    expect(within(calculator).getByText(/Uses the published/i)).toBeInTheDocument()
   })
 
   it('labels bit-per-weight sizing as hypothetical when no artifact exists', async () => {

@@ -233,6 +233,7 @@ footer > span { grid-column: 1/-1; align-self: end; }
 .support-artifacts strong { overflow-wrap: anywhere; }
 .support-artifacts small { flex: none; color: #85887e; font: 500 9px/1.4 'JetBrains Mono Variable', monospace; }
 .detected-weight-note > strong { display: block; margin-top: 26px; color: var(--acid); font-size: clamp(23px, 3vw, 38px); letter-spacing: -.04em; overflow-wrap: anywhere; }
+.quant-source a { display: inline-flex; align-items: center; gap: 4px; color: var(--acid); }
 .detail-calculator, .architecture-section { padding: 110px 4vw 130px; }
 .detail-section-title { display: grid; grid-template-columns: 1fr 2fr; align-items: start; margin-bottom: 60px; }
 .detail-section-title > span { color: var(--acid); font-size: 10px; letter-spacing: .1em; }
