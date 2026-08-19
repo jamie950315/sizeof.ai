@@ -19,7 +19,7 @@ describe('Hugging Face model API', () => {
       new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2&random=uncached'),
     )
 
-    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v20')
+    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v21')
     expect([...new URL(key.url).searchParams.keys()]).toEqual(['__sizeof_cache'])
   })
 

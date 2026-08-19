@@ -138,7 +138,7 @@ export default function ModelDetailPage({ route }: Props) {
     let active = true
     setModel(null)
     setError(null)
-    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=10`)
+    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=11`)
       .then(async (response) => {
         const body = await response.json() as HuggingFaceModel | { error?: string }
         if (!response.ok) throw new Error('error' in body && body.error ? body.error : 'Unable to load model')

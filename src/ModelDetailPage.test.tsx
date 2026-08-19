@@ -59,7 +59,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByText('16 / 64')).toBeInTheDocument()
     expect(screen.getByText('Full attention layers')).toBeInTheDocument()
     expect(screen.getByText('18.30')).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=10')
+    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=11')
   })
 
   it('shows a useful model-not-found state', async () => {

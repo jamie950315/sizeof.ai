@@ -353,7 +353,7 @@ async function discoverCommunityVariants(
 export function createModelCacheKey(request: Request) {
   const url = new URL(request.url)
   url.search = ''
-  url.searchParams.set('__sizeof_cache', 'hf-model-v20')
+  url.searchParams.set('__sizeof_cache', 'hf-model-v21')
   return new Request(url.toString())
 }
 
