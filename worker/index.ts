@@ -27,6 +27,60 @@ type GgufReader = (
   options: { fetch: Fetcher; additionalFetchHeaders: Record<string, string> },
 ) => Promise<{ metadata: unknown; parameterCount: number | null }>
 
+interface CommunityRepositoryCandidate {
+  id?: unknown
+  author?: unknown
+  sha?: unknown
+  tags?: unknown
+  siblings?: unknown
+}
+
+const trustedQuantizationPublishers = [
+  'unsloth',
+  'bartowski',
+  'mlx-community',
+  'mradermacher',
+  'quantfactory',
+  'thebloke',
+] as const
+
+export function selectCommunityRepository(
+  value: unknown,
+  baseModelId: string,
+): { id: string; author: string; sha: string; tags: string[]; siblings: string[] } | null {
+  if (!Array.isArray(value)) return null
+  const relation = `base_model:quantized:${baseModelId}`.toLowerCase()
+  const candidates = value.flatMap((raw): Array<{
+    id: string; author: string; sha: string; tags: string[]; siblings: string[]; priority: number
+  }> => {
+    if (typeof raw !== 'object' || raw === null) return []
+    const item = raw as CommunityRepositoryCandidate
+    if (typeof item.id !== 'string' || typeof item.author !== 'string'
+      || typeof item.sha !== 'string' || !/^[a-f0-9]{40}$/i.test(item.sha)) return []
+    const tags = Array.isArray(item.tags)
+      ? item.tags.filter((tag): tag is string => typeof tag === 'string')
+      : []
+    if (!tags.some((tag) => tag.toLowerCase() === relation)) return []
+    const priority = trustedQuantizationPublishers.indexOf(
+      item.author.toLowerCase() as typeof trustedQuantizationPublishers[number],
+    )
+    if (priority < 0) return []
+    const siblings = Array.isArray(item.siblings)
+      ? item.siblings.flatMap((sibling) => {
+          if (typeof sibling !== 'object' || sibling === null) return []
+          const file = sibling as Record<string, unknown>
+          return typeof file.rfilename === 'string' ? [file.rfilename] : []
+        })
+      : []
+    return [{ id: item.id, author: item.author, sha: item.sha, tags, siblings, priority }]
+  })
+  candidates.sort((a, b) => a.priority - b.priority
+    || Number(!a.tags.some((tag) => tag.toLowerCase() === 'gguf'))
+      - Number(!b.tags.some((tag) => tag.toLowerCase() === 'gguf'))
+    || a.id.localeCompare(b.id))
+  return candidates[0] ?? null
+}
+
 export const readGguf: GgufReader = async (url, options) => {
   const fetcher = options.fetch
   const response = await fetcher(url, {
@@ -236,10 +290,48 @@ async function discoverRepoVariants(
   return { variants, ninfer, artifactManifest, mainEntries: mainTree }
 }
 
+async function discoverCommunityVariants(
+  baseModelId: string,
+  repoName: string,
+  fetcher: Fetcher,
+  headers: Record<string, string>,
+) {
+  const searchUrl = new URL('https://huggingface.co/api/models')
+  searchUrl.searchParams.set('search', repoName)
+  searchUrl.searchParams.set('limit', '50')
+  searchUrl.searchParams.set('full', 'true')
+  const candidate = selectCommunityRepository(
+    await fetchJson(fetcher, searchUrl.toString(), headers),
+    baseModelId,
+  )
+  if (!candidate) return []
+  const route = parseHuggingFaceModelPath(`/${candidate.id}`)
+  if (!route) return []
+  const discovered = await discoverRepoVariants(
+    route,
+    candidate.sha,
+    candidate.tags,
+    candidate.siblings,
+    fetcher,
+    headers,
+  )
+  const sourceUrl = `https://huggingface.co/${route.owner}/${route.repo}`
+  return discovered.variants
+    .filter((variant) => variant.role === 'model')
+    .map((variant) => ({
+      ...variant,
+      id: `community:${candidate.id}:${variant.id}`,
+      provenance: 'community' as const,
+      publisher: candidate.author,
+      repositoryId: candidate.id,
+      sourceUrl,
+    }))
+}
+
 export function createModelCacheKey(request: Request) {
   const url = new URL(request.url)
   url.search = ''
-  url.searchParams.set('__sizeof_cache', 'hf-model-v16')
+  url.searchParams.set('__sizeof_cache', 'hf-model-v18')
   return new Request(url.toString())
 }
 
@@ -376,6 +468,11 @@ export async function handleModelApi(
         headers,
       )
       variants = discovered.variants
+      if (!variants.some((variant) => variant.role === 'model')
+        && normalizeHuggingFaceModel(metadata, config).spec !== null
+        && !pairedBaseId(tags, 'quantized') && !pairedBaseId(tags, 'adapter')) {
+        variants = await discoverCommunityVariants(modelId, route.repo, fetcher, headers)
+      }
       const isVae = !curatedResourceProfile && isHuggingFaceVae(metadata, config)
       const vae = isVae ? normalizeHuggingFaceModel(metadata, config) : null
       const vaeArtifact = isVae

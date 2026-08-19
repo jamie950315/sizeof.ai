@@ -225,6 +225,8 @@ footer > span { grid-column: 1/-1; align-self: end; }
 .variant-facts span { color: #74776d; }
 .variant-facts strong { font-size: clamp(18px, 2.1vw, 28px); letter-spacing: -.04em; overflow-wrap: anywhere; }
 .variant-base-line { padding: 18px 34px; border-top: 1px solid var(--line); color: var(--orange); overflow-wrap: anywhere; }
+.community-source { display: flex; justify-content: space-between; gap: 20px; padding: 18px; border: 1px solid var(--line); border-top: 0; color: #8f9188; font: 600 9px/1.4 'JetBrains Mono Variable', monospace; letter-spacing: .06em; overflow-wrap: anywhere; }
+.community-source a { display: inline-flex; align-items: center; gap: 7px; flex: none; color: var(--acid); }
 .support-artifacts { display: grid; grid-template-columns: 1fr 2fr; gap: 24px; padding: 28px 34px; border-top: 1px solid var(--line); }
 .support-artifacts > span { color: #777a70; padding-top: 4px; }
 .support-artifacts > div { display: flex; justify-content: space-between; gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--line); }
@@ -371,6 +373,7 @@ footer > span { grid-column: 1/-1; align-self: end; }
   .variant-facts { grid-template-columns: 1fr; }
   .variant-facts > div { min-height: 96px; }
   .variant-base-line, .support-artifacts { padding: 18px 20px; }
+  .community-source { align-items: flex-start; flex-direction: column; }
   .support-artifacts > div { align-items: flex-start; flex-direction: column; }
   .detail-calculator, .architecture-section { padding: 80px 20px; }
   .resource-controls { gap: 28px; }

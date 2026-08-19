@@ -59,7 +59,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByText('16 / 64')).toBeInTheDocument()
     expect(screen.getByText('Full attention layers')).toBeInTheDocument()
     expect(screen.getByText('18.30')).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=8')
+    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=9')
   })
 
   it('shows a useful model-not-found state', async () => {
@@ -110,7 +110,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByText('24 / 93')).toBeInTheDocument()
     expect(screen.getByLabelText('MLA cache layout')).toHaveValue('expanded')
     expect(screen.getByText('REPO QUANTIZATION / MXFP4-PACK-QUANTIZED')).toBeInTheDocument()
-    expect(screen.getByText('HYPOTHETICAL GGUF')).toBeInTheDocument()
+    expect(screen.getByText('HYPOTHETICAL BIT/WEIGHT ESTIMATE')).toBeInTheDocument()
   })
 
   it('discloses when architecture comes from a quantized repository base model', async () => {
@@ -285,6 +285,50 @@ describe('Hugging Face-style model detail route', () => {
 
     expect(within(variants).getByText('20.00 GiB')).toBeInTheDocument()
     expect(within(calculator).getByText('20.00 GiB', { selector: 'strong' })).toBeInTheDocument()
+  })
+
+  it('labels a community quantization and links to its publishing repository', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      variants: [
+        {
+          id: 'community-q2', label: 'GGUF Q2_K', format: 'gguf', revision: 'sha1', path: 'q2.gguf',
+          source: 'file', role: 'model', bitsPerWeight: 2, weightSizeBytes: 6 * 1024 ** 3,
+          totalSizeBytes: 6.1 * 1024 ** 3, provenance: 'community', publisher: 'unsloth',
+          repositoryId: 'unsloth/Qwen3.8-27B-GGUF',
+          sourceUrl: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
+        },
+        {
+          id: 'community-q4', label: 'GGUF Q4_K_M', format: 'gguf', revision: 'sha1', path: 'q4.gguf',
+          source: 'file', role: 'model', bitsPerWeight: 4, weightSizeBytes: 10 * 1024 ** 3,
+          totalSizeBytes: 10.1 * 1024 ** 3, provenance: 'community', publisher: 'unsloth',
+          repositoryId: 'unsloth/Qwen3.8-27B-GGUF',
+          sourceUrl: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
+        },
+      ],
+    })))
+
+    render(<App />)
+
+    const variants = await screen.findByRole('region', { name: 'Detected model variants' })
+    expect(within(variants).getByLabelText('Repository variant')).toHaveValue('community-q4')
+    expect(within(variants).getByText('COMMUNITY QUANTIZATION')).toBeInTheDocument()
+    expect(within(variants).getByText('unsloth/Qwen3.8-27B-GGUF')).toBeInTheDocument()
+    expect(within(variants).getByRole('link', { name: /view community repository/i })).toHaveAttribute(
+      'href',
+      'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
+    )
+    expect(within(screen.getByRole('region', { name: 'Model VRAM calculator' })).getByText('ACTUAL COMMUNITY ARTIFACT')).toBeInTheDocument()
+  })
+
+  it('labels bit-per-weight sizing as hypothetical when no artifact exists', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ ...apiModel, variants: [] })))
+
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByText('HYPOTHETICAL BIT/WEIGHT ESTIMATE')).toBeInTheDocument()
+    expect(within(calculator).getByText(/No matching published quantized artifact was found/i)).toBeInTheDocument()
   })
 
   it('shows an MTP addon separately and adds it to base-model VRAM', async () => {

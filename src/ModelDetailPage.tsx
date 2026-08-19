@@ -95,7 +95,7 @@ export default function ModelDetailPage({ route }: Props) {
     let active = true
     setModel(null)
     setError(null)
-    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=8`)
+    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=9`)
       .then(async (response) => {
         const body = await response.json() as HuggingFaceModel | { error?: string }
         if (!response.ok) throw new Error('error' in body && body.error ? body.error : 'Unable to load model')
@@ -105,7 +105,9 @@ export default function ModelDetailPage({ route }: Props) {
           const variants = nextModel.variants ?? []
           const defaultVariant = nextModel.addon
             ? variants.find((variant) => variant.role === 'addon')
-            : variants.find((variant) => variant.role === 'model')
+            : variants.find((variant) => variant.role === 'model'
+              && variant.provenance === 'community' && /^GGUF Q4_K_M$/i.test(variant.label))
+              ?? variants.find((variant) => variant.role === 'model')
           setSelectedVariantId(defaultVariant?.id ?? null)
           setSelectedResourceOptionId(nextModel.resourceEstimate?.options[0]?.id ?? null)
         }
@@ -126,6 +128,7 @@ export default function ModelDetailPage({ route }: Props) {
     ? modelVariants.filter((variant) => variant.role === 'addon')
     : modelVariants.filter((variant) => variant.role === 'model')
   const selectedVariant = selectableVariants.find((variant) => variant.id === selectedVariantId) ?? null
+  const selectedCommunityVariant = selectedVariant?.provenance === 'community'
   const resourceEstimate = model?.resourceEstimate ?? null
   const selectedResourceOption = resourceEstimate?.options.find((option) => option.id === selectedResourceOptionId)
     ?? resourceEstimate?.options[0]
@@ -260,8 +263,8 @@ export default function ModelDetailPage({ route }: Props) {
         {modelVariants.length > 0 && (
           <section className="variant-profile" aria-label="Detected model variants">
             <div className="variant-profile-heading">
-              <div><span>DETECTED REPOSITORY VARIANTS</span><h2>Choose the artifact.</h2></div>
-              <small>Weights use the published file size. Context memory still follows the model architecture.</small>
+              <div><span>{modelVariants.some((variant) => variant.provenance === 'community') ? 'COMMUNITY QUANTIZATION' : 'DETECTED REPOSITORY VARIANTS'}</span><h2>Choose the artifact.</h2></div>
+              <small>Published artifact sizes take priority over hypothetical bit-per-weight estimates. Context memory still follows the base model architecture.</small>
             </div>
             {selectableVariants.length > 0 && (
               <div className="variant-selector-row">
@@ -276,12 +279,20 @@ export default function ModelDetailPage({ route }: Props) {
                   ))}
                 </select>
                 {selectedVariant && (
-                  <div className="variant-facts">
-                    <div><span>WEIGHT FILES</span><strong>{formatBytes(selectedVariant.weightSizeBytes)}</strong></div>
-                    <div><span>DOWNLOAD</span><strong>{formatBytes(selectedVariant.totalSizeBytes)}</strong></div>
-                    <div><span>FORMAT</span><strong>{selectedVariant.format.toUpperCase()}</strong></div>
-                    <div><span>SOURCE</span><strong>{selectedVariant.source.toUpperCase()}</strong></div>
-                  </div>
+                  <>
+                    <div className="variant-facts">
+                      <div><span>WEIGHT FILES</span><strong>{formatBytes(selectedVariant.weightSizeBytes)}</strong></div>
+                      <div><span>DOWNLOAD</span><strong>{formatBytes(selectedVariant.totalSizeBytes)}</strong></div>
+                      <div><span>FORMAT</span><strong>{selectedVariant.format.toUpperCase()}</strong></div>
+                      <div><span>SOURCE</span><strong>{selectedVariant.provenance === 'community' ? selectedVariant.publisher : selectedVariant.source.toUpperCase()}</strong></div>
+                    </div>
+                    {selectedVariant.provenance === 'community' && selectedVariant.sourceUrl && (
+                      <div className="community-source">
+                        <span>{selectedVariant.repositoryId}</span>
+                        <a href={selectedVariant.sourceUrl} target="_blank" rel="noreferrer">VIEW COMMUNITY REPOSITORY <ArrowUpRight size={14} /></a>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -306,15 +317,16 @@ export default function ModelDetailPage({ route }: Props) {
             <div className="calculator-grid detail-calc-grid">
               <div className="controls-panel">
                 {!selectedVariant || selectedVariant.role !== 'model' ? <div className="control-block">
-                  <div className="label-row"><label>Weight quantization</label><span>{model.quantizationFormat ? 'HYPOTHETICAL GGUF' : quantizations.find((item) => item.id === quantization)?.note}</span></div>
+                  <div className="label-row"><label>Weight quantization</label><span>HYPOTHETICAL BIT/WEIGHT ESTIMATE</span></div>
                   <div className="quant-grid">
                     {quantizations.map((item) => (
                       <button type="button" className={quantization === item.id ? 'active' : ''} key={item.id} onClick={() => setQuantization(item.id)}>{item.label}</button>
                     ))}
                   </div>
+                  <p className="control-help">No matching published quantized artifact was found. Weight memory is estimated from parameters × effective bits per weight.</p>
                 </div> : (
                   <div className="control-block detected-weight-note">
-                    <div className="label-row"><label>Weight memory</label><span>DETECTED ARTIFACT</span></div>
+                    <div className="label-row"><label>Weight memory</label><span>{selectedCommunityVariant ? 'ACTUAL COMMUNITY ARTIFACT' : 'ACTUAL REPOSITORY ARTIFACT'}</span></div>
                     <strong>{selectedVariant.label}</strong>
                     <p className="control-help">Uses {formatBytes(selectedVariant.weightSizeBytes)} of published weight files instead of a hypothetical conversion.</p>
                   </div>

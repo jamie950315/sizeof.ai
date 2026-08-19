@@ -23,6 +23,10 @@ export interface HuggingFaceVariant {
   bitsPerWeight: number | null
   weightSizeBytes: number
   totalSizeBytes: number
+  provenance?: 'repository' | 'community'
+  publisher?: string
+  repositoryId?: string
+  sourceUrl?: string
 }
 
 export interface NInferManifestFacts {
@@ -150,6 +154,7 @@ function ggufLabel(path: string) {
 }
 
 function artifactRole(path: string): HuggingFaceVariant['role'] {
+  if (/(?:^|\/)mtp(?:\/|[-_.])/i.test(path)) return 'addon'
   const name = path.split('/').at(-1)?.toLowerCase() ?? ''
   if (/^(?:mmproj|projector)|(?:^|[-_.])mmproj(?:[-_.]|$)/.test(name)) return 'projector'
   if (/(?:^|[-_.])(?:mtp[-_.]?head|sidecar)(?:[-_.]|$)/.test(name)) return 'addon'

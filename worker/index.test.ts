@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { applyAssetCachePolicy, createModelCacheKey, handleModelApi, readGguf } from './index'
+import { applyAssetCachePolicy, createModelCacheKey, handleModelApi, readGguf, selectCommunityRepository } from './index'
 
 describe('Hugging Face model API', () => {
   it('requires HTML shells to revalidate while leaving hashed assets cacheable', () => {
@@ -19,8 +19,72 @@ describe('Hugging Face model API', () => {
       new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2&random=uncached'),
     )
 
-    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v16')
+    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v18')
     expect([...new URL(key.url).searchParams.keys()]).toEqual(['__sizeof_cache'])
+  })
+
+  it('prioritizes a verified unsloth quantization over other community derivatives', () => {
+    const selected = selectCommunityRepository([
+      {
+        id: 'someone/Qwen3.8-27B-GGUF', author: 'someone', sha: 'a'.repeat(40),
+        tags: ['gguf', 'base_model:quantized:Qwen/Qwen3.8-27B'],
+      },
+      {
+        id: 'unsloth/Qwen3.8-27B-GGUF', author: 'unsloth', sha: 'b'.repeat(40),
+        tags: ['gguf', 'base_model:Qwen/Qwen3.8-27B', 'base_model:quantized:Qwen/Qwen3.8-27B'],
+      },
+      {
+        id: 'unsloth/Qwen3.8-Other-GGUF', author: 'unsloth', sha: 'c'.repeat(40),
+        tags: ['gguf', 'base_model:quantized:Qwen/Other'],
+      },
+    ], 'Qwen/Qwen3.8-27B')
+
+    expect(selected?.id).toBe('unsloth/Qwen3.8-27B-GGUF')
+  })
+
+  it('returns actual files from the highest-priority verified community quantization', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B?')) {
+        return Response.json({
+          id: 'Qwen/Qwen3.8-27B', author: 'Qwen', sha: 'official123',
+          safetensors: { total: 27_781_427_952 }, tags: ['safetensors'],
+        })
+      }
+      if (url.includes('/Qwen/Qwen3.8-27B/resolve/official123/config.json')) {
+        return Response.json({
+          architectures: ['Qwen3_5ForCausalLM'], model_type: 'qwen3_5', num_hidden_layers: 64,
+          num_key_value_heads: 4, head_dim: 256, max_position_embeddings: 262_144,
+        })
+      }
+      if (url.includes('/Qwen/Qwen3.8-27B/tree/official123')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) {
+        return Response.json([{
+          id: 'unsloth/Qwen3.8-27B-GGUF', author: 'unsloth', sha: 'b'.repeat(40),
+          tags: ['gguf', 'base_model:quantized:Qwen/Qwen3.8-27B'], siblings: [],
+        }])
+      }
+      if (url.includes(`/unsloth/Qwen3.8-27B-GGUF/tree/${'b'.repeat(40)}`)) {
+        return Response.json([
+          { type: 'file', path: 'Qwen3.8-27B-Q4_K_M.gguf', size: 16_000_000_000 },
+          { type: 'file', path: 'MTP/mtp-Qwen3.8-27B-Q4_0.gguf', size: 1_300_000_000 },
+        ])
+      }
+      throw new Error(`Unexpected community fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B'),
+      fetcher,
+    )
+    const body = await response.json() as { variants: Array<Record<string, unknown>> }
+
+    expect(response.status).toBe(200)
+    expect(body.variants).toEqual([expect.objectContaining({
+      label: 'GGUF Q4_K_M', provenance: 'community', publisher: 'unsloth',
+      repositoryId: 'unsloth/Qwen3.8-27B-GGUF', weightSizeBytes: 16_000_000_000,
+      sourceUrl: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
+    })])
   })
 
   it('calls the GGUF Range fetcher without an illegal method binding', async () => {
