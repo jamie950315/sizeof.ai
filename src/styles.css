@@ -81,6 +81,10 @@ select option { background: #1b1c18; color: white; }
 .quant-grid button { min-height: 52px; background: transparent; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); cursor: pointer; font: 600 11px/1 'JetBrains Mono Variable', monospace; transition: .18s ease; }
 .quant-grid button:hover { background: #1b1d18; }
 .quant-grid button.active { color: var(--ink); background: var(--acid); }
+.quant-source-tabs { display: flex; gap: 5px; overflow-x: auto; padding: 0 0 12px; scrollbar-width: thin; }
+.quant-source-tabs button { flex: none; border: 1px solid #3f4239; border-radius: 999px; background: transparent; color: #85877e; padding: 8px 12px; cursor: pointer; font: 600 9px/1 'JetBrains Mono Variable', monospace; letter-spacing: .06em; text-transform: uppercase; }
+.quant-source-tabs button:hover { border-color: #73766b; color: var(--paper); }
+.quant-source-tabs button.active { border-color: var(--acid); color: var(--acid); background: #1a1d15; }
 .quant-browser { border-top: 1px solid var(--line); }
 .quant-tier { display: grid; grid-template-columns: 62px 1fr; min-height: 54px; border-bottom: 1px solid var(--line); }
 .quant-tier > span { padding: 18px 10px 14px 0; color: #85877e; font: 600 10px/1 'JetBrains Mono Variable', monospace; }

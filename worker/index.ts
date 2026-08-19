@@ -44,11 +44,11 @@ const trustedQuantizationPublishers = [
   'thebloke',
 ] as const
 
-export function selectCommunityRepository(
+export function selectCommunityRepositories(
   value: unknown,
   baseModelId: string,
-): { id: string; author: string; sha: string; tags: string[]; siblings: string[] } | null {
-  if (!Array.isArray(value)) return null
+): Array<{ id: string; author: string; sha: string; tags: string[]; siblings: string[] }> {
+  if (!Array.isArray(value)) return []
   const relation = `base_model:quantized:${baseModelId}`.toLowerCase()
   const candidates = value.flatMap((raw): Array<{
     id: string; author: string; sha: string; tags: string[]; siblings: string[]; priority: number
@@ -57,6 +57,8 @@ export function selectCommunityRepository(
     const item = raw as CommunityRepositoryCandidate
     if (typeof item.id !== 'string' || typeof item.author !== 'string'
       || typeof item.sha !== 'string' || !/^[a-f0-9]{40}$/i.test(item.sha)) return []
+    const repositoryName = item.id.split('/')[1] ?? ''
+    if (/(?:^|[-_.])mtp(?:[-_.]|$)/i.test(repositoryName)) return []
     const tags = Array.isArray(item.tags)
       ? item.tags.filter((tag): tag is string => typeof tag === 'string')
       : []
@@ -78,7 +80,21 @@ export function selectCommunityRepository(
     || Number(!a.tags.some((tag) => tag.toLowerCase() === 'gguf'))
       - Number(!b.tags.some((tag) => tag.toLowerCase() === 'gguf'))
     || a.id.localeCompare(b.id))
-  return candidates[0] ?? null
+  const publisherCounts = new Map<string, number>()
+  return candidates.filter((candidate) => {
+    const publisher = candidate.author.toLowerCase()
+    const count = publisherCounts.get(publisher) ?? 0
+    if (count >= 3) return false
+    publisherCounts.set(publisher, count + 1)
+    return true
+  }).slice(0, 8)
+}
+
+export function selectCommunityRepository(
+  value: unknown,
+  baseModelId: string,
+) {
+  return selectCommunityRepositories(value, baseModelId)[0] ?? null
 }
 
 export const readGguf: GgufReader = async (url, options) => {
@@ -298,40 +314,46 @@ async function discoverCommunityVariants(
 ) {
   const searchUrl = new URL('https://huggingface.co/api/models')
   searchUrl.searchParams.set('search', repoName)
-  searchUrl.searchParams.set('limit', '50')
+  searchUrl.searchParams.set('limit', '100')
   searchUrl.searchParams.set('full', 'true')
-  const candidate = selectCommunityRepository(
+  const candidates = selectCommunityRepositories(
     await fetchJson(fetcher, searchUrl.toString(), headers),
     baseModelId,
   )
-  if (!candidate) return []
-  const route = parseHuggingFaceModelPath(`/${candidate.id}`)
-  if (!route) return []
-  const discovered = await discoverRepoVariants(
-    route,
-    candidate.sha,
-    candidate.tags,
-    candidate.siblings,
-    fetcher,
-    headers,
-  )
-  const sourceUrl = `https://huggingface.co/${route.owner}/${route.repo}`
-  return discovered.variants
-    .filter((variant) => variant.role === 'model')
-    .map((variant) => ({
-      ...variant,
-      id: `community:${candidate.id}:${variant.id}`,
-      provenance: 'community' as const,
-      publisher: candidate.author,
-      repositoryId: candidate.id,
-      sourceUrl,
-    }))
+  const discoveredByRepository = await Promise.all(candidates.map(async (candidate) => {
+    const route = parseHuggingFaceModelPath(`/${candidate.id}`)
+    if (!route) return []
+    try {
+      const discovered = await discoverRepoVariants(
+        route,
+        candidate.sha,
+        candidate.tags,
+        candidate.siblings,
+        fetcher,
+        headers,
+      )
+      const sourceUrl = `https://huggingface.co/${route.owner}/${route.repo}`
+      return discovered.variants
+        .filter((variant) => variant.role === 'model')
+        .map((variant) => ({
+          ...variant,
+          id: `community:${candidate.id}:${variant.id}`,
+          provenance: 'community' as const,
+          publisher: candidate.author,
+          repositoryId: candidate.id,
+          sourceUrl,
+        }))
+    } catch {
+      return []
+    }
+  }))
+  return discoveredByRepository.flat()
 }
 
 export function createModelCacheKey(request: Request) {
   const url = new URL(request.url)
   url.search = ''
-  url.searchParams.set('__sizeof_cache', 'hf-model-v18')
+  url.searchParams.set('__sizeof_cache', 'hf-model-v20')
   return new Request(url.toString())
 }
 

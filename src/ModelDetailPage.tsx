@@ -53,13 +53,24 @@ const estimateReasonLabels: Record<NonNullable<HuggingFaceModel['estimateReason'
 const quantizationBits = [1, 2, 3, 4, 5, 6, 8, 16] as const
 
 function variantBits(variant: HuggingFaceVariant) {
-  if (/\b(?:BF16|FP16)\b/i.test(variant.label)) return 16
-  const quant = variant.label.match(/(?:^|[^A-Z0-9])I?Q([1-8])(?:[^A-Z0-9]|$)/i)
+  const searchable = [variant.label, variant.repositoryId, variant.path].filter(Boolean).join(' ')
+  if (/\b(?:BF16|FP16)\b/i.test(searchable)) return 16
+  const quant = searchable.match(/(?:^|[^A-Z0-9])I?Q([1-8])(?:[^A-Z0-9]|$)/i)
   if (quant) return Number(quant[1])
+  const bitLabel = searchable.match(/(?:^|[^0-9])([1-8])[-_. ]?bits?(?:[^a-z]|$)/i)
+  if (bitLabel) return Number(bitLabel[1])
   return variant.bitsPerWeight === null ? null : Math.round(variant.bitsPerWeight)
 }
 
 function displayVariantName(variant: HuggingFaceVariant) {
+  if (variant.format === 'mlx' && variant.repositoryId) {
+    const repositoryName = variant.repositoryId.split('/').pop() ?? variant.repositoryId
+    const directorySuffix = variant.path && !variant.path.includes('.') ? ` · ${variant.path}` : ''
+    const optiQ = repositoryName.match(/optiq[-_. ]*([1-8])[-_. ]?bits?/i)
+    if (optiQ) return `MLX OptiQ ${optiQ[1]}-bit${directorySuffix}`
+    const bits = repositoryName.match(/(?:^|[^0-9])([1-8])[-_. ]?bits?(?:[^a-z]|$)/i)
+    if (bits) return `MLX ${bits[1]}-bit${directorySuffix}`
+  }
   if (/\b(?:BF16|FP16)\b/i.test(variant.label)) return variant.label.match(/\b(?:BF16|FP16)\b/i)?.[0].toUpperCase() ?? 'FP16'
   const quant = variant.label.match(/((?:IQ|Q)[1-8](?:_[A-Z0-9]+)+)/i)
   return quant?.[1].toUpperCase() ?? variant.label.replace(/^GGUF\s+/i, '')
@@ -73,6 +84,11 @@ function quantizationIdForBits(bits: number): QuantizationId {
   if (bits >= 4) return 'q4_k_m'
   if (bits >= 3) return 'q3_k_m'
   return 'q2_k'
+}
+
+function publisherLabel(publisher: string) {
+  if (publisher === 'mlx-community') return 'mlx-community'
+  return publisher.charAt(0).toUpperCase() + publisher.slice(1)
 }
 
 function formatCompact(value: number) {
@@ -114,6 +130,7 @@ export default function ModelDetailPage({ route }: Props) {
   const [mlaCacheMode, setMlaCacheMode] = useState<'expanded' | 'latent'>('expanded')
   const [vram, setVram] = useState(24)
   const [copied, setCopied] = useState(false)
+  const [selectedSource, setSelectedSource] = useState('estimated')
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
   const [selectedResourceOptionId, setSelectedResourceOptionId] = useState<string | null>(null)
 
@@ -121,7 +138,7 @@ export default function ModelDetailPage({ route }: Props) {
     let active = true
     setModel(null)
     setError(null)
-    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=9`)
+    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=10`)
       .then(async (response) => {
         const body = await response.json() as HuggingFaceModel | { error?: string }
         if (!response.ok) throw new Error('error' in body && body.error ? body.error : 'Unable to load model')
@@ -131,9 +148,8 @@ export default function ModelDetailPage({ route }: Props) {
           const variants = nextModel.variants ?? []
           const defaultVariant = nextModel.addon
             ? variants.find((variant) => variant.role === 'addon')
-            : variants.find((variant) => variant.role === 'model'
-              && variant.provenance === 'community' && /^GGUF Q4_K_M$/i.test(variant.label))
-              ?? variants.find((variant) => variant.role === 'model')
+            : null
+          setSelectedSource(nextModel.addon ? 'repository' : 'estimated')
           setSelectedVariantId(defaultVariant?.id ?? null)
           setSelectedResourceOptionId(nextModel.resourceEstimate?.options[0]?.id ?? null)
         }
@@ -153,12 +169,19 @@ export default function ModelDetailPage({ route }: Props) {
   const selectableVariants = model?.addon
     ? modelVariants.filter((variant) => variant.role === 'addon')
     : modelVariants.filter((variant) => variant.role === 'model')
-  const selectedVariant = selectableVariants.find((variant) => variant.id === selectedVariantId) ?? null
+  const selectedVariant = selectedSource === 'estimated'
+    ? null
+    : selectableVariants.find((variant) => variant.id === selectedVariantId) ?? null
   const selectedCommunityVariant = selectedVariant?.provenance === 'community'
   const modelArtifactVariants = selectableVariants.filter((variant) => variant.role === 'model')
+  const publisherForVariant = (variant: HuggingFaceVariant) => (variant.publisher ?? model?.owner ?? 'repository').toLowerCase()
+  const sourcePublishers = [...new Set(modelArtifactVariants.map(publisherForVariant))]
+  const sourceArtifactVariants = selectedSource === 'estimated'
+    ? []
+    : modelArtifactVariants.filter((variant) => publisherForVariant(variant) === selectedSource)
   const quantizationGroups = quantizationBits.map((bits) => ({
     bits,
-    variants: modelArtifactVariants.filter((variant) => variantBits(variant) === bits),
+    variants: sourceArtifactVariants.filter((variant) => variantBits(variant) === bits),
   })).filter((group) => group.variants.length > 0)
   const resourceEstimate = model?.resourceEstimate ?? null
   const selectedResourceOption = resourceEstimate?.options.find((option) => option.id === selectedResourceOptionId)
@@ -203,6 +226,21 @@ export default function ModelDetailPage({ route }: Props) {
     const bits = variantBits(variant)
     setSelectedVariantId(variant.id)
     if (bits !== null) setQuantization(quantizationIdForBits(bits))
+  }
+
+  function chooseSource(source: string) {
+    setSelectedSource(source)
+    if (source === 'estimated') {
+      setSelectedVariantId(null)
+      return
+    }
+    const variants = modelArtifactVariants.filter((variant) => publisherForVariant(variant) === source)
+    const preferred = variants.find((variant) => /^GGUF Q4_K_M$/i.test(variant.label)) ?? variants[0] ?? null
+    setSelectedVariantId(preferred?.id ?? null)
+    if (preferred) {
+      const bits = variantBits(preferred)
+      if (bits !== null) setQuantization(quantizationIdForBits(bits))
+    }
   }
 
   if (error) {
@@ -360,7 +398,15 @@ export default function ModelDetailPage({ route }: Props) {
               <div className="controls-panel">
                 <div className="control-block">
                   <div className="label-row"><label>Weight quantization</label><span>{selectedVariant?.role === 'model' ? `${selectedCommunityVariant ? 'COMMUNITY' : 'REPOSITORY'} ARTIFACT / ${selectedVariant.publisher ?? model.owner}` : 'HYPOTHETICAL BIT/WEIGHT ESTIMATE'}</span></div>
-                  {modelArtifactVariants.length > 0 ? (
+                  {sourcePublishers.length > 0 && !model.addon && (
+                    <div className="quant-source-tabs" role="tablist" aria-label="Weight source">
+                      <button type="button" role="tab" aria-selected={selectedSource === 'estimated'} className={selectedSource === 'estimated' ? 'active' : ''} onClick={() => chooseSource('estimated')}>Estimated</button>
+                      {sourcePublishers.map((publisher) => (
+                        <button type="button" role="tab" aria-selected={selectedSource === publisher} className={selectedSource === publisher ? 'active' : ''} key={publisher} onClick={() => chooseSource(publisher)}>{publisherLabel(publisher)}</button>
+                      ))}
+                    </div>
+                  )}
+                  {sourceArtifactVariants.length > 0 ? (
                     <div className="quant-browser" role="region" aria-label="Available community quantizations">
                       {quantizationGroups.map((group) => (
                         <div className="quant-tier" key={group.bits}>
@@ -391,7 +437,7 @@ export default function ModelDetailPage({ route }: Props) {
                   {selectedVariant?.role === 'model' ? (
                     <p className="control-help quant-source">Uses the published {formatBytes(selectedVariant.weightSizeBytes)} weight artifact{selectedVariant.sourceUrl && <> from <a href={selectedVariant.sourceUrl} target="_blank" rel="noreferrer">{selectedVariant.repositoryId ?? selectedVariant.publisher} <ArrowUpRight size={12} /></a></>}.</p>
                   ) : (
-                    <p className="control-help">No matching published quantized artifact was found. Weight memory is estimated from parameters × effective bits per weight.</p>
+                    <p className="control-help">{sourcePublishers.length > 0 ? 'Estimated mode uses parameters × effective bits per weight. Choose a publisher tab to use published artifact sizes.' : 'No matching published quantized artifact was found. Weight memory is estimated from parameters × effective bits per weight.'}</p>
                   )}
                 </div>
                 <div className="control-block context-block">

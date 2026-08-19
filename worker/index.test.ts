@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { applyAssetCachePolicy, createModelCacheKey, handleModelApi, readGguf, selectCommunityRepository } from './index'
+import { applyAssetCachePolicy, createModelCacheKey, handleModelApi, readGguf, selectCommunityRepositories, selectCommunityRepository } from './index'
 
 describe('Hugging Face model API', () => {
   it('requires HTML shells to revalidate while leaving hashed assets cacheable', () => {
@@ -19,7 +19,7 @@ describe('Hugging Face model API', () => {
       new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2&random=uncached'),
     )
 
-    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v18')
+    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v20')
     expect([...new URL(key.url).searchParams.keys()]).toEqual(['__sizeof_cache'])
   })
 
@@ -40,6 +40,24 @@ describe('Hugging Face model API', () => {
     ], 'Qwen/Qwen3.8-27B')
 
     expect(selected?.id).toBe('unsloth/Qwen3.8-27B-GGUF')
+  })
+
+  it('selects verified repositories from multiple trusted publishers with per-publisher limits', () => {
+    const selected = selectCommunityRepositories([
+      { id: 'unsloth/Model-GGUF', author: 'unsloth', sha: 'a'.repeat(40), tags: ['gguf', 'base_model:quantized:Org/Model'] },
+      { id: 'unsloth/Model-NVFP4', author: 'unsloth', sha: 'b'.repeat(40), tags: ['base_model:quantized:Org/Model'] },
+      { id: 'bartowski/Model-GGUF', author: 'bartowski', sha: 'c'.repeat(40), tags: ['gguf', 'base_model:quantized:Org/Model'] },
+      { id: 'mlx-community/Model-MTP-4bit', author: 'mlx-community', sha: 'f'.repeat(40), tags: ['mlx', '4-bit', 'base_model:quantized:Org/Model'] },
+      { id: 'mlx-community/Model-4bit', author: 'mlx-community', sha: 'd'.repeat(40), tags: ['mlx', '4-bit', 'base_model:quantized:Org/Model'] },
+      { id: 'unknown/Model-GGUF', author: 'unknown', sha: 'e'.repeat(40), tags: ['gguf', 'base_model:quantized:Org/Model'] },
+    ], 'Org/Model')
+
+    expect(selected.map((repo) => repo.id)).toEqual([
+      'unsloth/Model-GGUF',
+      'unsloth/Model-NVFP4',
+      'bartowski/Model-GGUF',
+      'mlx-community/Model-4bit',
+    ])
   })
 
   it('returns actual files from the highest-priority verified community quantization', async () => {

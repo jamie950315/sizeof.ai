@@ -59,7 +59,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByText('16 / 64')).toBeInTheDocument()
     expect(screen.getByText('Full attention layers')).toBeInTheDocument()
     expect(screen.getByText('18.30')).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=9')
+    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=10')
   })
 
   it('shows a useful model-not-found state', async () => {
@@ -276,6 +276,9 @@ describe('Hugging Face-style model detail route', () => {
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(screen.queryByRole('region', { name: 'Detected model variants' })).not.toBeInTheDocument()
+    const sources = within(calculator).getByRole('tablist', { name: 'Weight source' })
+    expect(within(sources).getByRole('tab', { name: 'Estimated' })).toHaveAttribute('aria-selected', 'true')
+    await user.click(within(sources).getByRole('tab', { name: 'Qwen' }))
     expect(within(calculator).getByRole('button', { name: /Q4_K_M.*10\.00 GiB/i })).toHaveClass('active')
     expect(within(calculator).getByText('10.00 GiB', { selector: 'strong' })).toBeInTheDocument()
 
@@ -287,7 +290,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(calculator).getByText('20.00 GiB', { selector: 'strong' })).toBeInTheDocument()
   })
 
-  it('labels a community quantization and links to its publishing repository', async () => {
+  it('defaults to estimated sizing and switches between trusted publisher tabs', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({
       ...apiModel,
       variants: [
@@ -297,6 +300,13 @@ describe('Hugging Face-style model detail route', () => {
           totalSizeBytes: 5.1 * 1024 ** 3, provenance: 'community', publisher: 'unsloth',
           repositoryId: 'unsloth/Qwen3.8-27B-GGUF',
           sourceUrl: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
+        },
+        {
+          id: 'bartowski-q4', label: 'GGUF Q4_K_M', format: 'gguf', revision: 'sha2', path: 'q4.gguf',
+          source: 'file', role: 'model', bitsPerWeight: 4, weightSizeBytes: 11 * 1024 ** 3,
+          totalSizeBytes: 11.1 * 1024 ** 3, provenance: 'community', publisher: 'bartowski',
+          repositoryId: 'bartowski/Qwen3.8-27B-GGUF',
+          sourceUrl: 'https://huggingface.co/bartowski/Qwen3.8-27B-GGUF',
         },
         {
           id: 'community-q2', label: 'GGUF Q2_K', format: 'gguf', revision: 'sha1', path: 'q2.gguf',
@@ -319,6 +329,27 @@ describe('Hugging Face-style model detail route', () => {
           repositoryId: 'unsloth/Qwen3.8-27B-GGUF',
           sourceUrl: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
         },
+        {
+          id: 'mlx-4bit', label: 'MLX main', format: 'mlx', revision: 'sha3', path: 'model.safetensors',
+          source: 'file', role: 'model', bitsPerWeight: null, weightSizeBytes: 8 * 1024 ** 3,
+          totalSizeBytes: 8.1 * 1024 ** 3, provenance: 'community', publisher: 'mlx-community',
+          repositoryId: 'mlx-community/Qwen3.8-27B-4bit',
+          sourceUrl: 'https://huggingface.co/mlx-community/Qwen3.8-27B-4bit',
+        },
+        {
+          id: 'mlx-optiq-4bit', label: 'MLX main', format: 'mlx', revision: 'sha4', path: 'model.safetensors',
+          source: 'file', role: 'model', bitsPerWeight: null, weightSizeBytes: 7.5 * 1024 ** 3,
+          totalSizeBytes: 7.6 * 1024 ** 3, provenance: 'community', publisher: 'mlx-community',
+          repositoryId: 'mlx-community/Qwen3.8-27B-OptiQ-4bit',
+          sourceUrl: 'https://huggingface.co/mlx-community/Qwen3.8-27B-OptiQ-4bit',
+        },
+        {
+          id: 'mlx-optiq-directory', label: 'MLX optiq', format: 'mlx', revision: 'sha4', path: 'optiq',
+          source: 'directory', role: 'model', bitsPerWeight: null, weightSizeBytes: 1.2 * 1024 ** 3,
+          totalSizeBytes: 1.21 * 1024 ** 3, provenance: 'community', publisher: 'mlx-community',
+          repositoryId: 'mlx-community/Qwen3.8-27B-OptiQ-4bit',
+          sourceUrl: 'https://huggingface.co/mlx-community/Qwen3.8-27B-OptiQ-4bit',
+        },
       ],
     })))
     const user = userEvent.setup()
@@ -327,6 +358,16 @@ describe('Hugging Face-style model detail route', () => {
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(screen.queryByRole('region', { name: 'Detected model variants' })).not.toBeInTheDocument()
+    const sources = within(calculator).getByRole('tablist', { name: 'Weight source' })
+    expect(within(sources).getByRole('tab', { name: 'Estimated' })).toHaveAttribute('aria-selected', 'true')
+    expect(within(sources).getByRole('tab', { name: 'Unsloth' })).toBeInTheDocument()
+    expect(within(sources).getByRole('tab', { name: 'Bartowski' })).toBeInTheDocument()
+    expect(within(sources).getByRole('tab', { name: 'mlx-community' })).toBeInTheDocument()
+    expect(within(calculator).queryByRole('region', { name: 'Available community quantizations' })).not.toBeInTheDocument()
+    expect(within(calculator).getByText('15.69 GiB', { selector: 'strong' })).toBeInTheDocument()
+
+    await user.click(within(sources).getByRole('tab', { name: 'Unsloth' }))
+
     const quantizations = within(calculator).getByRole('region', { name: 'Available community quantizations' })
     expect(within(quantizations).getByText('1-bit')).toBeInTheDocument()
     expect(within(quantizations).getByText('2-bit')).toBeInTheDocument()
@@ -347,6 +388,19 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(calculator).getByLabelText('Context window')).toHaveValue(32768)
     expect(within(quantizations).getByRole('button', { name: /Q4_K_S.*9\.00 GiB/i })).toHaveClass('active')
     expect(within(calculator).getByText('9.00 GiB', { selector: 'strong' })).toBeInTheDocument()
+
+    await user.click(within(sources).getByRole('tab', { name: 'Bartowski' }))
+
+    expect(within(calculator).getByText(/COMMUNITY ARTIFACT \/ BARTOWSKI/i)).toBeInTheDocument()
+    expect(within(calculator).getByText('11.00 GiB', { selector: 'strong' })).toBeInTheDocument()
+
+    await user.click(within(sources).getByRole('tab', { name: 'mlx-community' }))
+
+    const mlxQuantizations = within(calculator).getByRole('region', { name: 'Available community quantizations' })
+    expect(within(mlxQuantizations).getByText('4-bit')).toBeInTheDocument()
+    expect(within(mlxQuantizations).getByRole('button', { name: /MLX 4-bit.*8\.00 GiB/i })).toBeInTheDocument()
+    expect(within(mlxQuantizations).getByRole('button', { name: /MLX OptiQ 4-bit.*7\.50 GiB/i })).toBeInTheDocument()
+    expect(within(mlxQuantizations).getByRole('button', { name: /MLX OptiQ 4-bit · optiq.*1\.20 GiB/i })).toBeInTheDocument()
   })
 
   it('labels bit-per-weight sizing as hypothetical when no artifact exists', async () => {
