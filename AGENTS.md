@@ -27,7 +27,7 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-20: Non-text-generation pages now use static published-weight profiles rather than LLM KV-cache calculations. Vision, video, audio, VAE, and encoder pages hide autoregressive context and KV fields; unknown workflows ask for artifact identification instead of inventing a VRAM figure.
 - 2026-08-20: VAE profiles combine a declared, verified base plus VAE weights when available (including canonical-ID casing differences), otherwise report the VAE artifact alone. Kijai/MiniMax-H3-TAE, Wan-AI/Wan2.2-Animate-2-14B, Inner-Reflections/MiniMax-H3-Looping-Sketch-Anime, LiquidAI/LFM2.5-Encoder-350M, and workflow artifacts were verified locally and on the public API.
 - 2026-08-20: Base-model pages now prefer verified quantizations from trusted community publishers, led by unsloth, and use published artifact sizes. Pages explicitly distinguish community artifacts from hypothetical bit-per-weight fallback estimates.
-- Cloudflare production version: `12913d88-f11e-462e-9c72-4ef77839cb3e`.
+- Cloudflare production version: `a68ba440-6a43-48a9-8101-802d7ad365bc`.
 
 ## Commands
 
