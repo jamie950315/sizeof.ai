@@ -18,6 +18,16 @@ const fixture: ModelSpec = {
 }
 
 describe('estimateVram', () => {
+  it('supports a hypothetical 1-bit weight estimate', () => {
+    const result = estimateVram(fixture, {
+      quantization: 'q1',
+      context: 4096,
+      kvPrecision: 'fp16',
+    })
+
+    expect(result.weightsGiB).toBeCloseTo(0.116, 3)
+  })
+
   it('uses effective quantization bits for weight memory', () => {
     const result = estimateVram(fixture, {
       quantization: 'q4_k_m',

@@ -59,6 +59,12 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByText('16 / 64')).toBeInTheDocument()
     expect(screen.getByText('Full attention layers')).toBeInTheDocument()
     expect(screen.getByText('18.30')).toBeInTheDocument()
+    const calculator = screen.getByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getAllByRole('button').map((button) => button.textContent)).toEqual(expect.arrayContaining([
+      '16bit', '8bit', '6bit', '5bit', '4bit', '3bit', '2bit', '1bit',
+    ]))
+    expect(within(calculator).queryByRole('button', { name: 'FP16' })).not.toBeInTheDocument()
+    expect(within(calculator).queryByRole('button', { name: 'Q4_K_M' })).not.toBeInTheDocument()
     expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=12')
   })
 

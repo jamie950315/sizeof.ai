@@ -84,7 +84,8 @@ function quantizationIdForBits(bits: number): QuantizationId {
   if (bits >= 5) return 'q5_k_m'
   if (bits >= 4) return 'q4_k_m'
   if (bits >= 3) return 'q3_k_m'
-  return 'q2_k'
+  if (bits >= 2) return 'q2_k'
+  return 'q1'
 }
 
 function publisherLabel(publisher: string) {
