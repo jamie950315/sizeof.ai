@@ -59,7 +59,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByText('16 / 64')).toBeInTheDocument()
     expect(screen.getByText('Full attention layers')).toBeInTheDocument()
     expect(screen.getByText('18.30')).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=11')
+    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=12')
   })
 
   it('shows a useful model-not-found state', async () => {
@@ -309,6 +309,13 @@ describe('Hugging Face-style model detail route', () => {
           sourceUrl: 'https://huggingface.co/bartowski/Qwen3.8-27B-GGUF',
         },
         {
+          id: 'lmstudio-q4', label: 'GGUF Q4_K_M', format: 'gguf', revision: 'sha5', path: 'q4.gguf',
+          source: 'file', role: 'model', bitsPerWeight: 4, weightSizeBytes: 10.5 * 1024 ** 3,
+          totalSizeBytes: 10.6 * 1024 ** 3, provenance: 'community', publisher: 'lmstudio-community',
+          repositoryId: 'lmstudio-community/Qwen3.8-27B-GGUF',
+          sourceUrl: 'https://huggingface.co/lmstudio-community/Qwen3.8-27B-GGUF',
+        },
+        {
           id: 'community-q2', label: 'GGUF Q2_K', format: 'gguf', revision: 'sha1', path: 'q2.gguf',
           source: 'file', role: 'model', bitsPerWeight: 2, weightSizeBytes: 6 * 1024 ** 3,
           totalSizeBytes: 6.1 * 1024 ** 3, provenance: 'community', publisher: 'unsloth',
@@ -360,9 +367,9 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.queryByRole('region', { name: 'Detected model variants' })).not.toBeInTheDocument()
     const sources = within(calculator).getByRole('tablist', { name: 'Weight source' })
     expect(within(sources).getByRole('tab', { name: 'Estimated' })).toHaveAttribute('aria-selected', 'true')
-    expect(within(sources).getByRole('tab', { name: 'Unsloth' })).toBeInTheDocument()
-    expect(within(sources).getByRole('tab', { name: 'Bartowski' })).toBeInTheDocument()
-    expect(within(sources).getByRole('tab', { name: 'mlx-community' })).toBeInTheDocument()
+    expect(within(sources).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Estimated', 'Unsloth', 'LM Studio Community', 'mlx-community', 'Bartowski',
+    ])
     expect(within(calculator).queryByRole('region', { name: 'Available community quantizations' })).not.toBeInTheDocument()
     expect(within(calculator).getByText('15.69 GiB', { selector: 'strong' })).toBeInTheDocument()
 

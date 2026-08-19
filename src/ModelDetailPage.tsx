@@ -51,6 +51,7 @@ const estimateReasonLabels: Record<NonNullable<HuggingFaceModel['estimateReason'
 }
 
 const quantizationBits = [1, 2, 3, 4, 5, 6, 8, 16] as const
+const preferredSourcePublishers = ['unsloth', 'lmstudio-community', 'mlx-community', 'bartowski'] as const
 
 function variantBits(variant: HuggingFaceVariant) {
   const searchable = [variant.label, variant.repositoryId, variant.path].filter(Boolean).join(' ')
@@ -88,6 +89,7 @@ function quantizationIdForBits(bits: number): QuantizationId {
 
 function publisherLabel(publisher: string) {
   if (publisher === 'mlx-community') return 'mlx-community'
+  if (publisher === 'lmstudio-community') return 'LM Studio Community'
   return publisher.charAt(0).toUpperCase() + publisher.slice(1)
 }
 
@@ -138,7 +140,7 @@ export default function ModelDetailPage({ route }: Props) {
     let active = true
     setModel(null)
     setError(null)
-    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=11`)
+    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=12`)
       .then(async (response) => {
         const body = await response.json() as HuggingFaceModel | { error?: string }
         if (!response.ok) throw new Error('error' in body && body.error ? body.error : 'Unable to load model')
@@ -176,6 +178,13 @@ export default function ModelDetailPage({ route }: Props) {
   const modelArtifactVariants = selectableVariants.filter((variant) => variant.role === 'model')
   const publisherForVariant = (variant: HuggingFaceVariant) => (variant.publisher ?? model?.owner ?? 'repository').toLowerCase()
   const sourcePublishers = [...new Set(modelArtifactVariants.map(publisherForVariant))]
+    .sort((a, b) => {
+      const aPriority = preferredSourcePublishers.indexOf(a as typeof preferredSourcePublishers[number])
+      const bPriority = preferredSourcePublishers.indexOf(b as typeof preferredSourcePublishers[number])
+      return (aPriority < 0 ? preferredSourcePublishers.length : aPriority)
+        - (bPriority < 0 ? preferredSourcePublishers.length : bPriority)
+    })
+    .slice(0, 4)
   const sourceArtifactVariants = selectedSource === 'estimated'
     ? []
     : modelArtifactVariants.filter((variant) => publisherForVariant(variant) === selectedSource)

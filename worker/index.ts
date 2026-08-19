@@ -37,11 +37,9 @@ interface CommunityRepositoryCandidate {
 
 const trustedQuantizationPublishers = [
   'unsloth',
-  'bartowski',
+  'lmstudio-community',
   'mlx-community',
-  'mradermacher',
-  'quantfactory',
-  'thebloke',
+  'bartowski',
 ] as const
 
 export function selectCommunityRepositories(
@@ -87,7 +85,7 @@ export function selectCommunityRepositories(
     if (count >= 3) return false
     publisherCounts.set(publisher, count + 1)
     return true
-  }).slice(0, 8)
+  })
 }
 
 export function selectCommunityRepository(
@@ -353,7 +351,7 @@ async function discoverCommunityVariants(
 export function createModelCacheKey(request: Request) {
   const url = new URL(request.url)
   url.search = ''
-  url.searchParams.set('__sizeof_cache', 'hf-model-v21')
+  url.searchParams.set('__sizeof_cache', 'hf-model-v22')
   return new Request(url.toString())
 }
 
