@@ -28,7 +28,11 @@ export function getMemoryBarPartPercents(valuesGiB: readonly number[]) {
 }
 
 export function getMemoryBarUsage(totalGiB: number, vramGiB: number): MemoryBarUsage {
-  const usageRatio = vramGiB > 0 ? Math.max(0, totalGiB / vramGiB) : 1
+  const safeTotalGiB = Number.isFinite(totalGiB) ? Math.max(0, totalGiB) : 0
+  const safeVramGiB = Number.isFinite(vramGiB) ? Math.max(0, vramGiB) : 0
+  const usageRatio = safeVramGiB > 0
+    ? safeTotalGiB / safeVramGiB
+    : safeTotalGiB > 0 ? 1 : 0
   const stableUsageRatio = Math.round(usageRatio * 10000) / 10000
   const usedPercent = Math.min(100, usageRatio * 100)
   const remainingPercent = 100 - usedPercent
@@ -45,6 +49,6 @@ export function getMemoryBarUsage(totalGiB: number, vramGiB: number): MemoryBarU
     usedPercent,
     remainingPercent,
     riskOpacity: Number(riskOpacity.toFixed(2)),
-    offloadGiB: vramGiB > 0 ? Math.max(0, totalGiB - vramGiB) : Math.max(0, totalGiB),
+    offloadGiB: safeVramGiB > 0 ? Math.max(0, safeTotalGiB - safeVramGiB) : safeTotalGiB,
   }
 }

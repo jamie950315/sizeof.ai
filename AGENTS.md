@@ -36,7 +36,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-20: Hugging Face model detail calculators now use the same 1024-token context controls and full-VRAM memory chart as the home calculator, including gradual risk tinting above 80% usage.
 - 2026-08-20: Context arrow controls now continue midpoint-aware dynamic context levels beyond 256K, so 256K increases through 384K to 512K and reversing direction returns to the matching neighboring level.
 - 2026-08-20: Memory bars now keep the model weights, KV cache, and runtime buffer visually readable even when context usage dominates; the used region receives a full orange risk tint above 80%, unused VRAM remains grey, and over-capacity states show the offloaded GiB amount at the bar's top right.
-- Cloudflare production version: `71014bdb-0b7a-46c8-909c-24539cc25f15` (deployed 2026-08-20).
+- 2026-08-20: Memory-bar calculations normalize invalid or missing numeric inputs to finite values so shared chart helpers cannot emit `NaN%` widths or warning states.
+- Cloudflare production version: `ec431fe5-652f-4136-895d-538a6a59de56` (deployed 2026-08-20).
 
 ## Commands
 

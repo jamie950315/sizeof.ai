@@ -42,4 +42,19 @@ describe('getMemoryBarUsage', () => {
     expect(parts[1]).toBeCloseTo(68, 5)
     expect(parts.reduce((total, part) => total + part, 0)).toBeCloseTo(100, 5)
   })
+
+  it('keeps invalid or missing capacity inputs finite', () => {
+    expect(getMemoryBarUsage(Number.NaN, Number.NaN)).toEqual({
+      usedPercent: 0,
+      remainingPercent: 100,
+      riskOpacity: 0,
+      offloadGiB: 0,
+    })
+    expect(getMemoryBarUsage(12, 0)).toEqual({
+      usedPercent: 100,
+      remainingPercent: 0,
+      riskOpacity: 0.9,
+      offloadGiB: 12,
+    })
+  })
 })
