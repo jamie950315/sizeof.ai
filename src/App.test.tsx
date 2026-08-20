@@ -89,6 +89,24 @@ describe('sizeof.ai app', () => {
     expect(weightsRule?.style.background).toBe('var(--acid)')
   })
 
+  it('layers the same warning and offload colors on the model weight bar and swatch', () => {
+    const rules = Array.from(testStyles.sheet?.cssRules ?? [])
+    const findRule = (selector: string) => rules.find((rule) =>
+      'selectorText' in rule && (rule as CSSStyleRule).selectorText === selector,
+    ) as CSSStyleRule | undefined
+
+    const barOffload = findRule('.memory-bar-used > .weights::after')
+    const barWarning = findRule('.memory-bar-risk')
+    const swatchOffload = findRule('.breakdown-list i.weights::before')
+    const swatchWarning = findRule('.breakdown-list i::after')
+
+    expect(swatchOffload?.style.background).toBe(barOffload?.style.background)
+    expect(swatchOffload?.style.opacity).toBe(barOffload?.style.opacity)
+    expect(swatchWarning?.style.background).toBe(barWarning?.style.background)
+    expect(swatchWarning?.style.opacity).toBe('var(--memory-risk-opacity, 0)')
+    expect(Number(swatchOffload?.style.zIndex)).toBeGreaterThan(Number(swatchWarning?.style.zIndex))
+  })
+
   it('uses the breakdown text size for the offload label', () => {
     const offloadRule = Array.from(testStyles.sheet?.cssRules ?? []).find((rule) =>
       'selectorText' in rule && (rule as CSSStyleRule).selectorText === '.memory-bar-offload',

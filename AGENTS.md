@@ -40,7 +40,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-20: Memory-bar calculations normalize invalid or missing numeric inputs to finite values so shared chart helpers cannot emit `NaN%` widths or warning states.
 - 2026-08-20: Memory weights retain the original acid-green base at safe usage; only the gradual orange risk overlay changes the bar and matching breakdown swatches as VRAM usage rises.
 - 2026-08-20: Model weights now gain a dedicated progressive red tint only after VRAM capacity is exceeded, while safe usage retains the original acid-green color.
-- Cloudflare production version: `3e9bcbe0-3dc4-477b-93ce-7716372e2ca0` (deployed 2026-08-20).
+- 2026-08-21: Model-weight bars and their breakdown swatches now use the same warning and offload overlay stack, producing pixel-identical colors in safe and over-capacity states.
+- Cloudflare production version: `610dc086-c1b1-492b-ae55-5709d17820db` (deployed 2026-08-21).
 
 ## Commands
 
