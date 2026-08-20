@@ -113,6 +113,8 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(calculator).getByRole('img', { name: /memory usage/i })).toHaveTextContent(/OFFLOAD\s+\d+\.\d+ GiB/)
     const breakdown = within(calculator).getByRole('img', { name: /memory usage/i }).closest('.result-panel')?.querySelector('.breakdown-list') as HTMLElement
     expect(breakdown.style.getPropertyValue('--memory-risk-opacity')).toBe('0.9')
+    expect(used.style.getPropertyValue('--memory-weights-offload-opacity')).toBe('0.9')
+    expect(breakdown.style.getPropertyValue('--memory-weights-offload-opacity')).toBe('0.9')
   })
 
   it('shows a useful model-not-found state', async () => {

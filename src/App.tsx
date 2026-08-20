@@ -321,7 +321,10 @@ function HomePage() {
               >
                 <div
                   className="memory-bar-used"
-                  style={{ width: `${memoryBarUsage.usedPercent}%` }}
+                  style={{
+                    width: `${memoryBarUsage.usedPercent}%`,
+                    '--memory-weights-offload-opacity': memoryBarUsage.weightsOffloadOpacity,
+                  } as CSSProperties}
                 >
                   {memoryParts.map((part, index) => (
                     <span
@@ -345,7 +348,10 @@ function HomePage() {
               </div>
               <div
                 className="breakdown-list"
-                style={{ '--memory-risk-opacity': memoryBarUsage.riskOpacity } as CSSProperties}
+                style={{
+                  '--memory-risk-opacity': memoryBarUsage.riskOpacity,
+                  '--memory-weights-offload-opacity': memoryBarUsage.weightsOffloadOpacity,
+                } as CSSProperties}
               >
                 {memoryParts.map((part) => (
                   <div key={part.label}>

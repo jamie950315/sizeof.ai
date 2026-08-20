@@ -39,7 +39,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-20: The over-capacity `OFFLOAD` label now uses the same 12px text size as the memory breakdown values.
 - 2026-08-20: Memory-bar calculations normalize invalid or missing numeric inputs to finite values so shared chart helpers cannot emit `NaN%` widths or warning states.
 - 2026-08-20: Memory weights retain the original acid-green base at safe usage; only the gradual orange risk overlay changes the bar and matching breakdown swatches as VRAM usage rises.
-- Cloudflare production version: `56c55470-dd85-486c-85cb-4af3711381d8` (deployed 2026-08-20).
+- 2026-08-20: Model weights now gain a dedicated progressive red tint only after VRAM capacity is exceeded, while safe usage retains the original acid-green color.
+- Cloudflare production version: `3e9bcbe0-3dc4-477b-93ce-7716372e2ca0` (deployed 2026-08-20).
 
 ## Commands
 

@@ -116,9 +116,12 @@ describe('sizeof.ai app', () => {
 
     await user.click(screen.getByRole('button', { name: '256K' }))
     const chart = screen.getByRole('img', { name: /memory usage/i })
+    const used = chart.querySelector('.memory-bar-used') as HTMLElement
     const breakdown = chart.closest('.result-panel')?.querySelector('.breakdown-list') as HTMLElement
 
     expect(breakdown.style.getPropertyValue('--memory-risk-opacity')).toBe('0.9')
+    expect(used.style.getPropertyValue('--memory-weights-offload-opacity')).toBe('0.9')
+    expect(breakdown.style.getPropertyValue('--memory-weights-offload-opacity')).toBe('0.9')
     expect(breakdown.querySelectorAll('i')).toHaveLength(3)
   })
 

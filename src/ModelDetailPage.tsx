@@ -530,7 +530,13 @@ export default function ModelDetailPage({ route }: Props) {
                   role="img"
                   aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vram} GiB VRAM${offloadLabel ? `, ${offloadLabel}` : ''}`}
                 >
-                  <div className="memory-bar-used" style={{ width: `${memoryBarUsage.usedPercent}%` }}>
+                  <div
+                    className="memory-bar-used"
+                    style={{
+                      width: `${memoryBarUsage.usedPercent}%`,
+                      '--memory-weights-offload-opacity': memoryBarUsage.weightsOffloadOpacity,
+                    } as CSSProperties}
+                  >
                     {memoryParts.map((part, index) => (
                       <span className={part.className} key={part.label} style={{ width: `${memoryBarPartPercents[index]}%` }} />
                     ))}
@@ -541,7 +547,10 @@ export default function ModelDetailPage({ route }: Props) {
                 </div>
                 <div
                   className="breakdown-list"
-                  style={{ '--memory-risk-opacity': memoryBarUsage.riskOpacity } as CSSProperties}
+                  style={{
+                    '--memory-risk-opacity': memoryBarUsage.riskOpacity,
+                    '--memory-weights-offload-opacity': memoryBarUsage.weightsOffloadOpacity,
+                  } as CSSProperties}
                 >
                   {memoryParts.map((part) => <div key={part.label}><span><i className={part.className} />{part.label}</span><strong>{part.value.toFixed(2)} GiB</strong></div>)}
                 </div>

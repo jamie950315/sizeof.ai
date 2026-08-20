@@ -1,12 +1,16 @@
 const WARNING_THRESHOLD = 0.8
 const WARNING_START_OPACITY = 0.16
 const WARNING_MAX_OPACITY = 0.9
+const OFFLOAD_WEIGHT_START_OPACITY = 0.55
+const OFFLOAD_WEIGHT_MAX_OPACITY = 0.9
+const OFFLOAD_WEIGHT_FULL_TINT_RATIO = 0.5
 const MIN_VISIBLE_PART_PERCENT = 16
 
 export interface MemoryBarUsage {
   usedPercent: number
   remainingPercent: number
   riskOpacity: number
+  weightsOffloadOpacity: number
   offloadGiB: number
 }
 
@@ -36,6 +40,7 @@ export function getMemoryBarUsage(totalGiB: number, vramGiB: number): MemoryBarU
   const stableUsageRatio = Math.round(usageRatio * 10000) / 10000
   const usedPercent = Math.min(100, usageRatio * 100)
   const remainingPercent = 100 - usedPercent
+  const offloadGiB = safeVramGiB > 0 ? Math.max(0, safeTotalGiB - safeVramGiB) : safeTotalGiB
   const riskOpacity = stableUsageRatio < WARNING_THRESHOLD
     ? 0
     : Math.min(
@@ -44,11 +49,22 @@ export function getMemoryBarUsage(totalGiB: number, vramGiB: number): MemoryBarU
           ((stableUsageRatio - WARNING_THRESHOLD) / (1 - WARNING_THRESHOLD)) *
             (WARNING_MAX_OPACITY - WARNING_START_OPACITY),
       )
+  const weightsOffloadOpacity = offloadGiB <= 0
+    ? 0
+    : safeVramGiB <= 0
+      ? OFFLOAD_WEIGHT_MAX_OPACITY
+      : Math.min(
+          OFFLOAD_WEIGHT_MAX_OPACITY,
+          OFFLOAD_WEIGHT_START_OPACITY +
+            (offloadGiB / safeVramGiB / OFFLOAD_WEIGHT_FULL_TINT_RATIO) *
+              (OFFLOAD_WEIGHT_MAX_OPACITY - OFFLOAD_WEIGHT_START_OPACITY),
+        )
 
   return {
     usedPercent,
     remainingPercent,
     riskOpacity: Number(riskOpacity.toFixed(2)),
-    offloadGiB: safeVramGiB > 0 ? Math.max(0, safeTotalGiB - safeVramGiB) : safeTotalGiB,
+    weightsOffloadOpacity: Number(weightsOffloadOpacity.toFixed(2)),
+    offloadGiB,
   }
 }

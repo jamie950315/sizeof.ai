@@ -7,6 +7,7 @@ describe('getMemoryBarUsage', () => {
       usedPercent: 50,
       remainingPercent: 50,
       riskOpacity: 0,
+      weightsOffloadOpacity: 0,
       offloadGiB: 0,
     })
   })
@@ -16,6 +17,7 @@ describe('getMemoryBarUsage', () => {
       usedPercent: 80,
       remainingPercent: 20,
       riskOpacity: 0.16,
+      weightsOffloadOpacity: 0,
       offloadGiB: 0,
     })
   })
@@ -26,6 +28,7 @@ describe('getMemoryBarUsage', () => {
       usedPercent: 100,
       remainingPercent: 0,
       riskOpacity: 0.9,
+      weightsOffloadOpacity: 0.73,
       offloadGiB: 6,
     })
   })
@@ -48,12 +51,14 @@ describe('getMemoryBarUsage', () => {
       usedPercent: 0,
       remainingPercent: 100,
       riskOpacity: 0,
+      weightsOffloadOpacity: 0,
       offloadGiB: 0,
     })
     expect(getMemoryBarUsage(12, 0)).toEqual({
       usedPercent: 100,
       remainingPercent: 0,
       riskOpacity: 0.9,
+      weightsOffloadOpacity: 0.9,
       offloadGiB: 12,
     })
   })
