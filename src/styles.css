@@ -129,7 +129,7 @@ select option { background: #1b1c18; color: white; }
 .memory-bar-used > span { min-width: 0; flex: 0 0 auto; }
 .memory-bar-risk { position: absolute; inset: 0; z-index: 2; background: var(--orange); mix-blend-mode: multiply; pointer-events: none; }
 .memory-bar-remaining { min-width: 0; height: 100%; background: #5b5d55; opacity: .78; }
-.memory-bar-offload { position: absolute; right: 0; top: -19px; color: var(--orange); font: 600 9px/1 'JetBrains Mono Variable', monospace; letter-spacing: .08em; white-space: nowrap; }
+.memory-bar-offload { position: absolute; right: 0; top: -19px; color: var(--orange); font: 600 12px/1 'JetBrains Mono Variable', monospace; letter-spacing: .08em; white-space: nowrap; }
 .weights { background: var(--acid); }
 .addon { background: var(--orange); }
 .kv { background: var(--memory-kv); }

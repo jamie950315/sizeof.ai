@@ -89,6 +89,17 @@ describe('sizeof.ai app', () => {
     expect(weightsRule?.style.background).toBe('var(--acid)')
   })
 
+  it('uses the breakdown text size for the offload label', () => {
+    const offloadRule = Array.from(testStyles.sheet?.cssRules ?? []).find((rule) =>
+      'selectorText' in rule && (rule as CSSStyleRule).selectorText === '.memory-bar-offload',
+    ) as CSSStyleRule | undefined
+    const breakdownRule = Array.from(testStyles.sheet?.cssRules ?? []).find((rule) =>
+      'selectorText' in rule && (rule as CSSStyleRule).selectorText === '.breakdown-list > div',
+    ) as CSSStyleRule | undefined
+
+    expect(offloadRule?.style.fontSize).toBe(breakdownRule?.style.fontSize)
+  })
+
   it('labels memory that must be offloaded when usage exceeds VRAM', async () => {
     const user = userEvent.setup()
     render(<App />)
