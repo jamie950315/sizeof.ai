@@ -16,6 +16,62 @@ describe('sizeof.ai app', () => {
     expect(screen.getByText('Runtime buffer')).toBeInTheDocument()
   })
 
+  it('moves context halfway toward the next preset in either direction', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const input = screen.getByRole('spinbutton', { name: 'Context window' }) as HTMLInputElement
+
+    expect(input).toHaveAttribute('min', '1024')
+    expect(input).toHaveAttribute('step', '1')
+
+    await user.click(screen.getByRole('button', { name: '4K' }))
+    await user.click(screen.getByRole('button', { name: 'Decrease context window' }))
+    expect(input).toHaveValue(3072)
+    await user.click(screen.getByRole('button', { name: 'Decrease context window' }))
+    expect(input).toHaveValue(2048)
+
+    await user.click(screen.getByRole('button', { name: '4K' }))
+    await user.click(screen.getByRole('button', { name: 'Increase context window' }))
+    expect(input).toHaveValue(6144)
+    await user.click(screen.getByRole('button', { name: 'Increase context window' }))
+    expect(input).toHaveValue(8192)
+
+    await user.click(screen.getByRole('button', { name: '4K' }))
+    await user.click(screen.getByRole('button', { name: 'Decrease context window' }))
+    await user.click(screen.getByRole('button', { name: 'Increase context window' }))
+    expect(input).toHaveValue(4096)
+
+    await user.click(screen.getByRole('button', { name: '4K' }))
+    await user.click(screen.getByRole('button', { name: 'Increase context window' }))
+    await user.click(screen.getByRole('button', { name: 'Decrease context window' }))
+    expect(input).toHaveValue(4096)
+  })
+
+  it('offers common context window quick selections', () => {
+    render(<App />)
+
+    const contextBlock = screen.getByRole('spinbutton', { name: 'Context window' }).closest('.context-block')
+    expect(contextBlock).not.toBeNull()
+
+    for (const label of ['4K', '8K', '16K', '32K', '64K', '128K', '256K']) {
+      expect(contextBlock).toHaveTextContent(label)
+    }
+  })
+
+  it('shows used memory against the full VRAM capacity', () => {
+    render(<App />)
+
+    const chart = screen.getByRole('img', { name: /memory usage/i })
+    const used = chart.querySelector('.memory-bar-used') as HTMLElement
+    const remaining = chart.querySelector('.memory-bar-remaining') as HTMLElement
+
+    expect(used).toBeInTheDocument()
+    expect(remaining).toBeInTheDocument()
+    expect(used.style.width).toMatch(/%$/)
+    expect(remaining.style.width).toMatch(/%$/)
+  })
+
   it('recalculates and writes a shareable URL when the selected model changes', async () => {
     const user = userEvent.setup()
     render(<App />)

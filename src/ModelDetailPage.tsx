@@ -3,6 +3,8 @@ import {
   ArrowLeft,
   ArrowUpRight,
   Check,
+  ChevronDown,
+  ChevronUp,
   Copy,
   ExternalLink,
   Info,
@@ -10,6 +12,8 @@ import {
 } from 'lucide-react'
 import { kvPrecisions, quantizations, type KvPrecisionId, type QuantizationId } from './data/quantizations'
 import { classifyFit, estimateVram, type Fit } from './lib/estimator'
+import { contextLevels, stepContext } from './lib/context-stepper'
+import { getMemoryBarUsage } from './lib/memory-bar'
 import type { HuggingFaceModel, HuggingFaceRoute } from './lib/huggingface'
 import type { HuggingFaceVariant } from './lib/huggingface-variants'
 
@@ -17,7 +21,7 @@ interface Props {
   route: HuggingFaceRoute
 }
 
-const contexts = [8192, 32768, 131072, 262144]
+const contexts = contextLevels
 const vramPresets = [16, 24, 32, 48, 64, 80]
 const fitLabels: Record<Fit, string> = {
   comfortable: 'COMFORTABLE',
@@ -101,6 +105,10 @@ function formatCompact(value: number) {
 function formatContext(value: number) {
   if (value >= 1_000_000) return `${Math.round(value / 1_000_000)}M`
   return value >= 1000 ? `${Math.round(value / 1000)}K` : String(value)
+}
+
+function formatContextPreset(value: number) {
+  return value >= 1024 ? `${Math.round(value / 1024)}K` : String(value)
 }
 
 function formatParameters(valueB: number | null) {
@@ -298,6 +306,7 @@ export default function ModelDetailPage({ route }: Props) {
     { label: 'KV cache', value: estimate.kvCacheGiB, className: 'kv' },
     { label: 'Runtime buffer', value: estimate.runtimeGiB, className: 'runtime' },
   ] : []
+  const memoryBarUsage = getMemoryBarUsage(estimate?.totalGiB ?? 0, vram)
   const modelKind = model.modelKind ?? 'other'
   const unavailableReason = model.estimateReason
     ? estimateReasonLabels[model.estimateReason]
@@ -452,10 +461,33 @@ export default function ModelDetailPage({ route }: Props) {
                 </div>
                 <div className="control-block context-block">
                   <div className="label-row"><label htmlFor="detail-context">Context window</label><span>TOKENS</span></div>
-                  <input id="detail-context" type="number" min="1" step="1024" value={context} onChange={(event) => setContext(Math.max(1, Number(event.target.value) || 1))} />
+                  <div className="context-input-row">
+                    <input
+                      id="detail-context"
+                      type="number"
+                      min="1024"
+                      step="1"
+                      value={context}
+                      onChange={(event) => setContext(Math.max(1024, Math.round(Number(event.target.value)) || 1024))}
+                      onKeyDown={(event) => {
+                        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                          event.preventDefault()
+                          setContext((current) => stepContext(current, event.key === 'ArrowUp' ? 'up' : 'down'))
+                        }
+                      }}
+                    />
+                    <div className="context-stepper" aria-label="Adjust context window">
+                      <button type="button" aria-label="Increase context window" onClick={() => setContext((current) => stepContext(current, 'up'))}>
+                        <ChevronUp size={18} />
+                      </button>
+                      <button type="button" aria-label="Decrease context window" onClick={() => setContext((current) => stepContext(current, 'down'))}>
+                        <ChevronDown size={18} />
+                      </button>
+                    </div>
+                  </div>
                   <div className="preset-row">
                     {contextPresets.map((value) => (
-                      <button type="button" className={context === value ? 'active' : ''} key={value} onClick={() => setContext(value)}>{formatContext(value)}</button>
+                      <button type="button" className={context === value ? 'active' : ''} key={value} onClick={() => setContext(value)}>{formatContextPreset(value)}</button>
                     ))}
                   </div>
                   {estimate.exceedsNativeContext && <p className="warning">Above the published native context.</p>}
@@ -489,8 +521,18 @@ export default function ModelDetailPage({ route }: Props) {
               <div className="result-panel detail-result">
                 <div className="result-topline"><span>ESTIMATED VRAM</span><span className={`fit-pill ${fit}`}>{fitLabels[fit]} ON {vram} GB</span></div>
                 <div className="total-number"><span>{estimate.totalGiB.toFixed(2)}</span><small>GiB</small></div>
-                <div className="memory-bar">
-                  {memoryParts.map((part) => <span className={part.className} key={part.label} style={{ width: `${(part.value / estimate.totalGiB) * 100}%` }} />)}
+                <div
+                  className="memory-bar"
+                  role="img"
+                  aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vram} GiB VRAM`}
+                >
+                  <div className="memory-bar-used" style={{ width: `${memoryBarUsage.usedPercent}%` }}>
+                    {memoryParts.map((part) => (
+                      <span className={part.className} key={part.label} style={{ width: `${(part.value / estimate.totalGiB) * 100}%` }} />
+                    ))}
+                    <span className="memory-bar-risk" aria-hidden="true" style={{ opacity: memoryBarUsage.riskOpacity }} />
+                  </div>
+                  <span className="memory-bar-remaining" aria-hidden="true" style={{ width: `${memoryBarUsage.remainingPercent}%` }} />
                 </div>
                 <div className="breakdown-list">
                   {memoryParts.map((part) => <div key={part.label}><span><i className={part.className} />{part.label}</span><strong>{part.value.toFixed(2)} GiB</strong></div>)}

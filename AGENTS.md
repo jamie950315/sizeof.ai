@@ -32,7 +32,10 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-20: Memory profile now defaults to the original hypothetical bit-per-weight estimate and offers publisher tabs for verified community artifacts. Unsloth, bartowski, and mlx-community variants remain separated by source; MLX precision and OptiQ labels are derived from their declared repository names.
 - 2026-08-20: Community source tabs are capped at four and ordered by current ecosystem priority: Unsloth, LM Studio Community, mlx-community, then Bartowski. Other legacy quantization publishers are no longer discovered as source tabs.
 - 2026-08-20: Estimated weight controls use neutral bit labels from 16bit through 1bit instead of GGUF-specific names. The existing effective-bit assumptions remain unchanged, with an explicit 1 bit/weight extreme-compression estimate added.
-- Cloudflare production version: `1414111c-dc35-462d-8924-ad04f2d8ad1f`.
+- 2026-08-20: Context controls now use 1024-token spinner boundaries, expose quick selections through 256K, and compare used memory with the selected VRAM capacity. The used bar keeps its weight/KV/runtime detail, leaves unused capacity grey, and applies a gradual orange warning tint from 80% usage upward.
+- 2026-08-20: Hugging Face model detail calculators now use the same 1024-token context controls and full-VRAM memory chart as the home calculator, including gradual risk tinting above 80% usage.
+- 2026-08-20: Context arrow controls now complete midpoint moves against the neighboring context boundaries, so 4096 decreases through 3072 to 2048 and increases through 6144 to 8192; reversing direction from either midpoint returns to 4096.
+- Cloudflare production version: `38fc3f84-2e51-4fa0-845d-79b9fc421b9b` (deployed 2026-08-20).
 
 ## Commands
 
@@ -48,4 +51,5 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Treat VRAM values as estimates and expose assumptions and formulas.
 - Cite primary model sources in catalog data.
 - Never commit Cloudflare credentials or local Wrangler state.
+- After every website feature or fix, deploy the current changes to Cloudflare production and verify the public domains and visible production page; a commit or push alone is not completion. Record the deployed Cloudflare version in this file.
 - Run tests, build, and a real local smoke test before declaring completion.

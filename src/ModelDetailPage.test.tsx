@@ -65,7 +65,48 @@ describe('Hugging Face-style model detail route', () => {
     ]))
     expect(within(calculator).queryByRole('button', { name: 'FP16' })).not.toBeInTheDocument()
     expect(within(calculator).queryByRole('button', { name: 'Q4_K_M' })).not.toBeInTheDocument()
+    expect(within(calculator).getByRole('button', { name: '4K' })).toBeInTheDocument()
+    expect(within(calculator).getByRole('button', { name: '16K' })).toBeInTheDocument()
+    expect(within(calculator).getByRole('button', { name: '64K' })).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=12')
+  })
+
+  it('keeps the detail context spinner aligned and charts usage against selected VRAM', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    const input = within(calculator).getByRole('spinbutton', { name: 'Context window' }) as HTMLInputElement
+
+    expect(input).toHaveAttribute('min', '1024')
+    expect(input).toHaveAttribute('step', '1')
+    await user.click(within(calculator).getByRole('button', { name: '4K' }))
+    await user.click(within(calculator).getByRole('button', { name: 'Decrease context window' }))
+    expect(input).toHaveValue(3072)
+    await user.click(within(calculator).getByRole('button', { name: 'Decrease context window' }))
+    expect(input).toHaveValue(2048)
+    await user.click(within(calculator).getByRole('button', { name: '4K' }))
+    await user.click(within(calculator).getByRole('button', { name: 'Increase context window' }))
+    expect(input).toHaveValue(6144)
+    await user.click(within(calculator).getByRole('button', { name: 'Increase context window' }))
+    expect(input).toHaveValue(8192)
+
+    await user.click(within(calculator).getByRole('button', { name: '4K' }))
+    await user.click(within(calculator).getByRole('button', { name: 'Decrease context window' }))
+    await user.click(within(calculator).getByRole('button', { name: 'Increase context window' }))
+    expect(input).toHaveValue(4096)
+    await user.click(within(calculator).getByRole('button', { name: '4K' }))
+    await user.click(within(calculator).getByRole('button', { name: 'Increase context window' }))
+    await user.click(within(calculator).getByRole('button', { name: 'Decrease context window' }))
+    expect(input).toHaveValue(4096)
+
+    const chart = within(calculator).getByRole('img', { name: /memory usage/i })
+    const used = chart.querySelector('.memory-bar-used') as HTMLElement
+    const remaining = chart.querySelector('.memory-bar-remaining') as HTMLElement
+    expect(used).toBeInTheDocument()
+    expect(remaining).toBeInTheDocument()
+    expect(used.style.width).toMatch(/%$/)
+    expect(remaining.style.width).toMatch(/%$/)
   })
 
   it('shows a useful model-not-found state', async () => {
@@ -288,7 +329,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(calculator).getByRole('button', { name: /Q4_K_M.*10\.00 GiB/i })).toHaveClass('active')
     expect(within(calculator).getByText('10.00 GiB', { selector: 'strong' })).toBeInTheDocument()
 
-    await user.click(within(calculator).getByRole('button', { name: '33K' }))
+    await user.click(within(calculator).getByRole('button', { name: '32K' }))
     await user.click(within(calculator).getByRole('button', { name: /Q8_0.*20\.00 GiB/i }))
 
     expect(within(calculator).getByLabelText('Context window')).toHaveValue(32768)
@@ -395,7 +436,7 @@ describe('Hugging Face-style model detail route', () => {
     )
     expect(within(calculator).getByText(/Uses the published/i)).toBeInTheDocument()
 
-    await user.click(within(calculator).getByRole('button', { name: '33K' }))
+    await user.click(within(calculator).getByRole('button', { name: '32K' }))
     await user.click(within(quantizations).getByRole('button', { name: /Q4_K_S.*9\.00 GiB/i }))
 
     expect(within(calculator).getByLabelText('Context window')).toHaveValue(32768)

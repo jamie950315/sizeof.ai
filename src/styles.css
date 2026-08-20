@@ -95,6 +95,15 @@ select option { background: #1b1c18; color: white; }
 .quant-tier button small { color: #74776d; font: inherit; }
 .quant-tier button.active small { color: #34352f; }
 .context-block input { width: 100%; border: 0; border-bottom: 1px solid #5c5e55; background: transparent; color: var(--paper); font: 650 clamp(28px, 3vw, 42px)/1 'JetBrains Mono Variable', monospace; padding: 2px 0 12px; outline: none; }
+.context-input-row { display: grid; grid-template-columns: minmax(0, 1fr) 42px; align-items: stretch; border-bottom: 1px solid #5c5e55; }
+.context-input-row input { border-bottom: 0; }
+.context-block input { -moz-appearance: textfield; }
+.context-block input::-webkit-outer-spin-button, .context-block input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.context-stepper { display: grid; grid-template-rows: 1fr 1fr; align-self: stretch; margin: 2px 0; border-radius: 14px; overflow: hidden; background: #1d1f1b; }
+.context-stepper button { min-width: 42px; border: 0; background: transparent; color: #d0d1c9; display: grid; place-items: center; cursor: pointer; transition: background .18s ease, color .18s ease; }
+.context-stepper button + button { border-top: 1px solid #34352f; }
+.context-stepper button:hover { background: #23251f; color: var(--acid); }
+.context-stepper button:focus-visible { outline: 2px solid var(--acid); outline-offset: -2px; }
 .preset-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .preset-row button { border: 1px solid var(--line); background: none; color: #85877e; padding: 7px 10px; cursor: pointer; font: 600 9px/1 'JetBrains Mono Variable', monospace; }
 .preset-row button.active { color: var(--acid); border-color: var(--acid); }
@@ -113,8 +122,11 @@ select option { background: #1b1c18; color: white; }
 .total-number { margin: 10vh 0 7vh; display: flex; align-items: end; gap: 10px; }
 .total-number span { font: 700 clamp(82px, 10vw, 150px)/.78 'Archivo Variable', sans-serif; letter-spacing: -.075em; }
 .total-number small { color: var(--acid); font: 600 16px/1 'JetBrains Mono Variable', monospace; padding-bottom: 7px; }
-.memory-bar { height: 13px; display: flex; gap: 2px; margin-bottom: 24px; }
-.memory-bar span { min-width: 3px; }
+.memory-bar { height: 13px; display: flex; margin-bottom: 24px; background: #2b2d28; overflow: hidden; }
+.memory-bar-used { min-width: 0; height: 100%; display: flex; gap: 2px; position: relative; overflow: hidden; }
+.memory-bar-used > span { min-width: 0; }
+.memory-bar-risk { position: absolute; inset: 0; z-index: 2; background: var(--orange); mix-blend-mode: color; pointer-events: none; }
+.memory-bar-remaining { min-width: 0; height: 100%; background: #5b5d55; opacity: .78; }
 .weights { background: var(--acid); }
 .addon { background: var(--orange); }
 .kv { background: #f5f2e6; }

@@ -3,6 +3,8 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Check,
+  ChevronDown,
+  ChevronUp,
   Code2,
   Copy,
   Cpu,
@@ -21,6 +23,8 @@ import {
   type QuantizationId,
 } from './data/quantizations'
 import { estimateVram, rankModelsForVram, type Fit } from './lib/estimator'
+import { contextLevels, stepContext } from './lib/context-stepper'
+import { getMemoryBarUsage } from './lib/memory-bar'
 import {
   defaultCalculatorState,
   parseCalculatorState,
@@ -28,7 +32,7 @@ import {
 } from './lib/url-state'
 import { parseHuggingFaceModelPath } from './lib/huggingface'
 
-const contextPresets = [2048, 4096, 8192, 16384, 32768, 65536, 131072]
+const contextPresets = contextLevels
 const vramPresets = [8, 12, 16, 24, 32, 48, 64, 80]
 
 function formatGiB(value: number, digits = 2) {
@@ -110,6 +114,7 @@ function HomePage() {
     { label: 'KV cache', value: estimate.kvCacheGiB, className: 'kv' },
     { label: 'Runtime buffer', value: estimate.runtimeGiB, className: 'runtime' },
   ]
+  const memoryBarUsage = getMemoryBarUsage(estimate.totalGiB, vramBudget)
 
   return (
     <div className="site-shell">
@@ -227,14 +232,30 @@ function HomePage() {
                   <label htmlFor="context-input">Context window</label>
                   <span>TOKENS</span>
                 </div>
-                <input
-                  id="context-input"
-                  type="number"
-                  min="1"
-                  step="1024"
-                  value={context}
-                  onChange={(event) => setContext(Math.max(1, Number(event.target.value) || 1))}
-                />
+                <div className="context-input-row">
+                  <input
+                    id="context-input"
+                    type="number"
+                    min="1024"
+                    step="1"
+                    value={context}
+                    onChange={(event) => setContext(Math.max(1024, Math.round(Number(event.target.value)) || 1024))}
+                    onKeyDown={(event) => {
+                      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                        event.preventDefault()
+                        setContext((current) => stepContext(current, event.key === 'ArrowUp' ? 'up' : 'down'))
+                      }
+                    }}
+                  />
+                  <div className="context-stepper" aria-label="Adjust context window">
+                    <button type="button" aria-label="Increase context window" onClick={() => setContext((current) => stepContext(current, 'up'))}>
+                      <ChevronUp size={18} />
+                    </button>
+                    <button type="button" aria-label="Decrease context window" onClick={() => setContext((current) => stepContext(current, 'down'))}>
+                      <ChevronDown size={18} />
+                    </button>
+                  </div>
+                </div>
                 <div className="preset-row">
                   {contextPresets.map((value) => (
                     <button
@@ -289,14 +310,33 @@ function HomePage() {
                 <span>{estimate.totalGiB.toFixed(2)}</span>
                 <small>GiB</small>
               </div>
-              <div className="memory-bar" aria-label="Memory breakdown chart">
-                {memoryParts.map((part) => (
+              <div
+                className="memory-bar"
+                role="img"
+                aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vramBudget} GiB VRAM`}
+              >
+                <div
+                  className="memory-bar-used"
+                  style={{ width: `${memoryBarUsage.usedPercent}%` }}
+                >
+                  {memoryParts.map((part) => (
+                    <span
+                      className={part.className}
+                      key={part.label}
+                      style={{ width: `${(part.value / estimate.totalGiB) * 100}%` }}
+                    />
+                  ))}
                   <span
-                    className={part.className}
-                    key={part.label}
-                    style={{ width: `${(part.value / estimate.totalGiB) * 100}%` }}
+                    className="memory-bar-risk"
+                    aria-hidden="true"
+                    style={{ opacity: memoryBarUsage.riskOpacity }}
                   />
-                ))}
+                </div>
+                <span
+                  className="memory-bar-remaining"
+                  aria-hidden="true"
+                  style={{ width: `${memoryBarUsage.remainingPercent}%` }}
+                />
               </div>
               <div className="breakdown-list">
                 {memoryParts.map((part) => (
