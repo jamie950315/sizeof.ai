@@ -1,7 +1,16 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import App from './App'
+import stylesCss from './styles.css?inline'
+
+const testStyles = document.createElement('style')
+beforeAll(() => {
+  testStyles.textContent = stylesCss
+  document.head.append(testStyles)
+})
+
+afterAll(() => testStyles.remove())
 
 describe('sizeof.ai app', () => {
   beforeEach(() => window.history.replaceState(null, '', '/'))
@@ -70,6 +79,14 @@ describe('sizeof.ai app', () => {
     expect(remaining).toBeInTheDocument()
     expect(used.style.width).toMatch(/%$/)
     expect(remaining.style.width).toMatch(/%$/)
+  })
+
+  it('keeps model weights green before the risk overlay activates', () => {
+    const weightsRule = Array.from(testStyles.sheet?.cssRules ?? []).find((rule) =>
+      'selectorText' in rule && (rule as CSSStyleRule).selectorText === '.weights',
+    ) as CSSStyleRule | undefined
+
+    expect(weightsRule?.style.background).toBe('var(--acid)')
   })
 
   it('labels memory that must be offloaded when usage exceeds VRAM', async () => {

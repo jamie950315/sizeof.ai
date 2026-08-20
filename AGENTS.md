@@ -37,8 +37,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-20: Context arrow controls now continue midpoint-aware dynamic context levels beyond 256K, so 256K increases through 384K to 512K and reversing direction returns to the matching neighboring level.
 - 2026-08-20: Memory bars now keep the model weights, KV cache, and runtime buffer visually readable even when context usage dominates; the used region receives a full orange risk tint above 80%, unused VRAM remains grey, and over-capacity states show the offloaded GiB amount at the bar's top right.
 - 2026-08-20: Memory-bar calculations normalize invalid or missing numeric inputs to finite values so shared chart helpers cannot emit `NaN%` widths or warning states.
-- 2026-08-20: Memory weights now use a stronger orange-red base, and breakdown swatches inherit the same risk overlay as their matching bar segments so both views stay color-consistent.
-- Cloudflare production version: `245ce6f3-a9b5-458b-9fe6-56d3b73f7e67` (deployed 2026-08-20).
+- 2026-08-20: Memory weights retain the original acid-green base at safe usage; only the gradual orange risk overlay changes the bar and matching breakdown swatches as VRAM usage rises.
+- Cloudflare production version: `2e242f76-00e9-49e3-8c6b-209e7e8318d1` (deployed 2026-08-20).
 
 ## Commands
 

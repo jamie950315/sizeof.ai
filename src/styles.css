@@ -10,7 +10,6 @@
   --muted: #9a9b91;
   --line: #34352f;
   --orange: #ff764d;
-  --memory-weights: #f36b2f;
   --memory-kv: #f5f2e6;
   --memory-runtime: #62645b;
 }
@@ -131,7 +130,7 @@ select option { background: #1b1c18; color: white; }
 .memory-bar-risk { position: absolute; inset: 0; z-index: 2; background: var(--orange); mix-blend-mode: multiply; pointer-events: none; }
 .memory-bar-remaining { min-width: 0; height: 100%; background: #5b5d55; opacity: .78; }
 .memory-bar-offload { position: absolute; right: 0; top: -19px; color: var(--orange); font: 600 9px/1 'JetBrains Mono Variable', monospace; letter-spacing: .08em; white-space: nowrap; }
-.weights { background: var(--memory-weights); }
+.weights { background: var(--acid); }
 .addon { background: var(--orange); }
 .kv { background: var(--memory-kv); }
 .runtime { background: var(--memory-runtime); }
