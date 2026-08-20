@@ -13,7 +13,7 @@ import {
 import { kvPrecisions, quantizations, type KvPrecisionId, type QuantizationId } from './data/quantizations'
 import { classifyFit, estimateVram, type Fit } from './lib/estimator'
 import { contextLevels, stepContext } from './lib/context-stepper'
-import { getMemoryBarUsage } from './lib/memory-bar'
+import { getMemoryBarPartPercents, getMemoryBarUsage } from './lib/memory-bar'
 import type { HuggingFaceModel, HuggingFaceRoute } from './lib/huggingface'
 import type { HuggingFaceVariant } from './lib/huggingface-variants'
 
@@ -307,6 +307,10 @@ export default function ModelDetailPage({ route }: Props) {
     { label: 'Runtime buffer', value: estimate.runtimeGiB, className: 'runtime' },
   ] : []
   const memoryBarUsage = getMemoryBarUsage(estimate?.totalGiB ?? 0, vram)
+  const memoryBarPartPercents = getMemoryBarPartPercents(memoryParts.map((part) => part.value))
+  const offloadLabel = memoryBarUsage.offloadGiB > 0
+    ? `OFFLOAD ${memoryBarUsage.offloadGiB.toFixed(2)} GiB`
+    : null
   const modelKind = model.modelKind ?? 'other'
   const unavailableReason = model.estimateReason
     ? estimateReasonLabels[model.estimateReason]
@@ -524,15 +528,16 @@ export default function ModelDetailPage({ route }: Props) {
                 <div
                   className="memory-bar"
                   role="img"
-                  aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vram} GiB VRAM`}
+                  aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vram} GiB VRAM${offloadLabel ? `, ${offloadLabel}` : ''}`}
                 >
                   <div className="memory-bar-used" style={{ width: `${memoryBarUsage.usedPercent}%` }}>
-                    {memoryParts.map((part) => (
-                      <span className={part.className} key={part.label} style={{ width: `${(part.value / estimate.totalGiB) * 100}%` }} />
+                    {memoryParts.map((part, index) => (
+                      <span className={part.className} key={part.label} style={{ width: `${memoryBarPartPercents[index]}%` }} />
                     ))}
                     <span className="memory-bar-risk" aria-hidden="true" style={{ opacity: memoryBarUsage.riskOpacity }} />
                   </div>
                   <span className="memory-bar-remaining" aria-hidden="true" style={{ width: `${memoryBarUsage.remainingPercent}%` }} />
+                  {offloadLabel && <span className="memory-bar-offload">{offloadLabel}</span>}
                 </div>
                 <div className="breakdown-list">
                   {memoryParts.map((part) => <div key={part.label}><span><i className={part.className} />{part.label}</span><strong>{part.value.toFixed(2)} GiB</strong></div>)}

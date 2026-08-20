@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getMemoryBarUsage } from './memory-bar'
+import { getMemoryBarPartPercents, getMemoryBarUsage } from './memory-bar'
 
 describe('getMemoryBarUsage', () => {
   it('allocates half of the bar to a 12 GiB estimate on a 24 GiB device', () => {
@@ -7,6 +7,7 @@ describe('getMemoryBarUsage', () => {
       usedPercent: 50,
       remainingPercent: 50,
       riskOpacity: 0,
+      offloadGiB: 0,
     })
   })
 
@@ -15,6 +16,7 @@ describe('getMemoryBarUsage', () => {
       usedPercent: 80,
       remainingPercent: 20,
       riskOpacity: 0.16,
+      offloadGiB: 0,
     })
   })
 
@@ -24,6 +26,20 @@ describe('getMemoryBarUsage', () => {
       usedPercent: 100,
       remainingPercent: 0,
       riskOpacity: 0.9,
+      offloadGiB: 6,
     })
+  })
+
+  it('keeps the offload amount separate from the visible VRAM bar', () => {
+    expect(getMemoryBarUsage(123.35, 24).offloadGiB).toBeCloseTo(99.35, 2)
+  })
+
+  it('keeps every non-zero memory category visible when one category dominates', () => {
+    const parts = getMemoryBarPartPercents([4.53, 32, 4.15])
+
+    expect(parts[0]).toBe(16)
+    expect(parts[2]).toBe(16)
+    expect(parts[1]).toBeCloseTo(68, 5)
+    expect(parts.reduce((total, part) => total + part, 0)).toBeCloseTo(100, 5)
   })
 })

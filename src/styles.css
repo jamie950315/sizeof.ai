@@ -122,11 +122,12 @@ select option { background: #1b1c18; color: white; }
 .total-number { margin: 10vh 0 7vh; display: flex; align-items: end; gap: 10px; }
 .total-number span { font: 700 clamp(82px, 10vw, 150px)/.78 'Archivo Variable', sans-serif; letter-spacing: -.075em; }
 .total-number small { color: var(--acid); font: 600 16px/1 'JetBrains Mono Variable', monospace; padding-bottom: 7px; }
-.memory-bar { height: 13px; display: flex; margin-bottom: 24px; background: #2b2d28; overflow: hidden; }
-.memory-bar-used { min-width: 0; height: 100%; display: flex; gap: 2px; position: relative; overflow: hidden; }
-.memory-bar-used > span { min-width: 0; }
-.memory-bar-risk { position: absolute; inset: 0; z-index: 2; background: var(--orange); mix-blend-mode: color; pointer-events: none; }
+.memory-bar { height: 13px; display: flex; margin-bottom: 24px; background: #2b2d28; position: relative; overflow: visible; }
+.memory-bar-used { min-width: 0; height: 100%; display: flex; position: relative; overflow: hidden; }
+.memory-bar-used > span { min-width: 0; flex: 0 0 auto; }
+.memory-bar-risk { position: absolute; inset: 0; z-index: 2; background: var(--orange); mix-blend-mode: multiply; pointer-events: none; }
 .memory-bar-remaining { min-width: 0; height: 100%; background: #5b5d55; opacity: .78; }
+.memory-bar-offload { position: absolute; right: 0; top: -19px; color: var(--orange); font: 600 9px/1 'JetBrains Mono Variable', monospace; letter-spacing: .08em; white-space: nowrap; }
 .weights { background: var(--acid); }
 .addon { background: var(--orange); }
 .kv { background: #f5f2e6; }

@@ -72,6 +72,16 @@ describe('sizeof.ai app', () => {
     expect(remaining.style.width).toMatch(/%$/)
   })
 
+  it('labels memory that must be offloaded when usage exceeds VRAM', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '256K' }))
+    await user.click(screen.getByRole('button', { name: 'Increase context window' }))
+
+    expect(screen.getByRole('img', { name: /memory usage/i })).toHaveTextContent(/OFFLOAD\s+\d+\.\d+ GiB/)
+  })
+
   it('recalculates and writes a shareable URL when the selected model changes', async () => {
     const user = userEvent.setup()
     render(<App />)

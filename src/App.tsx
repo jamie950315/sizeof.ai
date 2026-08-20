@@ -24,7 +24,7 @@ import {
 } from './data/quantizations'
 import { estimateVram, rankModelsForVram, type Fit } from './lib/estimator'
 import { contextLevels, stepContext } from './lib/context-stepper'
-import { getMemoryBarUsage } from './lib/memory-bar'
+import { getMemoryBarPartPercents, getMemoryBarUsage } from './lib/memory-bar'
 import {
   defaultCalculatorState,
   parseCalculatorState,
@@ -115,6 +115,10 @@ function HomePage() {
     { label: 'Runtime buffer', value: estimate.runtimeGiB, className: 'runtime' },
   ]
   const memoryBarUsage = getMemoryBarUsage(estimate.totalGiB, vramBudget)
+  const memoryBarPartPercents = getMemoryBarPartPercents(memoryParts.map((part) => part.value))
+  const offloadLabel = memoryBarUsage.offloadGiB > 0
+    ? `OFFLOAD ${formatGiB(memoryBarUsage.offloadGiB)}`
+    : null
 
   return (
     <div className="site-shell">
@@ -313,17 +317,17 @@ function HomePage() {
               <div
                 className="memory-bar"
                 role="img"
-                aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vramBudget} GiB VRAM`}
+                aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vramBudget} GiB VRAM${offloadLabel ? `, ${offloadLabel}` : ''}`}
               >
                 <div
                   className="memory-bar-used"
                   style={{ width: `${memoryBarUsage.usedPercent}%` }}
                 >
-                  {memoryParts.map((part) => (
+                  {memoryParts.map((part, index) => (
                     <span
                       className={part.className}
                       key={part.label}
-                      style={{ width: `${(part.value / estimate.totalGiB) * 100}%` }}
+                      style={{ width: `${memoryBarPartPercents[index]}%` }}
                     />
                   ))}
                   <span
@@ -337,6 +341,7 @@ function HomePage() {
                   aria-hidden="true"
                   style={{ width: `${memoryBarUsage.remainingPercent}%` }}
                 />
+                {offloadLabel && <span className="memory-bar-offload">{offloadLabel}</span>}
               </div>
               <div className="breakdown-list">
                 {memoryParts.map((part) => (

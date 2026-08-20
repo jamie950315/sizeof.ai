@@ -107,6 +107,10 @@ describe('Hugging Face-style model detail route', () => {
     expect(remaining).toBeInTheDocument()
     expect(used.style.width).toMatch(/%$/)
     expect(remaining.style.width).toMatch(/%$/)
+
+    await user.click(within(calculator).getByRole('button', { name: '256K' }))
+    await user.click(within(calculator).getByRole('button', { name: 'Increase context window' }))
+    expect(within(calculator).getByRole('img', { name: /memory usage/i })).toHaveTextContent(/OFFLOAD\s+\d+\.\d+ GiB/)
   })
 
   it('shows a useful model-not-found state', async () => {
