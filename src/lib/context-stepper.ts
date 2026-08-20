@@ -6,20 +6,31 @@ const minimumContext = 1024
 const contextBoundaries = [minimumContext, ...contextLevels]
 
 function normalizedContext(value: number) {
-  return Math.max(minimumContext, Math.round(value) || minimumContext)
+  const rounded = Math.round(value)
+  return Number.isFinite(rounded) ? Math.max(minimumContext, rounded || minimumContext) : minimumContext
+}
+
+function contextBoundariesThrough(current: number) {
+  const levels = [...contextBoundaries]
+  while (levels[levels.length - 1] <= current) {
+    levels.push(levels[levels.length - 1] * 2)
+  }
+  return levels
 }
 
 function targetLevel(current: number, direction: ContextDirection) {
+  const levels = contextBoundariesThrough(current)
   if (direction === 'up') {
-    return contextBoundaries.find((level) => level > current) ?? current * 2
+    return levels.find((level) => level > current) ?? current * 2
   }
-  return [...contextBoundaries].reverse().find((level) => level < current) ?? Math.max(minimumContext, current / 2)
+  return [...levels].reverse().find((level) => level < current) ?? Math.max(minimumContext, current / 2)
 }
 
 function midpointBoundaries(current: number) {
-  for (let index = 0; index < contextBoundaries.length - 1; index += 1) {
-    const lower = contextBoundaries[index]
-    const upper = contextBoundaries[index + 1]
+  const levels = contextBoundariesThrough(current)
+  for (let index = 0; index < levels.length - 1; index += 1) {
+    const lower = levels[index]
+    const upper = levels[index + 1]
     if (current === (lower + upper) / 2) return { lower, upper }
   }
   return null

@@ -23,4 +23,13 @@ describe('context-stepper', () => {
   it('does not move below the minimum context', () => {
     expect(stepContext(1024, 'down')).toBe(1024)
   })
+
+  it('keeps dynamically extended levels symmetric above the largest preset', () => {
+    expect(getContextStep(262144, 'up')).toBe(131072)
+    expect(stepContext(262144, 'up')).toBe(393216)
+    expect(getContextStep(393216, 'down')).toBe(131072)
+    expect(stepContext(393216, 'down')).toBe(262144)
+    expect(getContextStep(393216, 'up')).toBe(131072)
+    expect(stepContext(393216, 'up')).toBe(524288)
+  })
 })
