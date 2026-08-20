@@ -82,6 +82,18 @@ describe('sizeof.ai app', () => {
     expect(screen.getByRole('img', { name: /memory usage/i })).toHaveTextContent(/OFFLOAD\s+\d+\.\d+ GiB/)
   })
 
+  it('applies the bar risk tint to the matching breakdown color swatches', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '256K' }))
+    const chart = screen.getByRole('img', { name: /memory usage/i })
+    const breakdown = chart.closest('.result-panel')?.querySelector('.breakdown-list') as HTMLElement
+
+    expect(breakdown.style.getPropertyValue('--memory-risk-opacity')).toBe('0.9')
+    expect(breakdown.querySelectorAll('i')).toHaveLength(3)
+  })
+
   it('recalculates and writes a shareable URL when the selected model changes', async () => {
     const user = userEvent.setup()
     render(<App />)

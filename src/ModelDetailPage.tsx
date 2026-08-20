@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -539,7 +539,10 @@ export default function ModelDetailPage({ route }: Props) {
                   <span className="memory-bar-remaining" aria-hidden="true" style={{ width: `${memoryBarUsage.remainingPercent}%` }} />
                   {offloadLabel && <span className="memory-bar-offload">{offloadLabel}</span>}
                 </div>
-                <div className="breakdown-list">
+                <div
+                  className="breakdown-list"
+                  style={{ '--memory-risk-opacity': memoryBarUsage.riskOpacity } as CSSProperties}
+                >
                   {memoryParts.map((part) => <div key={part.label}><span><i className={part.className} />{part.label}</span><strong>{part.value.toFixed(2)} GiB</strong></div>)}
                 </div>
                 <p className="estimate-note"><Info size={15} /> {model.spec.kvCache?.kind === 'mla'
