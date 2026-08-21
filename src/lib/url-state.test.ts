@@ -13,7 +13,7 @@ describe('calculator URL state', () => {
 
   it('falls back safely when URL values are malformed', () => {
     expect(parseCalculatorState('?quant=made-up&ctx=-1')).toEqual({
-      modelId: 'llama-3.1-8b',
+      modelId: 'qwen3.8-27b',
       quantization: 'q4_k_m',
       context: 8192,
       kvPrecision: 'fp16',

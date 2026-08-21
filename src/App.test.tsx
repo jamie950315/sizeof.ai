@@ -15,14 +15,38 @@ afterAll(() => testStyles.remove())
 describe('sizeof.ai app', () => {
   beforeEach(() => window.history.replaceState(null, '', '/'))
 
-  it('opens with a useful default estimate and transparent breakdown', () => {
+  it('opens with the current top sub-40B Hugging Face text-output model', () => {
     render(<App />)
 
     expect(screen.getByRole('heading', { name: /know what fits/i })).toBeInTheDocument()
-    expect(screen.getAllByText('Llama 3.1 8B').length).toBeGreaterThan(0)
+    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('qwen3.8-27b')
+    expect(screen.getAllByText('Qwen3.8 27B').length).toBeGreaterThan(0)
     expect(screen.getByText('Model weights')).toBeInTheDocument()
     expect(screen.getAllByText('KV cache').length).toBeGreaterThan(0)
     expect(screen.getByText('Runtime buffer')).toBeInTheDocument()
+  })
+
+  it('shows a current Hugging Face text-output example catalog', () => {
+    render(<App />)
+
+    const catalog = screen.getByRole('region', { name: 'Model catalog' })
+    for (const name of [
+      'Qwen3.8 27B',
+      'Ornith 1.5 35B A3B',
+      'Muse Glimmer 30B',
+      'Ornith 1.5 9B',
+      'Qwen3.6 35B A3B',
+      'KAT-Coder V2.5 Dev',
+      'Qwen3.6 27B',
+      'gpt-oss 20B',
+      'MiniCPM5 1B',
+    ]) {
+      expect(within(catalog).getByText(name)).toBeInTheDocument()
+    }
+    expect(within(catalog).queryByText('Llama 3.1 8B')).not.toBeInTheDocument()
+    expect(screen.getByText('09 TEXT-OUTPUT MODELS')).toBeInTheDocument()
+    expect(screen.getByText('08 QUANTIZATIONS')).toBeInTheDocument()
+    expect(screen.getByText('UPDATED 22 AUG 2026')).toBeInTheDocument()
   })
 
   it('moves context halfway toward the next preset in either direction', async () => {
@@ -147,21 +171,28 @@ describe('sizeof.ai app', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Model' }), 'qwen3-14b')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Model' }), 'minicpm5-1b')
 
-    expect(screen.getAllByText('Qwen3 14B').length).toBeGreaterThan(0)
-    expect(window.location.search).toContain('model=qwen3-14b')
+    expect(screen.getAllByText('MiniCPM5 1B').length).toBeGreaterThan(0)
+    expect(window.location.search).toContain('model=minicpm5-1b')
   })
 
   it('filters the catalog by maker, family, or strength', async () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.type(screen.getByRole('searchbox', { name: 'Search model catalog' }), 'microsoft')
+    await user.type(screen.getByRole('searchbox', { name: 'Search model catalog' }), 'openbmb')
     const catalog = screen.getByRole('region', { name: 'Model catalog' })
 
-    expect(within(catalog).getByText('Phi-4 14B')).toBeInTheDocument()
-    expect(within(catalog).queryByText('Qwen3 8B')).not.toBeInTheDocument()
+    expect(within(catalog).getByText('MiniCPM5 1B')).toBeInTheDocument()
+    expect(within(catalog).queryByText('Ornith 1.5 9B')).not.toBeInTheDocument()
+  })
+
+  it('describes KV sizing for hybrid-attention models', () => {
+    render(<App />)
+
+    expect(screen.getByText(/KV-bearing attention layers × KV heads/i)).toBeInTheDocument()
+    expect(screen.getByText(/hybrid state buffers vary by engine/i)).toBeInTheDocument()
   })
 
   it('explains the Hugging Face domain replacement shortcut', () => {

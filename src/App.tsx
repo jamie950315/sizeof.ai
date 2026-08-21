@@ -158,10 +158,10 @@ function HomePage() {
           </div>
           <div className="hero-rule" />
           <div className="signal-row">
-            <span>09 DENSE MODELS</span>
-            <span>07 QUANTIZATIONS</span>
+            <span>09 TEXT-OUTPUT MODELS</span>
+            <span>08 QUANTIZATIONS</span>
             <span>NO SIGN-UP</span>
-            <span>UPDATED 18 AUG 2026</span>
+            <span>UPDATED 22 AUG 2026</span>
           </div>
         </section>
 
@@ -486,7 +486,7 @@ function HomePage() {
           </div>
           <div className="method-grid">
             <div><Database /><span>01</span><h3>Weights</h3><p>Parameter count × effective bits per weight for the selected GGUF quantization.</p></div>
-            <div><MemoryStick /><span>02</span><h3>KV cache</h3><p>Layers × KV heads × head dimension × context × cache precision, for batch size one.</p></div>
+            <div><MemoryStick /><span>02</span><h3>KV cache</h3><p>KV-bearing attention layers × KV heads × head dimension × context × cache precision, for batch size one. Local/sliding-window caches and hybrid state buffers vary by engine and are not separately modeled, so actual use can differ.</p></div>
             <div><Cpu /><span>03</span><h3>Runtime</h3><p>A practical allowance for compute buffers, metadata, and inference-engine workspace.</p></div>
             <div><Gauge /><span>04</span><h3>Fit</h3><p>Under 85% is comfortable; 85–100% is tight; over capacity requires partial CPU offload.</p></div>
           </div>

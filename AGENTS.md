@@ -41,7 +41,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-20: Memory weights retain the original acid-green base at safe usage; only the gradual orange risk overlay changes the bar and matching breakdown swatches as VRAM usage rises.
 - 2026-08-20: Model weights now gain a dedicated progressive red tint only after VRAM capacity is exceeded, while safe usage retains the original acid-green color.
 - 2026-08-21: Model-weight bars and their breakdown swatches now use the same warning and offload overlay stack, producing pixel-identical colors in safe and over-capacity states.
-- Cloudflare production version: `610dc086-c1b1-492b-ae55-5709d17820db` (deployed 2026-08-21).
+- 2026-08-22: Homepage examples now track current popular Hugging Face text-output models with only estimator-safe cache layouts. Qwen3.8-27B is the default demonstration as the current Base-only trending leader below 40B; hybrid and local/sliding cache exclusions are disclosed in the methodology.
+- Cloudflare production version: `5c92f828-4a76-49cb-b259-62d4a62435e7` (deployed 2026-08-22).
 
 ## Commands
 

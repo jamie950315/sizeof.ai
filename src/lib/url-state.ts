@@ -9,7 +9,7 @@ export interface CalculatorState {
 }
 
 export const defaultCalculatorState: CalculatorState = {
-  modelId: 'llama-3.1-8b',
+  modelId: 'qwen3.8-27b',
   quantization: 'q4_k_m',
   context: 8192,
   kvPrecision: 'fp16',
