@@ -1,4 +1,4 @@
-import type { ModelSpec } from '../data/models'
+import type { AttentionProfile, EstimateConfidence, ModelSpec } from '../data/models'
 import type { HuggingFaceVariant } from './huggingface-variants'
 
 export interface HuggingFaceRoute {
@@ -15,6 +15,7 @@ export type HuggingFaceModelKind =
   | 'embedding'
   | 'adapter'
   | 'workflow'
+  | 'speculative-draft'
   | 'other'
 
 export type HuggingFaceComponentKind =
@@ -23,6 +24,7 @@ export type HuggingFaceComponentKind =
   | 'vae'
   | 'adapter'
   | 'workflow'
+  | 'draft'
   | 'unknown'
 
 export type HuggingFaceEstimateReason =
@@ -36,6 +38,8 @@ export type HuggingFaceEstimateReason =
   | 'missing-layers'
   | 'missing-context'
   | 'missing-kv-geometry'
+  | 'speculative-draft'
+  | 'stateful-runtime'
 
 export type HuggingFaceResourceEstimateKind =
   | 'model-weights'
@@ -44,6 +48,23 @@ export type HuggingFaceResourceEstimateKind =
   | 'preview-decoder'
   | 'video-pipeline'
   | 'video-lora'
+  | 'speculative-draft'
+
+export interface HuggingFaceMoeFacts {
+  totalExperts: number | null
+  routedExperts: number | null
+  sharedExperts: number | null
+  expertsPerToken: number | null
+  activeParametersB: number | null
+  denseLayers: number | null
+}
+
+export interface HuggingFaceSpeculativeFacts {
+  family: 'mtp' | 'dflash' | 'dflash2' | 'eagle' | 'eagle3' | 'draft-model'
+  relation: 'integrated' | 'addon' | 'separate-model'
+  targetModelId: string | null
+  blockSize: number | null
+}
 
 export interface HuggingFaceResourceComponent {
   id: string
@@ -88,6 +109,10 @@ export interface HuggingFaceModel {
   tensorSizeBytes: number | null
   repositorySizeBytes: number | null
   parameterCountKind: 'logical' | 'tensor-elements'
+  moe: HuggingFaceMoeFacts | null
+  speculative: HuggingFaceSpeculativeFacts | null
+  attentionProfile: AttentionProfile
+  estimateConfidence: EstimateConfidence
   variants: HuggingFaceVariant[]
   resourceEstimate: HuggingFaceResourceEstimate | null
   addon: {
@@ -125,6 +150,11 @@ function asNumber(value: unknown): number | null {
 function positiveNumber(value: unknown): number | null {
   const number = asNumber(value)
   return number !== null && number > 0 ? number : null
+}
+
+function nonNegativeInteger(value: unknown): number | null {
+  const number = asNumber(value)
+  return number !== null && Number.isInteger(number) && number >= 0 ? number : null
 }
 
 function stringArray(value: unknown): string[] {
@@ -176,12 +206,79 @@ export function isHuggingFaceVae(metadataValue: unknown, configValue: unknown): 
   return /(?:^|[\s_\-/])vae(?:$|[\s_\-/])|autoencoder/.test(text)
 }
 
+function declaredBaseModel(tags: string[]) {
+  const tag = tags.find((item) => /^base_model:[^:]+\/[^:]+$/.test(item))
+  return tag?.slice('base_model:'.length) ?? null
+}
+
+function speculativeFacts(
+  metadata: UnknownRecord,
+  config: UnknownRecord,
+  addon: HuggingFaceModel['addon'] | null,
+): HuggingFaceSpeculativeFacts | null {
+  const tags = stringArray(metadata.tags)
+  const textConfigCandidate = asRecord(config.text_config)
+  const textConfig = Object.keys(textConfigCandidate).length > 0 ? textConfigCandidate : config
+  const rawId = asString(metadata.id) ?? asString(metadata.modelId)
+  const architectures = stringArray(config.architectures)
+  const text = [
+    asString(metadata.id) ?? asString(metadata.modelId) ?? '',
+    ...tags,
+    ...architectures,
+    asString(config.model_type) ?? '',
+  ].join(' ').toLowerCase()
+  const speculatorsConfig = asRecord(config.speculators_config)
+  const verifier = asRecord(speculatorsConfig.verifier)
+  const targetModelId = asString(verifier.name_or_path) ?? declaredBaseModel(tags)
+  const dflashConfig = asRecord(config.dflash_config)
+  const blockSize = positiveNumber(dflashConfig.block_size)
+  const hasDflashConfig = Object.keys(dflashConfig).length > 0
+  const hasSpeculatorsConfig = Object.keys(speculatorsConfig).length > 0
+  const hasDraftTag = tags.some((tag) => /^(?:draft-model|draft_model|speculative-decoding|speculative-decoding-draft|speculative-draft)$/i.test(tag))
+  const hasDraftArchitecture = architectures.some((architecture) => /draft|speculator|speculative/i.test(architecture))
+
+  const separateFamily = /dflash2/.test(text)
+    ? 'dflash2' as const
+    : /dflash/.test(text) || hasDflashConfig
+      ? 'dflash' as const
+      : /eagle3/.test(text)
+        ? 'eagle3' as const
+        : /eagle/.test(text)
+          ? 'eagle' as const
+          : /draft-model|draft_model|speculative-decoding-draft/.test(text)
+            ? 'draft-model' as const
+            : null
+  const hasSeparateDraftEvidence = hasDflashConfig || hasSpeculatorsConfig
+    || hasDraftTag || hasDraftArchitecture
+  if (separateFamily && hasSeparateDraftEvidence) {
+    return { family: separateFamily, relation: 'separate-model', targetModelId, blockSize }
+  }
+
+  if (addon?.kind === 'mtp') {
+    return {
+      family: 'mtp', relation: 'addon', targetModelId: addon.baseModelId, blockSize: null,
+    }
+  }
+  const declaredMtpLayers = positiveNumber(textConfig.num_nextn_predict_layers)
+    ?? positiveNumber(textConfig.nextn_predict_layers)
+  if (declaredMtpLayers !== null || /(?:^|[-_.\s])mtp(?:[-_.\s]|$)/i.test(text)) {
+    return { family: 'mtp', relation: 'integrated', targetModelId: targetModelId ?? rawId, blockSize: null }
+  }
+  return null
+}
+
+function isSeparateSpeculativeDraft(metadata: UnknownRecord, config: UnknownRecord) {
+  const facts = speculativeFacts(metadata, config, null)
+  return facts !== null && facts.relation === 'separate-model'
+}
+
 function classifyComponentKind(
   metadata: UnknownRecord,
   config: UnknownRecord,
   modelKind: HuggingFaceModelKind,
 ): HuggingFaceComponentKind {
   if (isHuggingFaceVae(metadata, config)) return 'vae'
+  if (modelKind === 'speculative-draft') return 'draft'
   if (modelKind === 'embedding') return 'encoder'
   if (modelKind === 'adapter') return 'adapter'
   if (modelKind === 'workflow') return 'workflow'
@@ -227,12 +324,42 @@ function staticResourceEstimate(
     }
   }
 
+  if (modelKind === 'speculative-draft') {
+    return {
+      kind: 'speculative-draft',
+      title: 'Speculative draft loaded weights',
+      description: 'Published weights for this draft model. It must be paired with its declared target model.',
+      note: 'This is draft weight residency only. The target model, target cache, draft cache, block size, batching, and inference engine add runtime memory.',
+      baseModelId: null,
+      options: [{
+        id: 'published-draft-weights',
+        label: 'Draft weights',
+        components: [{ id: 'draft-weights', label: 'Draft weights', sizeBytes: tensorSizeBytes }],
+      }],
+    }
+  }
+
   if (['image', 'video', 'audio'].includes(modelKind)) {
     return {
       kind: 'model-weights',
       title: 'Published loaded weights',
       description: 'Static weights published for this non-text-generation model. It does not use an autoregressive KV cache.',
       note: 'This is model-weight residency only, not a pipeline peak. Resolution, frames, batching, activations, and offload can add substantial runtime memory.',
+      baseModelId: null,
+      options: [{
+        id: 'published-weights',
+        label: 'Published weights',
+        components: [{ id: 'published-weights', label: 'Published weights', sizeBytes: tensorSizeBytes }],
+      }],
+    }
+  }
+
+  if (modelKind === 'language' || modelKind === 'vision-language') {
+    return {
+      kind: 'model-weights',
+      title: 'Published loaded weights',
+      description: 'Published model weights. The repository does not expose enough cache or recurrent-state geometry for a safe total runtime estimate.',
+      note: 'This is weight residency only. KV cache, recurrent state, activations, batching, and engine-specific workspaces are not included.',
       baseModelId: null,
       options: [{
         id: 'published-weights',
@@ -259,6 +386,7 @@ function classifyModel(metadata: UnknownRecord, config: UnknownRecord): HuggingF
   ].join(' ').toLowerCase()
 
   if (isHuggingFaceVae(metadata, config)) return 'image'
+  if (isSeparateSpeculativeDraft(metadata, config)) return 'speculative-draft'
   if (contains(['base_model:adapter:', 'lora', 'peft', 'adapter'])) return 'adapter'
   if (contains(['comfyui', 'workflow', 'chat-template', 'chat_template'])) return 'workflow'
   if (contains(['image-text-to-text', 'visual-question-answering', 'document-question-answering'])) {
@@ -317,6 +445,139 @@ function createModelId(owner: string, name: string) {
   return `hf-${owner}-${name}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
+function countPeriodicLayers(layers: number | null, period: number | null, offset: number | null) {
+  if (layers === null || period === null || offset === null || period <= 0) return 0
+  let count = 0
+  for (let index = offset; index < layers; index += period) count += 1
+  return count
+}
+
+function deriveAttentionProfile(textConfig: UnknownRecord, layers: number | null): AttentionProfile {
+  const declaredLayerTypes = stringArray(textConfig.layer_types).map((item) => item.toLowerCase())
+  const blockTypes = stringArray(textConfig.block_types).map((item) => item.toLowerCase())
+  const layerTypes = layers !== null && declaredLayerTypes.length > 0
+    ? Array.from({ length: layers }, (_, index) => declaredLayerTypes[index % declaredLayerTypes.length] ?? '')
+    : declaredLayerTypes
+  const linearConfig = asRecord(textConfig.linear_attn_config)
+  const rawFullIndices = Array.isArray(linearConfig.full_attn_layers)
+    ? linearConfig.full_attn_layers.filter((item): item is number => typeof item === 'number' && Number.isInteger(item))
+    : []
+  const rawKdaIndices = Array.isArray(linearConfig.kda_layers)
+    ? linearConfig.kda_layers.filter((item): item is number => typeof item === 'number' && Number.isInteger(item))
+    : []
+  const allExplicitIndices = [...rawFullIndices, ...rawKdaIndices]
+  const usesOneBasedIndices = layers !== null && allExplicitIndices.includes(layers)
+    && !allExplicitIndices.includes(0)
+  const normalizeIndices = (indices: number[]) => new Set(indices
+    .map((item) => usesOneBasedIndices ? item - 1 : item)
+    .filter((item) => item >= 0 && (layers === null || item < layers)))
+  const explicitFull = normalizeIndices(rawFullIndices).size
+  const explicitKda = normalizeIndices(rawKdaIndices).size
+  let fullLayers = layerTypes.filter((item) => item === 'full_attention').length
+  let slidingLayers = layerTypes.filter((item) => /sliding|local/.test(item)).length
+  let linearLayers = layerTypes.filter((item) => item === 'linear_attention').length
+  let kdaLayers = layerTypes.filter((item) => item.includes('kda')).length
+  let recurrentLayers = layerTypes.filter((item) => item.includes('recurrent')).length
+  let ssmLayers = layerTypes.filter((item) => /mamba|ssm|state_space/.test(item)).length
+
+  if (layerTypes.length === 0 && blockTypes.length > 0 && layers !== null) {
+    for (let index = 0; index < layers; index += 1) {
+      const role = blockTypes[index % blockTypes.length] ?? ''
+      if (role === 'linear_attention' || role.includes('linear')) linearLayers += 1
+      else if (role.includes('kda')) kdaLayers += 1
+      else if (role.includes('recurrent')) recurrentLayers += 1
+      else if (/mamba|ssm|state/.test(role)) ssmLayers += 1
+      else if (/sliding|local/.test(role)) slidingLayers += 1
+      else fullLayers += 1
+    }
+  }
+  if (fullLayers === 0 && explicitFull > 0) fullLayers = explicitFull
+  if (kdaLayers === 0 && explicitKda > 0) kdaLayers = explicitKda
+  if (layers !== null && explicitFull > 0 && kdaLayers === 0 && linearLayers === 0) {
+    linearLayers = Math.max(0, layers - explicitFull)
+  }
+  if (layers !== null && fullLayers + slidingLayers + linearLayers + kdaLayers
+      + recurrentLayers + ssmLayers === 0) {
+    const period = positiveNumber(textConfig.attn_layer_period)
+    const offset = nonNegativeInteger(textConfig.attn_layer_offset)
+    const periodicAttention = countPeriodicLayers(layers, period, offset)
+    const hasMambaState = positiveNumber(textConfig.mamba_d_state) !== null
+      || positiveNumber(textConfig.state_size) !== null
+      || /mamba|jamba/.test(asString(textConfig.model_type)?.toLowerCase() ?? '')
+    if (periodicAttention > 0) {
+      fullLayers = periodicAttention
+      ssmLayers = hasMambaState ? layers - periodicAttention : 0
+    } else if (hasMambaState) {
+      ssmLayers = layers
+    } else if (positiveNumber(textConfig.sliding_window) !== null
+      || positiveNumber(textConfig.attention_window_size) !== null) {
+      slidingLayers = layers
+    } else {
+      fullLayers = layers
+    }
+  }
+
+  const slidingWindow = positiveNumber(textConfig.sliding_window)
+    ?? positiveNumber(textConfig.attention_window_size)
+  const stateKind = kdaLayers > 0
+    ? 'kda' as const
+    : ssmLayers > 0
+      ? 'mamba' as const
+      : recurrentLayers > 0
+        ? 'recurrent' as const
+        : linearLayers > 0
+          ? 'linear' as const
+          : null
+  return {
+    fullLayers,
+    slidingLayers,
+    linearLayers,
+    kdaLayers,
+    recurrentLayers,
+    ssmLayers,
+    slidingWindow,
+    stateKind,
+  }
+}
+
+const CURATED_ACTIVE_PARAMETERS_B: Record<string, number> = {
+  'deepseek-ai/deepseek-v3': 37,
+  'moonshotai/kimi-k2-thinking': 32,
+  'openai/gpt-oss-20b': 3.6,
+  'openai/gpt-oss-120b': 5.1,
+  'qwen/qwen3-30b-a3b': 3.3,
+  'qwen/qwen3-235b-a22b': 22,
+}
+
+function deriveMoeFacts(textConfig: UnknownRecord, modelId: string): HuggingFaceMoeFacts | null {
+  const totalExperts = positiveNumber(textConfig.num_experts)
+    ?? positiveNumber(textConfig.num_local_experts)
+  const routedExperts = positiveNumber(textConfig.n_routed_experts)
+  const sharedExperts = positiveNumber(textConfig.n_shared_experts)
+  const expertsPerToken = positiveNumber(textConfig.num_experts_per_tok)
+    ?? positiveNumber(textConfig.num_experts_per_token)
+    ?? positiveNumber(textConfig.experts_per_token)
+  const denseLayers = positiveNumber(textConfig.first_k_dense_replace)
+  if (totalExperts === null && routedExperts === null && sharedExperts === null
+    && expertsPerToken === null) return null
+
+  const explicitActive = positiveNumber(textConfig.num_active_parameters)
+    ?? positiveNumber(textConfig.active_parameters)
+  const activeFromName = modelId.match(/(?:^|[-_.])A(\d+(?:\.\d+)?)B(?:[-_.]|$)/i)
+  const activeParametersB = explicitActive !== null
+    ? explicitActive > 1_000_000 ? explicitActive / 1_000_000_000 : explicitActive
+    : activeFromName ? Number(activeFromName[1])
+      : CURATED_ACTIVE_PARAMETERS_B[modelId.toLowerCase()] ?? null
+  return {
+    totalExperts,
+    routedExperts,
+    sharedExperts,
+    expertsPerToken,
+    activeParametersB,
+    denseLayers,
+  }
+}
+
 export function normalizeHuggingFaceModel(
   rawMetadata: unknown,
   rawConfig: unknown,
@@ -356,20 +617,16 @@ export function normalizeHuggingFaceModel(
   )
   const maxContext = positiveNumber(textConfig.max_position_embeddings)
     ?? positiveNumber(gguf.context_length)
-  const layerTypes = stringArray(textConfig.layer_types)
-  const fullAttentionLayers = layerTypes.filter((item) => item === 'full_attention').length
-  const linearAttentionConfig = asRecord(textConfig.linear_attn_config)
-  const explicitFullAttentionLayers = Array.isArray(linearAttentionConfig.full_attn_layers)
-    ? new Set(linearAttentionConfig.full_attn_layers.filter((item): item is number =>
-        typeof item === 'number' && Number.isInteger(item) && item >= 0
-          && (layers === null || item <= layers),
-      )).size
-    : 0
-  const attentionLayers = fullAttentionLayers > 0
-    ? fullAttentionLayers
-    : explicitFullAttentionLayers > 0
-      ? explicitFullAttentionLayers
-      : layers
+  const attentionProfile = deriveAttentionProfile(textConfig, layers)
+  const attentionLayers = layers === null ? null : attentionProfile.fullLayers
+  const hasContextScaledCache = attentionProfile.fullLayers + attentionProfile.slidingLayers > 0
+  const hasArchitectureState = attentionProfile.linearLayers + attentionProfile.kdaLayers
+    + attentionProfile.recurrentLayers + attentionProfile.ssmLayers > 0
+  const estimateConfidence: EstimateConfidence = !hasContextScaledCache && hasArchitectureState
+    ? 'weights-only'
+    : attentionProfile.slidingLayers > 0 || hasArchitectureState
+      ? 'runtime-specific'
+      : 'safe'
   const kvLoraRank = positiveNumber(textConfig.kv_lora_rank)
   const qkRopeHeadDim = positiveNumber(textConfig.qk_rope_head_dim)
   const qkNopeHeadDim = positiveNumber(textConfig.qk_nope_head_dim)
@@ -394,6 +651,8 @@ export function normalizeHuggingFaceModel(
   const modelKind = options.modelKindOverride ?? classifyModel(metadata, config)
   const componentKind = classifyComponentKind(metadata, config, modelKind)
   const tensorSizeBytes = safetensorsSizeBytes(metadata)
+  const speculative = speculativeFacts(metadata, config, options.addon ?? null)
+  const moe = deriveMoeFacts(textConfig, rawId)
   const resourceEstimate = options.resourceEstimate ?? staticResourceEstimate(
     modelKind,
     componentKind,
@@ -430,8 +689,9 @@ export function normalizeHuggingFaceModel(
   const isLlmMemoryModel = componentKind !== 'vae'
     && (modelKind === 'language' || modelKind === 'vision-language')
   const canEstimate = options.allowEstimate !== false && isLlmMemoryModel
-    && [parameters, layers, attentionLayers, maxContext]
+    && [parameters, layers, maxContext]
     .every((value) => value !== null && Number.isFinite(value) && value > 0)
+    && hasContextScaledCache
     && kvCache !== null
 
   const spec: ModelSpec | null = canEstimate ? {
@@ -442,6 +702,8 @@ export function normalizeHuggingFaceModel(
     parametersB: parameters! / 1_000_000_000,
     layers: layers!,
     attentionLayers: attentionLayers!,
+    attentionProfile,
+    estimateConfidence,
     kvHeads: kvCache?.kind === 'standard' ? kvCache.heads : undefined,
     headDim: kvCache?.kind === 'standard' ? kvCache.headDim : undefined,
     kvCache: kvCache!,
@@ -457,8 +719,12 @@ export function normalizeHuggingFaceModel(
       ? 'adapter-only'
       : modelKind === 'workflow'
         ? 'workflow-artifact'
+        : modelKind === 'speculative-draft'
+          ? 'speculative-draft'
         : modelKind === 'embedding'
           ? 'encoder-model'
+          : estimateConfidence === 'weights-only'
+            ? 'stateful-runtime'
           : !isLlmMemoryModel
             ? 'modality-specific'
             : options.estimateReason
@@ -490,6 +756,10 @@ export function normalizeHuggingFaceModel(
     tensorSizeBytes,
     repositorySizeBytes,
     parameterCountKind: options.parameterCountKind ?? 'logical',
+    moe,
+    speculative,
+    attentionProfile,
+    estimateConfidence,
     variants: options.variants ?? [],
     resourceEstimate,
     addon: options.addon ?? null,

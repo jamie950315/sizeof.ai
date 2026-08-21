@@ -94,6 +94,30 @@ describe('estimateVram', () => {
     expect(result.kvCacheGiB).toBeCloseTo(0.00390625, 7)
   })
 
+  it('adds window-bounded KV for sliding layers and marks runtime-specific totals', () => {
+    const result = estimateVram(
+      {
+        ...fixture,
+        attentionLayers: 2,
+        attentionProfile: {
+          fullLayers: 2,
+          slidingLayers: 8,
+          linearLayers: 0,
+          kdaLayers: 0,
+          recurrentLayers: 0,
+          ssmLayers: 0,
+          slidingWindow: 1024,
+          stateKind: null,
+        },
+        estimateConfidence: 'runtime-specific',
+      },
+      { quantization: 'q4_k_m', context: 4096, kvPrecision: 'fp16' },
+    )
+
+    expect(result.kvCacheGiB).toBeCloseTo(0.0078125, 7)
+    expect(result.isLowerBound).toBe(true)
+  })
+
   it('makes the engine-dependent MLA cache layout explicit', () => {
     const model: ModelSpec = {
       ...fixture,

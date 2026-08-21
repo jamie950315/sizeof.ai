@@ -68,7 +68,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(calculator).getByRole('button', { name: '4K' })).toBeInTheDocument()
     expect(within(calculator).getByRole('button', { name: '16K' })).toBeInTheDocument()
     expect(within(calculator).getByRole('button', { name: '64K' })).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=12')
+    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=13')
   })
 
   it('keeps the detail context spinner aligned and charts usage against selected VRAM', async () => {
@@ -166,6 +166,93 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByLabelText('MLA cache layout')).toHaveValue('expanded')
     expect(screen.getByText('REPO QUANTIZATION / MXFP4-PACK-QUANTIZED')).toBeInTheDocument()
     expect(screen.getByText('HYPOTHETICAL BIT/WEIGHT ESTIMATE')).toBeInTheDocument()
+  })
+
+  it('shows MoE active routing facts without replacing resident total parameters', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'Qwen/Qwen3.6-35B-A3B',
+      name: 'Qwen3.6-35B-A3B',
+      parametersB: 35.951822704,
+      moe: {
+        totalExperts: 256, routedExperts: null, sharedExperts: null,
+        expertsPerToken: 8, activeParametersB: 3, denseLayers: null,
+      },
+      spec: { ...apiModel.spec, parametersB: 35.951822704 },
+    })))
+
+    render(<App />)
+
+    const facts = await screen.findByRole('region', { name: 'Model facts' })
+    expect(within(facts).getByText('TOTAL PARAMETERS')).toBeInTheDocument()
+    expect(within(facts).getByText('35.95B')).toBeInTheDocument()
+    expect(within(facts).getByText('ACTIVE PARAMETERS / TOKEN')).toBeInTheDocument()
+    expect(within(facts).getByText('3.00B')).toBeInTheDocument()
+    expect(screen.getByText('256 TOTAL / 8 ACTIVE')).toBeInTheDocument()
+  })
+
+  it('shows a verified DFlash target plus draft profile without calling it an encoder', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'z-lab/Qwen3.6-35B-A3B-DFlash', owner: 'z-lab', name: 'Qwen3.6-35B-A3B-DFlash',
+      parametersB: 0.385906176, modelKind: 'speculative-draft', componentKind: 'draft',
+      estimateReason: 'speculative-draft', spec: null,
+      speculative: {
+        family: 'dflash', relation: 'separate-model',
+        targetModelId: 'Qwen/Qwen3.6-35B-A3B', blockSize: 16,
+      },
+      resourceEstimate: {
+        kind: 'speculative-draft', title: 'Target + speculative draft weights',
+        description: 'Published target-model and draft-model weights required by this speculative decoding pair.',
+        note: 'Target KV cache and draft runtime memory are excluded.',
+        baseModelId: 'Qwen/Qwen3.6-35B-A3B',
+        options: [{
+          id: 'target-plus-draft', label: 'Target + draft weights', components: [
+            { id: 'target-weights', label: 'Target model weights', sizeBytes: 71_903_645_408 },
+            { id: 'draft-weights', label: 'Draft model weights', sizeBytes: 771_812_352 },
+          ],
+        }],
+      },
+    })))
+
+    render(<App />)
+
+    expect(await screen.findByText('SPECULATIVE DRAFT')).toBeInTheDocument()
+    const estimate = screen.getByRole('region', { name: 'Model load estimate' })
+    expect(within(estimate).getByText('TARGET + DRAFT WEIGHTS')).toBeInTheDocument()
+    expect(within(estimate).getByText('CACHE + RUNTIME EXCLUDED')).toBeInTheDocument()
+    expect(within(estimate).getByText('67.68 GiB', { selector: '.resource-total' })).toBeInTheDocument()
+    expect(screen.getByText('DECLARED TARGET / Qwen/Qwen3.6-35B-A3B')).toBeInTheDocument()
+    expect(screen.queryByText(/bidirectional encoder/i)).not.toBeInTheDocument()
+  })
+
+  it('labels KDA and other stateful hybrid estimates as runtime-specific lower bounds', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      estimateConfidence: 'runtime-specific',
+      attentionProfile: {
+        fullLayers: 16, slidingLayers: 0, linearLayers: 0, kdaLayers: 48,
+        recurrentLayers: 0, ssmLayers: 0, slidingWindow: null, stateKind: 'kda',
+      },
+      spec: {
+        ...apiModel.spec,
+        parametersB: 100,
+        estimateConfidence: 'runtime-specific',
+        attentionProfile: {
+          fullLayers: 16, slidingLayers: 0, linearLayers: 0, kdaLayers: 48,
+          recurrentLayers: 0, ssmLayers: 0, slidingWindow: null, stateKind: 'kda',
+        },
+      },
+    })))
+
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByText('ESTIMATED LOWER BOUND')).toBeInTheDocument()
+    expect(within(calculator).getByText('RUNTIME-SPECIFIC')).toBeInTheDocument()
+    expect(within(calculator).getByRole('img', { name: /modeled lower bound/i })).not.toHaveTextContent('OFFLOAD')
+    expect(within(calculator).queryByText(/OFFLOAD/)).not.toBeInTheDocument()
+    expect(screen.getByText('KDA / 48 STATE LAYERS')).toBeInTheDocument()
   })
 
   it('discloses when architecture comes from a quantized repository base model', async () => {

@@ -25,6 +25,7 @@ export interface VramEstimate {
   runtimeGiB: number
   totalGiB: number
   exceedsNativeContext: boolean
+  isLowerBound: boolean
 }
 
 export type Fit = 'comfortable' | 'tight' | 'too-large'
@@ -64,10 +65,18 @@ export function estimateVram(model: ModelSpec, options: EstimateOptions): VramEs
 
   if (kvElementsPerLayer <= 0) throw new Error('Unknown KV cache layout')
 
+  const fullAttentionLayers = model.attentionProfile?.fullLayers
+    ?? model.attentionLayers
+    ?? model.layers
+  const slidingAttentionTokens = model.attentionProfile?.slidingLayers
+    ? model.attentionProfile.slidingLayers * Math.min(
+        options.context,
+        model.attentionProfile.slidingWindow ?? options.context,
+      )
+    : 0
   const kvCacheGiB =
-    ((model.attentionLayers ?? model.layers) *
+    ((fullAttentionLayers * options.context + slidingAttentionTokens) *
       kvElementsPerLayer *
-      options.context *
       kvPrecision.bytes) /
     BYTES_PER_GIB
   const runtimeGiB = (weightsGiB + kvCacheGiB) * 0.1 + 0.5
@@ -80,6 +89,7 @@ export function estimateVram(model: ModelSpec, options: EstimateOptions): VramEs
     runtimeGiB,
     totalGiB: weightsGiB + kvCacheGiB + runtimeGiB,
     exceedsNativeContext: options.context > model.maxContext,
+    isLowerBound: model.estimateConfidence === 'runtime-specific',
   }
 }
 

@@ -57,9 +57,11 @@ export function selectCommunityRepositories(
       || typeof item.sha !== 'string' || !/^[a-f0-9]{40}$/i.test(item.sha)) return []
     const repositoryName = item.id.split('/')[1] ?? ''
     if (/(?:^|[-_.])mtp(?:[-_.]|$)/i.test(repositoryName)) return []
+    if (/(?:^|[-_.])dflash2?(?:[-_.]|$)/i.test(repositoryName)) return []
     const tags = Array.isArray(item.tags)
       ? item.tags.filter((tag): tag is string => typeof tag === 'string')
       : []
+    if (tags.some((tag) => /^(?:draft-model|draft_model|speculative-decoding|speculative-decoding-draft|speculative-draft)$/i.test(tag))) return []
     if (!tags.some((tag) => tag.toLowerCase() === relation)) return []
     const priority = trustedQuantizationPublishers.indexOf(
       item.author.toLowerCase() as typeof trustedQuantizationPublishers[number],
@@ -211,6 +213,32 @@ async function fetchRepoTree(
   return entries.slice(0, 1_000)
 }
 
+async function fetchTargetWeightSize(
+  fetcher: Fetcher,
+  route: { owner: string; repo: string },
+  revision: string,
+  tags: string[],
+  headers: Record<string, string>,
+) {
+  const treeUrl = new URL(
+    `https://huggingface.co/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}/tree/${encodeURIComponent(revision)}`,
+  )
+  treeUrl.searchParams.set('recursive', 'true')
+  treeUrl.searchParams.set('expand', 'true')
+  treeUrl.searchParams.set('limit', '100')
+  const entries = await fetchRepoTree(fetcher, treeUrl, headers)
+  const rootSafetensors = entries.filter((entry) => entry.type === 'file'
+    && !entry.path.includes('/') && entry.path.toLowerCase().endsWith('.safetensors')
+    && !/(?:adapter|lora|projector|mmproj|mtp)/i.test(entry.path))
+  const safetensorBytes = rootSafetensors.reduce((sum, entry) => sum + entry.size, 0)
+  if (safetensorBytes > 0) return safetensorBytes
+
+  const modelVariants = parseHuggingFaceVariants([{
+    revision, label: 'main', entries,
+  }], tags).filter((variant) => variant.role === 'model')
+  return modelVariants.length === 1 ? modelVariants[0]?.weightSizeBytes ?? null : null
+}
+
 async function fetchJson(fetcher: Fetcher, url: string, headers: Record<string, string>) {
   try {
     const response = await fetcher(url, { headers })
@@ -351,7 +379,7 @@ async function discoverCommunityVariants(
 export function createModelCacheKey(request: Request) {
   const url = new URL(request.url)
   url.search = ''
-  url.searchParams.set('__sizeof_cache', 'hf-model-v22')
+  url.searchParams.set('__sizeof_cache', 'hf-model-v24')
   return new Request(url.toString())
 }
 
@@ -444,6 +472,7 @@ export async function handleModelApi(
     let variants: HuggingFaceVariant[] = []
     let resourceEstimate: HuggingFaceResourceEstimate | undefined
     let addon: NonNullable<Parameters<typeof normalizeHuggingFaceModel>[2]>['addon'] = null
+    let canonicalSpeculativeTargetId: string | null = null
 
     const metadataRoute = typeof metadata === 'object' && metadata !== null
       && 'id' in metadata && typeof metadata.id === 'string'
@@ -584,8 +613,83 @@ export async function handleModelApi(
         && modelVariants.length > 0 && projectorVariants.length > 0
       const isMtpAddon = tags.some((tag) => /(?:^|[-_])mtp(?:$|[-_])/i.test(tag))
         && addonVariants.length > 0 && modelVariants.length === 0
+      const normalizedRepository = normalizeHuggingFaceModel(metadata, config)
+      const isSpeculativeDraft = normalizedRepository.modelKind === 'speculative-draft'
+      const speculativeTargetId = normalizedRepository.speculative?.targetModelId ?? null
 
-      const startingBaseId = quantizedBaseId ?? adapterBaseId
+      if (isSpeculativeDraft) {
+        allowEstimate = false
+        modelKindOverride = 'speculative-draft'
+        if (speculativeTargetId) {
+          const targetRoute = parseHuggingFaceModelPath(`/${speculativeTargetId}`)
+          if (targetRoute) {
+            const targetUrl = new URL(
+              `https://huggingface.co/api/models/${encodeURIComponent(targetRoute.owner)}/${encodeURIComponent(targetRoute.repo)}`,
+            )
+            for (const field of ['sha', 'safetensors', 'gguf', 'tags']) {
+              targetUrl.searchParams.append('expand', field)
+            }
+            try {
+              const targetResponse = await fetcher(targetUrl.toString(), { headers })
+              if (targetResponse.ok) {
+                const targetMetadata = await targetResponse.json() as Record<string, unknown>
+                const canonicalTargetId = typeof targetMetadata.id === 'string'
+                  && targetMetadata.id.toLowerCase() === speculativeTargetId.toLowerCase()
+                  ? targetMetadata.id
+                  : null
+                const target = canonicalTargetId
+                  && typeof targetMetadata.sha === 'string' && targetMetadata.sha
+                  ? normalizeHuggingFaceModel(targetMetadata, {})
+                  : null
+                canonicalSpeculativeTargetId = target ? canonicalTargetId : null
+                const targetWeightBytes = target?.tensorSizeBytes ?? (
+                  target && typeof targetMetadata.sha === 'string'
+                    ? await fetchTargetWeightSize(
+                        fetcher,
+                        targetRoute,
+                        targetMetadata.sha,
+                        metadataTags(targetMetadata),
+                        headers,
+                      )
+                    : null
+                )
+                const draftWeightBytes = normalizedRepository.tensorSizeBytes
+                  ?? modelVariants[0]?.weightSizeBytes
+                  ?? null
+                if (targetWeightBytes && draftWeightBytes && canonicalTargetId) {
+                  resourceEstimate = {
+                    kind: 'speculative-draft',
+                    title: 'Target + speculative draft weights',
+                    description: 'Published target-model and draft-model weights required by this speculative decoding pair.',
+                    note: 'This is static weight residency only. Target KV cache, draft cache, block size, batching, hidden-state transfer, and engine workspaces add runtime memory.',
+                    baseModelId: canonicalTargetId,
+                    options: [{
+                      id: 'target-plus-draft',
+                      label: 'Target + draft weights',
+                      components: [
+                        {
+                          id: 'target-weights', label: 'Target model weights',
+                          repositoryId: canonicalTargetId, sizeBytes: targetWeightBytes,
+                        },
+                        { id: 'draft-weights', label: 'Draft model weights', sizeBytes: draftWeightBytes },
+                      ],
+                    }],
+                  }
+                }
+              }
+            } catch (error) {
+              console.warn(JSON.stringify({
+                message: 'failed to fetch optional speculative target metadata',
+                model: modelId,
+                target: speculativeTargetId,
+                error: error instanceof Error ? error.message : String(error),
+              }))
+            }
+          }
+        }
+      }
+
+      const startingBaseId = isSpeculativeDraft ? null : quantizedBaseId ?? adapterBaseId
         ?? discovered.ninfer?.baseModelId ?? discovered.artifactManifest?.baseModelId ?? null
       if (!startingBaseId && modelVariants.some((variant) => variant.format === 'gguf')
         && (isCompositeGguf || normalizeHuggingFaceModel(metadata, config).spec === null)) {
@@ -766,7 +870,7 @@ export async function handleModelApi(
             }
           }
         }
-      } else if (quantizedBaseId) {
+      } else if (quantizedBaseId && !isSpeculativeDraft) {
         allowEstimate = false
         estimateReason = 'unverified-base'
       } else if (hasPackedWeightEncoding(metadataRecord, tags)) {
@@ -774,7 +878,7 @@ export async function handleModelApi(
       }
     }
 
-    return json(normalizeHuggingFaceModel(metadata, config, {
+    const normalized = normalizeHuggingFaceModel(metadata, config, {
       allowEstimate,
       configSourceId,
       estimateReason,
@@ -784,7 +888,14 @@ export async function handleModelApi(
       variants,
       resourceEstimate,
       addon,
-    }))
+    })
+    if (canonicalSpeculativeTargetId && normalized.speculative) {
+      normalized.speculative = {
+        ...normalized.speculative,
+        targetModelId: canonicalSpeculativeTargetId,
+      }
+    }
+    return json(normalized)
   } catch (error) {
     console.error(JSON.stringify({
       message: 'failed to normalize Hugging Face model',

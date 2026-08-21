@@ -38,6 +38,7 @@ const modelKindLabels: Record<HuggingFaceModel['modelKind'], string> = {
   embedding: 'EMBEDDING / RETRIEVAL',
   adapter: 'ADAPTER / LORA',
   workflow: 'WORKFLOW / ARTIFACT',
+  'speculative-draft': 'SPECULATIVE DRAFT',
   other: 'OTHER',
 }
 
@@ -52,6 +53,8 @@ const estimateReasonLabels: Record<NonNullable<HuggingFaceModel['estimateReason'
   'missing-layers': 'The repository does not publish enough layer information for a safe estimate.',
   'missing-context': 'The repository does not publish a native context window.',
   'missing-kv-geometry': 'The repository does not publish enough attention geometry for KV-cache sizing.',
+  'speculative-draft': 'This is a speculative decoding draft model that must be paired with its declared target model.',
+  'stateful-runtime': 'This model uses recurrent or state-space memory whose runtime residency cannot be derived safely from the public config alone.',
 }
 
 const quantizationBits = [1, 2, 3, 4, 5, 6, 8, 16] as const
@@ -149,7 +152,7 @@ export default function ModelDetailPage({ route }: Props) {
     let active = true
     setModel(null)
     setError(null)
-    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=12`)
+    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=13`)
       .then(async (response) => {
         const body = await response.json() as HuggingFaceModel | { error?: string }
         if (!response.ok) throw new Error('error' in body && body.error ? body.error : 'Unable to load model')
@@ -308,7 +311,9 @@ export default function ModelDetailPage({ route }: Props) {
   ] : []
   const memoryBarUsage = getMemoryBarUsage(estimate?.totalGiB ?? 0, vram)
   const memoryBarPartPercents = getMemoryBarPartPercents(memoryParts.map((part) => part.value))
-  const offloadLabel = memoryBarUsage.offloadGiB > 0
+  const isLowerBound = estimate?.isLowerBound ?? false
+  const weightsOffloadOpacity = isLowerBound ? 0 : memoryBarUsage.weightsOffloadOpacity
+  const offloadLabel = !isLowerBound && memoryBarUsage.offloadGiB > 0
     ? `OFFLOAD ${memoryBarUsage.offloadGiB.toFixed(2)} GiB`
     : null
   const modelKind = model.modelKind ?? 'other'
@@ -342,12 +347,14 @@ export default function ModelDetailPage({ route }: Props) {
             {model.pipelineTag && <span>{model.pipelineTag}</span>}
             {model.libraryName && <span>{model.libraryName}</span>}
             {model.quantizationFormat && <span>REPO QUANTIZATION / {model.quantizationFormat.toUpperCase()}</span>}
+            {model.speculative && <span>SPECULATIVE / {model.speculative.family.toUpperCase()} {model.speculative.relation.toUpperCase()}</span>}
             <span>UPDATED / {model.lastModified ? new Date(model.lastModified).toLocaleDateString('en-CA') : 'UNKNOWN'}</span>
           </div>
         </section>
 
-        <section className="detail-metrics" aria-label="Model facts">
-          <div><span>{model.parameterCountKind === 'tensor-elements' ? 'PUBLISHED TENSOR ELEMENTS' : 'PARAMETERS'}</span><strong>{formatParameters(model.parametersB)}</strong></div>
+        <section className={`detail-metrics${model.moe?.activeParametersB ? ' moe-metrics' : ''}`} aria-label="Model facts">
+          <div><span>{model.parameterCountKind === 'tensor-elements' ? 'PUBLISHED TENSOR ELEMENTS' : model.moe ? 'TOTAL PARAMETERS' : 'PARAMETERS'}</span><strong>{formatParameters(model.parametersB)}</strong></div>
+          {model.moe?.activeParametersB && <div><span>ACTIVE PARAMETERS / TOKEN</span><strong>{formatParameters(model.moe.activeParametersB)}</strong></div>}
           {model.spec && <div><span>NATIVE CONTEXT</span><strong>{maxContext ? formatContext(maxContext) : '—'}</strong></div>}
           <div><span>DOWNLOADS / MONTH</span><strong>{formatCompact(model.downloads)}</strong></div>
           <div><span>LIKES</span><strong>{formatCompact(model.likes)}</strong></div>
@@ -523,18 +530,23 @@ export default function ModelDetailPage({ route }: Props) {
               </div>
 
               <div className="result-panel detail-result">
-                <div className="result-topline"><span>ESTIMATED VRAM</span><span className={`fit-pill ${fit}`}>{fitLabels[fit]} ON {vram} GB</span></div>
+                <div className="result-topline">
+                  <span>{estimate.isLowerBound ? 'ESTIMATED LOWER BOUND' : 'ESTIMATED VRAM'}</span>
+                  <span className={`fit-pill ${estimate.isLowerBound ? 'runtime-specific' : fit}`}>{estimate.isLowerBound ? 'RUNTIME-SPECIFIC' : `${fitLabels[fit]} ON ${vram} GB`}</span>
+                </div>
                 <div className="total-number"><span>{estimate.totalGiB.toFixed(2)}</span><small>GiB</small></div>
                 <div
                   className="memory-bar"
                   role="img"
-                  aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vram} GiB VRAM${offloadLabel ? `, ${offloadLabel}` : ''}`}
+                  aria-label={estimate.isLowerBound
+                    ? `Modeled lower bound: ${estimate.totalGiB.toFixed(2)} GiB before unmodeled runtime state`
+                    : `Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vram} GiB VRAM${offloadLabel ? `, ${offloadLabel}` : ''}`}
                 >
                   <div
                     className="memory-bar-used"
                     style={{
                       width: `${memoryBarUsage.usedPercent}%`,
-                      '--memory-weights-offload-opacity': memoryBarUsage.weightsOffloadOpacity,
+                      '--memory-weights-offload-opacity': weightsOffloadOpacity,
                     } as CSSProperties}
                   >
                     {memoryParts.map((part, index) => (
@@ -549,14 +561,16 @@ export default function ModelDetailPage({ route }: Props) {
                   className="breakdown-list"
                   style={{
                     '--memory-risk-opacity': memoryBarUsage.riskOpacity,
-                    '--memory-weights-offload-opacity': memoryBarUsage.weightsOffloadOpacity,
+                    '--memory-weights-offload-opacity': weightsOffloadOpacity,
                   } as CSSProperties}
                 >
                   {memoryParts.map((part) => <div key={part.label}><span><i className={part.className} />{part.label}</span><strong>{part.value.toFixed(2)} GiB</strong></div>)}
                 </div>
-                <p className="estimate-note"><Info size={15} /> {model.spec.kvCache?.kind === 'mla'
-                  ? `${mlaCacheMode === 'expanded' ? 'Expanded K/V follows the repository reference cache.' : 'Compressed latent assumes an optimized MLA engine.'} Only full-attention layers scale with context; fixed linear-attention state is covered by the runtime allowance.`
-                  : 'Hybrid architectures count only full-attention layers toward context-scaled KV cache. Fixed linear-attention state is covered by the runtime allowance.'}</p>
+                <p className="estimate-note"><Info size={15} /> {estimate.isLowerBound
+                  ? 'This lower bound includes published weights and modeled attention cache. Architecture-specific KDA, linear, recurrent, or SSM state remains engine-dependent and is not included in the fit claim.'
+                  : model.spec.kvCache?.kind === 'mla'
+                    ? `${mlaCacheMode === 'expanded' ? 'Expanded K/V follows the repository reference cache.' : 'Compressed latent assumes an optimized MLA engine.'} Only full-attention layers scale with context.`
+                    : 'KV cache follows the published full-attention geometry.'}</p>
               </div>
             </div>
           </section>
@@ -586,10 +600,10 @@ export default function ModelDetailPage({ route }: Props) {
                   <span>WHAT THIS COUNTS</span>
                   <p>{resourceEstimate.description}</p>
                 </div>
-                {resourceEstimate.baseModelId && <div className="resource-base">DECLARED BASE / {resourceEstimate.baseModelId}</div>}
+                {resourceEstimate.baseModelId && <div className="resource-base">DECLARED {resourceEstimate.kind === 'speculative-draft' ? 'TARGET' : 'BASE'} / {resourceEstimate.baseModelId}</div>}
               </div>
               <div className="result-panel detail-result resource-result">
-                <div className="result-topline"><span>ESTIMATED STATIC VRAM</span><span>NO KV CACHE</span></div>
+                <div className="result-topline"><span>{resourceEstimate.kind === 'speculative-draft' ? 'TARGET + DRAFT WEIGHTS' : 'ESTIMATED STATIC VRAM'}</span><span>{resourceEstimate.kind === 'speculative-draft' ? 'CACHE + RUNTIME EXCLUDED' : 'NO KV CACHE'}</span></div>
                 <div className="resource-total">{formatBytes(resourceTotalBytes)}</div>
                 <div className="breakdown-list">
                   {selectedResourceOption.components.map((component) => (
@@ -619,6 +633,12 @@ export default function ModelDetailPage({ route }: Props) {
           <div className="architecture-grid">
             <div><span>ARCHITECTURE</span><strong>{model.architecture ?? 'Not published'}</strong></div>
             <div><span>MODEL TYPE</span><strong>{model.modelType ?? 'Not published'}</strong></div>
+            {model.moe && <div><span>MOE ROUTING</span><strong>{model.moe.routedExperts
+              ? `${model.moe.routedExperts} ROUTED${model.moe.sharedExperts ? ` + ${model.moe.sharedExperts} SHARED` : ''} / ${model.moe.expertsPerToken ?? '—'} ACTIVE`
+              : `${model.moe.totalExperts ?? '—'} TOTAL / ${model.moe.expertsPerToken ?? '—'} ACTIVE`}</strong></div>}
+            {model.attentionProfile?.stateKind && <div><span>STATEFUL LAYERS</span><strong>{model.attentionProfile.stateKind.toUpperCase()} / {model.attentionProfile.kdaLayers + model.attentionProfile.linearLayers + model.attentionProfile.recurrentLayers + model.attentionProfile.ssmLayers} STATE LAYERS</strong></div>}
+            {model.attentionProfile?.slidingLayers > 0 && <div><span>SLIDING ATTENTION</span><strong>{model.attentionProfile.slidingLayers} LAYERS / {model.attentionProfile.slidingWindow ? formatContext(model.attentionProfile.slidingWindow) : 'RUNTIME WINDOW'}</strong></div>}
+            {model.speculative?.targetModelId && <div><span>SPECULATIVE TARGET</span><strong>{model.speculative.targetModelId}</strong></div>}
             {model.spec && <>
               <div><span>Full attention layers</span><strong>{fullAttentionLayers !== null && layers ? `${fullAttentionLayers} / ${layers}` : '—'}</strong></div>
               <div><span>{model.spec.kvCache?.kind === 'mla' ? 'ATTENTION CACHE' : 'KV HEADS / HEAD DIM'}</span><strong>{model.spec.kvCache?.kind === 'mla' ? 'MLA / ENGINE-DEPENDENT' : `${model.spec.kvHeads} / ${model.spec.headDim}`}</strong></div>

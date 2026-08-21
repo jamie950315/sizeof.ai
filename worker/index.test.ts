@@ -19,8 +19,35 @@ describe('Hugging Face model API', () => {
       new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2&random=uncached'),
     )
 
-    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v22')
+    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v24')
     expect([...new URL(key.url).searchParams.keys()]).toEqual(['__sizeof_cache'])
+  })
+
+  it('does not offer speculative draft repositories as ordinary community quantizations', () => {
+    expect(selectCommunityRepositories([
+      {
+        id: 'z-lab/Qwen3.8-27B-DFlash2-GGUF', author: 'z-lab', sha: 'a'.repeat(40),
+        tags: ['gguf', 'draft-model', 'speculative-decoding', 'base_model:quantized:Qwen/Qwen3.8-27B'],
+      },
+      {
+        id: 'unsloth/Qwen3.8-27B-DFlash2-GGUF', author: 'unsloth', sha: 'b'.repeat(40),
+        tags: ['gguf', 'draft-model', 'speculative-decoding', 'base_model:quantized:Qwen/Qwen3.8-27B'],
+      },
+    ], 'Qwen/Qwen3.8-27B')).toEqual([])
+  })
+
+  it('does not exclude a normal quantization only because its repository name contains Eagle', () => {
+    expect(selectCommunityRepositories([{
+      id: 'unsloth/Eagle-7B-GGUF', author: 'unsloth', sha: 'a'.repeat(40),
+      tags: ['gguf', 'base_model:quantized:Example/Eagle-7B'], siblings: [],
+    }], 'Example/Eagle-7B')).toHaveLength(1)
+  })
+
+  it('excludes a DFlash repository token even when draft tags are missing', () => {
+    expect(selectCommunityRepositories([{
+      id: 'unsloth/Qwen-DFlash-GGUF', author: 'unsloth', sha: 'a'.repeat(40),
+      tags: ['gguf', 'base_model:quantized:Qwen/Qwen-Target'], siblings: [],
+    }], 'Qwen/Qwen-Target')).toEqual([])
   })
 
   it('prioritizes a verified unsloth quantization over other community derivatives', () => {
@@ -159,7 +186,7 @@ describe('Hugging Face model API', () => {
 
     expect(response.status).toBe(200)
     expect(body.id).toBe('Qwen/Qwen3.8-27B')
-    expect(body.spec.attentionLayers).toBe(1)
+    expect(body.spec.attentionLayers).toBe(32)
     expect(fetcher).toHaveBeenNthCalledWith(
       1,
       expect.stringContaining('https://huggingface.co/api/models/Qwen/Qwen3.8-27B?'),
@@ -593,6 +620,169 @@ describe('Hugging Face model API', () => {
       baseModelId: 'Qwen/Qwen3.8-27B',
       parametersB: 0.460730096,
       sizeBytes: 503_316_480,
+    })
+  })
+
+  it('pairs a DFlash draft with verified target weights without inventing target runtime memory', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/z-lab/Qwen3.6-35B-A3B-DFlash/tree/draft123')) {
+        return Response.json([{ type: 'file', path: 'model.safetensors', size: 771_812_352 }])
+      }
+      if (url.includes('/api/models/z-lab/Qwen3.6-35B-A3B-DFlash')) {
+        return Response.json({
+          id: 'z-lab/Qwen3.6-35B-A3B-DFlash', author: 'z-lab', sha: 'draft123',
+          pipeline_tag: 'text-generation',
+          tags: [
+            'safetensors', 'dflash', 'draft-model', 'speculative-decoding-draft',
+            'base_model:Qwen/Qwen3.6-35B-A3B',
+            'base_model:finetune:Qwen/Qwen3.6-35B-A3B',
+          ],
+          safetensors: { total: 385_906_176, parameters: { BF16: 385_906_176 } },
+        })
+      }
+      if (url.includes('/z-lab/Qwen3.6-35B-A3B-DFlash/resolve/draft123/config.json')) {
+        return Response.json({
+          architectures: ['DFlashDraftModel'], model_type: 'qwen3',
+          dflash_config: { block_size: 16 }, num_hidden_layers: 6,
+          num_attention_heads: 32, num_key_value_heads: 8, head_dim: 128,
+          max_position_embeddings: 262144, sliding_window: 4096,
+          layer_types: ['sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention'],
+        })
+      }
+      if (url.includes('/api/models/Qwen/Qwen3.6-35B-A3B')) {
+        return Response.json({
+          id: 'Qwen/Qwen3.6-35B-A3B', sha: 'target456',
+          safetensors: { total: 35_951_822_704, parameters: { BF16: 35_951_822_704 } },
+        })
+      }
+      throw new Error(`Unexpected DFlash fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/z-lab/Qwen3.6-35B-A3B-DFlash'),
+      fetcher,
+    )
+    const body = await response.json() as {
+      modelKind: string
+      spec: unknown
+      speculative: { family: string; targetModelId: string }
+      resourceEstimate: {
+        kind: string
+        baseModelId: string
+        options: Array<{ components: Array<{ id: string; sizeBytes: number }> }>
+      }
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.modelKind).toBe('speculative-draft')
+    expect(body.spec).toBeNull()
+    expect(body.speculative).toMatchObject({ family: 'dflash', targetModelId: 'Qwen/Qwen3.6-35B-A3B' })
+    expect(body.resourceEstimate).toMatchObject({
+      kind: 'speculative-draft',
+      baseModelId: 'Qwen/Qwen3.6-35B-A3B',
+      options: [{
+        components: [
+          { id: 'target-weights', sizeBytes: 71_903_645_408 },
+          { id: 'draft-weights', sizeBytes: 771_812_352 },
+        ],
+      }],
+    })
+  })
+
+  it('uses the canonical target id when declared target casing differs', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/z-lab/Draft/tree/draft123')) return Response.json([])
+      if (url.includes('/api/models/z-lab/Draft')) return Response.json({
+        id: 'z-lab/Draft', sha: 'draft123', pipeline_tag: 'text-generation',
+        tags: ['dflash', 'draft-model', 'base_model:qwen/qwen-target'],
+        safetensors: { parameters: { BF16: 100_000_000 }, total: 100_000_000 },
+      })
+      if (url.includes('/z-lab/Draft/resolve/draft123/config.json')) return Response.json({
+        architectures: ['DFlashDraftModel'], dflash_config: { block_size: 8 },
+      })
+      if (url.toLowerCase().includes('/api/models/qwen/qwen-target')) return Response.json({
+        id: 'Qwen/Qwen-Target', sha: 'target456',
+        safetensors: { parameters: { BF16: 7_000_000_000 }, total: 7_000_000_000 },
+      })
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(new Request('https://sizeof.ai/api/models/z-lab/Draft'), fetcher)
+    const body = await response.json() as {
+      speculative: { targetModelId: string }
+      resourceEstimate: { baseModelId: string } | null
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.speculative.targetModelId).toBe('Qwen/Qwen-Target')
+    expect(body.resourceEstimate?.baseModelId).toBe('Qwen/Qwen-Target')
+  })
+
+  it('falls back to draft-only weights when the optional target lookup fails', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/z-lab/Draft/tree/draft123')) return Response.json([])
+      if (url.includes('/api/models/z-lab/Draft')) return Response.json({
+        id: 'z-lab/Draft', sha: 'draft123', pipeline_tag: 'text-generation',
+        tags: ['dflash', 'draft-model', 'base_model:Qwen/Qwen-Target'],
+        safetensors: { parameters: { BF16: 100_000_000 }, total: 100_000_000 },
+      })
+      if (url.includes('/z-lab/Draft/resolve/draft123/config.json')) return Response.json({
+        architectures: ['DFlashDraftModel'], dflash_config: { block_size: 8 },
+      })
+      if (url.includes('/api/models/Qwen/Qwen-Target')) throw new Error('target unavailable')
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(new Request('https://sizeof.ai/api/models/z-lab/Draft'), fetcher)
+    const body = await response.json() as {
+      modelKind: string
+      resourceEstimate: { kind: string; options: Array<{ components: Array<{ id: string }> }> } | null
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.modelKind).toBe('speculative-draft')
+    expect(body.resourceEstimate).toMatchObject({
+      kind: 'speculative-draft',
+      options: [{ components: [{ id: 'draft-weights' }] }],
+    })
+  })
+
+  it('uses revision-locked target safetensor artifact sizes when dtype counts are unavailable', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/z-lab/Draft/tree/draft123')) return Response.json([])
+      if (url.includes('/api/models/z-lab/Draft')) return Response.json({
+        id: 'z-lab/Draft', sha: 'draft123', pipeline_tag: 'text-generation',
+        tags: ['dflash', 'draft-model', 'base_model:Qwen/Qwen-Target'],
+        safetensors: { parameters: { BF16: 100_000_000 }, total: 100_000_000 },
+      })
+      if (url.includes('/z-lab/Draft/resolve/draft123/config.json')) return Response.json({
+        architectures: ['DFlashDraftModel'], dflash_config: { block_size: 8 },
+      })
+      if (url.includes('/api/models/Qwen/Qwen-Target/tree/target456')) return Response.json([
+        { type: 'file', path: 'model-00001-of-00002.safetensors', size: 4_000_000_000 },
+        { type: 'file', path: 'model-00002-of-00002.safetensors', size: 3_500_000_000 },
+        { type: 'file', path: 'model.safetensors.index.json', size: 10_000 },
+      ])
+      if (url.includes('/api/models/Qwen/Qwen-Target')) return Response.json({
+        id: 'Qwen/Qwen-Target', sha: 'target456', tags: ['safetensors'],
+        safetensors: { total: 7_000_000_000 },
+      })
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(new Request('https://sizeof.ai/api/models/z-lab/Draft'), fetcher)
+    const body = await response.json() as {
+      resourceEstimate: { options: Array<{ components: Array<{ id: string; sizeBytes: number }> }> } | null
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.resourceEstimate?.options[0]?.components[0]).toEqual({
+      id: 'target-weights', label: 'Target model weights',
+      repositoryId: 'Qwen/Qwen-Target', sizeBytes: 7_500_000_000,
     })
   })
 

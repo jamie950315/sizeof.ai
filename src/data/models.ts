@@ -9,6 +9,19 @@ export type KvCacheLayout =
       ropeDim: number
     }
 
+export type EstimateConfidence = 'safe' | 'runtime-specific' | 'weights-only'
+
+export interface AttentionProfile {
+  fullLayers: number
+  slidingLayers: number
+  linearLayers: number
+  kdaLayers: number
+  recurrentLayers: number
+  ssmLayers: number
+  slidingWindow: number | null
+  stateKind: 'kda' | 'linear' | 'mamba' | 'recurrent' | null
+}
+
 interface ModelSpecBase {
   id: string
   name: string
@@ -17,6 +30,8 @@ interface ModelSpecBase {
   parametersB: number
   layers: number
   attentionLayers?: number
+  attentionProfile?: AttentionProfile
+  estimateConfidence?: EstimateConfidence
   maxContext: number
   releaseYear: number
   strengths: string[]

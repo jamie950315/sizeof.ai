@@ -113,6 +113,8 @@ describe('normalizeHuggingFaceModel', () => {
           linear_attn_config: {
             full_attn_layers: [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48,
               52, 56, 60, 64, 68, 72, 76, 80, 84, 88, 92, 93],
+            kda_layers: Array.from({ length: 92 }, (_, index) => index + 1)
+              .filter((index) => index % 4 !== 0),
           },
         },
       },
@@ -137,6 +139,313 @@ describe('normalizeHuggingFaceModel', () => {
       maxContext: 1_048_576,
       quantizationFormat: 'mxfp4-pack-quantized',
       license: 'kimi-k3',
+      estimateConfidence: 'runtime-specific',
+      attentionProfile: {
+        fullLayers: 24,
+        slidingLayers: 0,
+        linearLayers: 0,
+        kdaLayers: 69,
+        recurrentLayers: 0,
+        ssmLayers: 0,
+        slidingWindow: null,
+        stateKind: 'kda',
+      },
+    })
+  })
+
+  it('keeps MoE routing facts separate from resident total parameters', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        ...metadata,
+        id: 'Qwen/Qwen3.6-35B-A3B',
+        safetensors: { total: 35_951_822_704, parameters: { BF16: 35_951_822_704 } },
+      },
+      {
+        architectures: ['Qwen3_5MoeForConditionalGeneration'],
+        model_type: 'qwen3_5_moe',
+        text_config: {
+          num_hidden_layers: 40,
+          num_attention_heads: 16,
+          num_key_value_heads: 2,
+          head_dim: 256,
+          max_position_embeddings: 262144,
+          num_experts: 256,
+          num_experts_per_tok: 8,
+          layer_types: Array.from({ length: 40 }, (_, index) => index % 4 === 3
+            ? 'full_attention'
+            : 'linear_attention'),
+        },
+      },
+    )
+
+    expect(model.parametersB).toBeCloseTo(35.9518, 4)
+    expect(model.spec?.parametersB).toBeCloseTo(35.9518, 4)
+    expect(model.moe).toEqual({
+      totalExperts: 256,
+      routedExperts: null,
+      sharedExperts: null,
+      expertsPerToken: 8,
+      activeParametersB: 3,
+      denseLayers: null,
+    })
+  })
+
+  it('models mixed full and sliding attention with a runtime-specific cache window', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        ...metadata,
+        id: 'openai/gpt-oss-20b',
+        pipeline_tag: 'text-generation',
+        safetensors: { total: 21_512_000_000 },
+      },
+      {
+        architectures: ['GptOssForCausalLM'],
+        model_type: 'gpt_oss',
+        num_hidden_layers: 24,
+        num_attention_heads: 64,
+        num_key_value_heads: 8,
+        head_dim: 64,
+        max_position_embeddings: 131072,
+        sliding_window: 128,
+        layer_types: Array.from({ length: 24 }, (_, index) => index % 2
+          ? 'full_attention'
+          : 'sliding_attention'),
+        num_local_experts: 32,
+        num_experts_per_tok: 4,
+      },
+    )
+
+    expect(model).toMatchObject({
+      estimateConfidence: 'runtime-specific',
+      attentionProfile: {
+        fullLayers: 12,
+        slidingLayers: 12,
+        linearLayers: 0,
+        slidingWindow: 128,
+      },
+      moe: { totalExperts: 32, expertsPerToken: 4 },
+    })
+    expect(model.spec?.attentionProfile).toMatchObject({ fullLayers: 12, slidingLayers: 12, slidingWindow: 128 })
+    expect(model.moe?.activeParametersB).toBe(3.6)
+  })
+
+  it('detects config-declared integrated MTP even when the repository name omits MTP', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        ...metadata,
+        id: 'deepseek-ai/DeepSeek-V3',
+        pipeline_tag: 'text-generation',
+        safetensors: { total: 685_000_000_000 },
+      },
+      {
+        architectures: ['DeepseekV3ForCausalLM'], model_type: 'deepseek_v3',
+        num_hidden_layers: 61, num_attention_heads: 128, num_key_value_heads: 128,
+        hidden_size: 7168, max_position_embeddings: 163840,
+        n_routed_experts: 256, n_shared_experts: 1, num_experts_per_tok: 8,
+        first_k_dense_replace: 3, num_nextn_predict_layers: 1,
+      },
+    )
+
+    expect(model.speculative).toEqual({
+      family: 'mtp', relation: 'integrated',
+      targetModelId: 'deepseek-ai/DeepSeek-V3', blockSize: null,
+    })
+    expect(model.moe).toMatchObject({
+      routedExperts: 256, sharedExperts: 1, expertsPerToken: 8,
+      activeParametersB: 37, denseLayers: 3,
+    })
+  })
+
+  it('recognizes DFlash as a separate speculative draft with a declared target', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        ...metadata,
+        id: 'z-lab/Qwen3.6-35B-A3B-DFlash',
+        pipeline_tag: 'text-generation',
+        tags: [
+          'transformers', 'safetensors', 'feature-extraction', 'dflash',
+          'speculative-decoding-draft', 'draft-model',
+          'base_model:Qwen/Qwen3.6-35B-A3B',
+          'base_model:finetune:Qwen/Qwen3.6-35B-A3B',
+        ],
+        safetensors: { total: 385_906_176, parameters: { BF16: 385_906_176 } },
+      },
+      {
+        architectures: ['DFlashDraftModel'],
+        model_type: 'qwen3',
+        dflash_config: { block_size: 16 },
+        num_hidden_layers: 6,
+        num_attention_heads: 32,
+        num_key_value_heads: 8,
+        head_dim: 128,
+        max_position_embeddings: 262144,
+        sliding_window: 4096,
+        layer_types: ['sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention'],
+      },
+    )
+
+    expect(model).toMatchObject({
+      modelKind: 'speculative-draft',
+      componentKind: 'draft',
+      estimateReason: 'speculative-draft',
+      spec: null,
+      speculative: {
+        family: 'dflash',
+        relation: 'separate-model',
+        targetModelId: 'Qwen/Qwen3.6-35B-A3B',
+        blockSize: 16,
+      },
+    })
+  })
+
+  it('does not classify an ordinary Eagle causal language model as a speculative draft', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        ...metadata,
+        id: 'Example/Eagle-7B', pipeline_tag: 'text-generation',
+        tags: ['transformers', 'safetensors', 'base_model:Qwen/Qwen-Target'],
+        safetensors: { total: 7_000_000_000, parameters: { BF16: 7_000_000_000 } },
+      },
+      {
+        architectures: ['EagleForCausalLM'], model_type: 'eagle',
+        num_hidden_layers: 32, num_attention_heads: 32, num_key_value_heads: 8,
+        hidden_size: 4096, max_position_embeddings: 32768,
+      },
+    )
+
+    expect(model.modelKind).toBe('language')
+    expect(model.speculative).toBeNull()
+  })
+
+  it('recognizes a config-only DFlash draft without relying on its repository name', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        ...metadata,
+        id: 'Example/Qwen-Draft', pipeline_tag: 'text-generation',
+        tags: ['transformers', 'safetensors', 'base_model:Qwen/Qwen3.6-35B-A3B'],
+      },
+      {
+        architectures: ['QwenForCausalLM'], model_type: 'qwen3',
+        dflash_config: { block_size: 16 },
+        num_hidden_layers: 6, num_attention_heads: 32, num_key_value_heads: 8,
+        head_dim: 128, max_position_embeddings: 262144,
+      },
+    )
+
+    expect(model.modelKind).toBe('speculative-draft')
+    expect(model.speculative).toMatchObject({
+      family: 'dflash', relation: 'separate-model',
+      targetModelId: 'Qwen/Qwen3.6-35B-A3B', blockSize: 16,
+    })
+  })
+
+  it('expands a short layer type pattern across every declared layer', () => {
+    const model = normalizeHuggingFaceModel(metadata, {
+      architectures: ['ExampleForCausalLM'], model_type: 'example',
+      num_hidden_layers: 8, num_attention_heads: 8, num_key_value_heads: 2,
+      hidden_size: 1024, max_position_embeddings: 32768, sliding_window: 4096,
+      layer_types: ['sliding_attention', 'full_attention'],
+    })
+
+    expect(model.attentionProfile).toMatchObject({ fullLayers: 4, slidingLayers: 4 })
+    expect(model.attentionLayers).toBe(4)
+  })
+
+  it('ignores layer type entries beyond the declared layer count', () => {
+    const model = normalizeHuggingFaceModel(metadata, {
+      architectures: ['ExampleForCausalLM'], model_type: 'example',
+      num_hidden_layers: 2, num_attention_heads: 8, num_key_value_heads: 2,
+      hidden_size: 1024, max_position_embeddings: 32768,
+      layer_types: ['full_attention', 'linear_attention', 'full_attention'],
+    })
+
+    expect(model.attentionProfile).toMatchObject({ fullLayers: 1, linearLayers: 1 })
+  })
+
+  it('treats full_attention block types as full-cache layers', () => {
+    const model = normalizeHuggingFaceModel(metadata, {
+      architectures: ['ExampleForCausalLM'], model_type: 'example',
+      num_hidden_layers: 6, num_attention_heads: 8, num_key_value_heads: 2,
+      hidden_size: 1024, max_position_embeddings: 32768,
+      block_types: ['full_attention', 'recurrent'],
+    })
+
+    expect(model.attentionProfile).toMatchObject({ fullLayers: 3, slidingLayers: 0, recurrentLayers: 3 })
+  })
+
+  it('honors a zero full-attention layer offset', () => {
+    const model = normalizeHuggingFaceModel(metadata, {
+      architectures: ['JambaForCausalLM'], model_type: 'jamba',
+      num_hidden_layers: 32, num_attention_heads: 32, num_key_value_heads: 8,
+      hidden_size: 4096, max_position_embeddings: 262144,
+      attn_layer_period: 8, attn_layer_offset: 0, mamba_d_state: 16,
+    })
+
+    expect(model.attentionProfile).toMatchObject({ fullLayers: 4, ssmLayers: 28 })
+  })
+
+  it('marks full-model MTP repositories as integrated speculative models', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        ...metadata,
+        id: 'unsloth/Qwen3.5-9B-MTP-GGUF',
+        tags: ['transformers', 'gguf', 'base_model:Qwen/Qwen3.5-9B', 'base_model:quantized:Qwen/Qwen3.5-9B'],
+        gguf: { total: 9_197_093_888, context_length: 262144, architecture: 'qwen35' },
+      },
+      hybridConfig,
+    )
+
+    expect(model.speculative).toEqual({
+      family: 'mtp',
+      relation: 'integrated',
+      targetModelId: 'Qwen/Qwen3.5-9B',
+      blockSize: null,
+    })
+  })
+
+  it('recognizes Jamba recurrent state and avoids presenting its partial cache as safe', () => {
+    const model = normalizeHuggingFaceModel(
+      { ...metadata, id: 'ai21labs/Jamba-v0.1', pipeline_tag: 'text-generation' },
+      {
+        architectures: ['JambaForCausalLM'], model_type: 'jamba', num_hidden_layers: 32,
+        num_attention_heads: 32, num_key_value_heads: 8, hidden_size: 4096,
+        max_position_embeddings: 262144, attn_layer_period: 8, attn_layer_offset: 4,
+        mamba_d_state: 16, mamba_d_conv: 4,
+      },
+    )
+
+    expect(model).toMatchObject({
+      estimateConfidence: 'runtime-specific',
+      attentionLayers: 4,
+      attentionProfile: {
+        fullLayers: 4,
+        ssmLayers: 28,
+        stateKind: 'mamba',
+      },
+    })
+  })
+
+  it('keeps pure Mamba models as stateful published weights instead of applying a KV formula', () => {
+    const model = normalizeHuggingFaceModel(
+      {
+        ...metadata,
+        id: 'state-spaces/mamba-130m-hf',
+        pipeline_tag: 'text-generation',
+        safetensors: { parameters: { BF16: 130_000_000 }, total: 130_000_000 },
+      },
+      {
+        architectures: ['MambaForCausalLM'], model_type: 'mamba', num_hidden_layers: 24,
+        hidden_size: 768, state_size: 16, conv_kernel: 4,
+      },
+    )
+
+    expect(model).toMatchObject({
+      modelKind: 'language',
+      estimateReason: 'stateful-runtime',
+      estimateConfidence: 'weights-only',
+      spec: null,
+      attentionProfile: { ssmLayers: 24, stateKind: 'mamba' },
+      resourceEstimate: { kind: 'model-weights' },
     })
   })
 

@@ -42,7 +42,9 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-20: Model weights now gain a dedicated progressive red tint only after VRAM capacity is exceeded, while safe usage retains the original acid-green color.
 - 2026-08-21: Model-weight bars and their breakdown swatches now use the same warning and offload overlay stack, producing pixel-identical colors in safe and over-capacity states.
 - 2026-08-22: Homepage examples now track current popular Hugging Face text-output models with only estimator-safe cache layouts. Qwen3.8-27B is the default demonstration as the current Base-only trending leader below 40B; hybrid and local/sliding cache exclusions are disclosed in the methodology.
-- Cloudflare production version: `5c92f828-4a76-49cb-b259-62d4a62435e7` (deployed 2026-08-22).
+- 2026-08-22: Frontier architecture support now separates MoE total and active parameters, identifies integrated and sidecar MTP, models DFlash/EAGLE draft pair static weights, and exposes full/sliding/linear/KDA/recurrent/SSM topology without presenting runtime-specific state as a safe fit estimate.
+- 2026-08-22: Speculative target lookups use canonical Hugging Face ids and revision-locked artifact sizes, degrade safely to draft-only profiles, and remain excluded from ordinary community quantization discovery. Public API cache namespace is `hf-model-v24`.
+- Cloudflare production version: `09f603a6-cb1f-44d5-afa3-6beb7bb25d60` (deployed 2026-08-22).
 
 ## Commands
 
