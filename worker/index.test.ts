@@ -83,6 +83,7 @@ describe('Hugging Face model API', () => {
       expect(response.status).toBe(200)
       await expect(response.json()).resolves.toEqual({
         query: 'QWEN',
+        nextCursor: null,
         models: [{
           id: 'Qwen/Qwen3.8-27B',
           owner: 'Qwen',
@@ -102,6 +103,135 @@ describe('Hugging Face model API', () => {
       expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe(
         'public, max-age=600, stale-while-revalidate=3600',
       )
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('prioritizes exact repositories, exact names, and matching authors', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([
+      { id: 'Community/QWEN-extra', downloads: 900, trendingScore: 90, private: false },
+      { id: 'Qwen/QWEN-extra', downloads: 100, trendingScore: 10, private: false },
+      { id: 'Community/QWEN', downloads: 500, trendingScore: 50, private: false },
+      { id: 'QWEN/QWEN', downloads: 1, trendingScore: 1, private: false },
+    ]))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/search/models?q=QWEN'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        ctx,
+      )
+      const body = await response.json() as { models: Array<{ id: string }> }
+
+      expect(body.models.map((model) => model.id)).toEqual([
+        'QWEN/QWEN',
+        'Community/QWEN',
+        'Qwen/QWEN-extra',
+        'Community/QWEN-extra',
+      ])
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('forwards author and model type filters and returns the next cursor', async () => {
+    const nextCursor = 'eyIkb3IiOlt7InRyZW5kaW5nU2NvcmUiOjE3fV19='
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('[]', {
+      headers: {
+        'Content-Type': 'application/json',
+        Link: `<https://huggingface.co/api/models?search=QWEN&author=Qwen&filter=text-generation&limit=12&cursor=${encodeURIComponent(nextCursor)}>; rel="next"`,
+      },
+    }))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/search/models?q=QWEN&author=Qwen&type=text-generation'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        ctx,
+      )
+
+      await expect(response.json()).resolves.toMatchObject({ nextCursor })
+      expect(fetcher).toHaveBeenCalledWith(
+        'https://huggingface.co/api/models?search=QWEN&sort=trendingScore&direction=-1&limit=12&author=Qwen&filter=text-generation',
+        { headers: { Accept: 'application/json' } },
+      )
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('matches the selected model type against pipeline_tag instead of loose tags', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([
+      { id: 'Qwen/Qwen3-8B', pipeline_tag: 'text-generation', tags: ['text-generation'], private: false },
+      {
+        id: 'Qwen/Qwen3-Embedding-8B',
+        pipeline_tag: 'feature-extraction',
+        tags: ['text-generation', 'feature-extraction'],
+        private: false,
+      },
+    ]))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/search/models?q=QWEN&type=text-generation'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        ctx,
+      )
+      const body = await response.json() as { models: Array<{ id: string }> }
+
+      expect(body.models.map((model) => model.id)).toEqual(['Qwen/Qwen3-8B'])
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('uses an opaque cursor for the next page', async () => {
+    const cursor = 'eyIkb3IiOlt7Il9pZCI6eyIkZ3QiOiJhYmMifX1dfQ=='
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([]))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      await handleWorkerRequest(
+        new Request(`https://sizeof.ai/api/search/models?q=QWEN&cursor=${encodeURIComponent(cursor)}`),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        ctx,
+      )
+
+      expect(fetcher).toHaveBeenCalledWith(
+        `https://huggingface.co/api/models?search=QWEN&sort=trendingScore&direction=-1&limit=12&cursor=${encodeURIComponent(cursor)}`,
+        { headers: { Accept: 'application/json' } },
+      )
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it.each([
+    ['type', 'not-a-real-task'],
+    ['author', 'invalid author!'],
+    ['cursor', 'not a cursor'],
+  ])('rejects an invalid %s filter without contacting Hugging Face', async (key, value) => {
+    const fetcher = vi.spyOn(globalThis, 'fetch')
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request(`https://sizeof.ai/api/search/models?q=QWEN&${key}=${encodeURIComponent(value)}`),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        ctx,
+      )
+
+      expect(response.status).toBe(400)
+      expect(fetcher).not.toHaveBeenCalled()
     } finally {
       fetcher.mockRestore()
     }
@@ -155,6 +285,29 @@ describe('Hugging Face model API', () => {
 
       expect(body.models).toHaveLength(12)
       expect(body.models.at(-1)?.id).toBe('Org/Model-12')
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('only exposes search models explicitly marked public', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([
+      { id: 'Org/Public', private: false },
+      { id: 'Org/Private', private: true },
+      { id: 'Org/Unknown' },
+    ]))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/search/models?q=Org'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache, HF_TOKEN: 'hf_test_token' },
+        ctx,
+      )
+      const body = await response.json() as { models: Array<{ id: string }> }
+
+      expect(body.models.map((model) => model.id)).toEqual(['Org/Public'])
     } finally {
       fetcher.mockRestore()
     }

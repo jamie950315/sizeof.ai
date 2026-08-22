@@ -189,10 +189,20 @@ describe('sizeof.ai app', () => {
     fetcher.mockRestore()
   })
 
+  it('places model search prominently in the hero and keeps the curated index separate', () => {
+    render(<App />)
+
+    const searchRegion = screen.getByRole('region', { name: 'Hugging Face model search' })
+    expect(searchRegion).toContainElement(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }))
+    expect(searchRegion.closest('.hero')).not.toBeNull()
+    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B')).toBeInTheDocument()
+  })
+
   it('searches on Enter and links each result to its sizeof.ai model page', async () => {
     const user = userEvent.setup()
     const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
       query: 'QWEN',
+      nextCursor: null,
       models: [{
         id: 'Qwen/Qwen3.8-27B', owner: 'Qwen', name: 'Qwen3.8-27B',
         downloads: 2_090_699, likes: 12_025, task: 'image-text-to-text',
@@ -208,6 +218,96 @@ describe('sizeof.ai app', () => {
       'href',
       '/Qwen/Qwen3.8-27B',
     )
+    fetcher.mockRestore()
+  })
+
+  it('submits model type and author filters only after Search is pressed', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+      query: 'QWEN', nextCursor: null, models: [],
+    }))
+    render(<App />)
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN')
+    await user.type(screen.getByRole('textbox', { name: 'Filter by author' }), 'Qwen')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by model type' }), 'text-generation')
+    expect(fetcher).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Search Hugging Face' }))
+
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN&author=Qwen&type=text-generation')
+    fetcher.mockRestore()
+  })
+
+  it('loads another page, appends new models, and removes duplicate ids', async () => {
+    const user = userEvent.setup()
+    const first = {
+      id: 'Qwen/Qwen3.8-27B', owner: 'Qwen', name: 'Qwen3.8-27B',
+      downloads: 100, likes: 10, task: 'text-generation', trendingScore: 20, gated: false,
+    }
+    const second = {
+      id: 'Qwen/Qwen3.8-9B', owner: 'Qwen', name: 'Qwen3.8-9B',
+      downloads: 90, likes: 9, task: 'text-generation', trendingScore: 19, gated: false,
+    }
+    const fetcher = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(Response.json({ query: 'QWEN', nextCursor: 'next-page==', models: [first] }))
+      .mockResolvedValueOnce(Response.json({ query: 'QWEN', nextCursor: null, models: [first, second] }))
+    render(<App />)
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN{enter}')
+    await user.click(await screen.findByRole('button', { name: 'Load more models' }))
+
+    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/search/models?q=QWEN&cursor=next-page%3D%3D')
+    expect(await screen.findByRole('link', { name: 'Open Qwen/Qwen3.8-9B' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Open Qwen/Qwen3.8-27B' })).toHaveLength(1)
+    fetcher.mockRestore()
+  })
+
+  it('reorders loaded pages so later exact and official matches move first', async () => {
+    const user = userEvent.setup()
+    const generic = {
+      id: 'Community/QWEN-extra', owner: 'Community', name: 'QWEN-extra',
+      downloads: 1000, likes: 100, task: 'text-generation', trendingScore: 100, gated: false,
+    }
+    const exact = {
+      id: 'QWEN/QWEN', owner: 'QWEN', name: 'QWEN',
+      downloads: 1, likes: 1, task: 'text-generation', trendingScore: 1, gated: false,
+    }
+    const fetcher = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(Response.json({ query: 'QWEN', nextCursor: 'next-page==', models: [generic] }))
+      .mockResolvedValueOnce(Response.json({ query: 'QWEN', nextCursor: null, models: [exact] }))
+    render(<App />)
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN{enter}')
+    await user.click(await screen.findByRole('button', { name: 'Load more models' }))
+
+    const resultRegion = screen.getByRole('region', { name: 'Hugging Face search results' })
+    const openLinks = within(resultRegion).getAllByRole('link', { name: /^Open / })
+    expect(openLinks.map((link) => link.getAttribute('aria-label'))).toEqual([
+      'Open QWEN/QWEN',
+      'Open Community/QWEN-extra',
+    ])
+    fetcher.mockRestore()
+  })
+
+  it('blocks a new search while another page is loading', async () => {
+    const user = userEvent.setup()
+    let finishPage: ((response: Response) => void) | undefined
+    const pendingPage = new Promise<Response>((resolve) => { finishPage = resolve })
+    const fetcher = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(Response.json({ query: 'QWEN', nextCursor: 'next-page==', models: [] }))
+      .mockReturnValueOnce(pendingPage)
+    render(<App />)
+
+    const searchbox = screen.getByRole('searchbox', { name: 'Search Hugging Face models' })
+    await user.type(searchbox, 'QWEN{enter}')
+    await user.click(await screen.findByRole('button', { name: 'Load more models' }))
+    expect(screen.getByRole('button', { name: 'Search Hugging Face' })).toBeDisabled()
+    await user.clear(searchbox)
+    await user.type(searchbox, 'LLAMA{enter}')
+    expect(fetcher).toHaveBeenCalledTimes(2)
+
+    finishPage?.(Response.json({ query: 'QWEN', nextCursor: null, models: [] }))
     fetcher.mockRestore()
   })
 

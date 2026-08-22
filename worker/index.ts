@@ -409,6 +409,54 @@ function isPrivateModelMetadata(value: unknown) {
     && 'private' in value && value.private === true
 }
 
+const SEARCH_MODEL_TYPES = new Set([
+  'text-generation',
+  'image-text-to-text',
+  'text-to-image',
+  'text-to-video',
+  'automatic-speech-recognition',
+  'text-to-audio',
+  'feature-extraction',
+  'sentence-similarity',
+])
+
+function isValidSearchAuthor(value: string) {
+  return value.length <= 96 && /^[a-z0-9][a-z0-9._-]*$/i.test(value)
+}
+
+function isValidSearchCursor(value: string) {
+  return value.length <= 4096 && /^[a-z0-9+/_=-]+$/i.test(value)
+}
+
+function getNextSearchCursor(linkHeader: string | null) {
+  if (!linkHeader) return null
+  const match = linkHeader.match(/<([^>]+)>\s*;\s*rel="?next"?/i)
+  if (!match?.[1]) return null
+  try {
+    const nextUrl = new URL(match[1])
+    const cursor = nextUrl.hostname === 'huggingface.co' && nextUrl.pathname === '/api/models'
+      ? nextUrl.searchParams.get('cursor')
+      : null
+    return cursor && isValidSearchCursor(cursor) ? cursor : null
+  } catch {
+    return null
+  }
+}
+
+function searchMatchRank(id: string, query: string) {
+  const normalizedId = id.toLocaleLowerCase('en')
+  const normalizedQuery = query.toLocaleLowerCase('en')
+  const separator = normalizedId.indexOf('/')
+  const owner = separator === -1 ? '' : normalizedId.slice(0, separator)
+  const name = separator === -1 ? normalizedId : normalizedId.slice(separator + 1)
+  if (normalizedId === normalizedQuery) return 0
+  if (name === normalizedQuery && owner === normalizedQuery) return 1
+  if (name === normalizedQuery) return 2
+  if (owner === normalizedQuery) return 3
+  if (name.startsWith(normalizedQuery)) return 4
+  return 5
+}
+
 export async function handleModelSearchApi(
   request: Request,
   fetcher: Fetcher = fetch,
@@ -416,8 +464,16 @@ export async function handleModelSearchApi(
 ): Promise<Response> {
   const url = new URL(request.url)
   const query = url.searchParams.get('q')?.trim() ?? ''
+  const author = url.searchParams.get('author')?.trim() ?? ''
+  const modelType = url.searchParams.get('type')?.trim() ?? ''
+  const cursor = url.searchParams.get('cursor')?.trim() ?? ''
   if (query.length < 2 || query.length > 80) {
     return json({ error: 'Search query must contain between 2 and 80 characters' }, 400)
+  }
+  if ((author && !isValidSearchAuthor(author))
+    || (modelType && !SEARCH_MODEL_TYPES.has(modelType))
+    || (cursor && !isValidSearchCursor(cursor))) {
+    return json({ error: 'Invalid model search filter' }, 400)
   }
 
   const upstreamUrl = new URL('https://huggingface.co/api/models')
@@ -425,6 +481,9 @@ export async function handleModelSearchApi(
   upstreamUrl.searchParams.set('sort', 'trendingScore')
   upstreamUrl.searchParams.set('direction', '-1')
   upstreamUrl.searchParams.set('limit', '12')
+  if (author) upstreamUrl.searchParams.set('author', author)
+  if (modelType) upstreamUrl.searchParams.set('filter', modelType)
+  if (cursor) upstreamUrl.searchParams.set('cursor', cursor)
 
   try {
     const response = await fetcher(upstreamUrl.toString(), {
@@ -445,7 +504,8 @@ export async function handleModelSearchApi(
     const searchModels = value.flatMap((raw) => {
       if (typeof raw !== 'object' || raw === null) return []
       const item = raw as Record<string, unknown>
-      if (typeof item.id !== 'string' || item.private === true) return []
+      if (typeof item.id !== 'string' || item.private !== false) return []
+      if (modelType && item.pipeline_tag !== modelType) return []
       const route = parseHuggingFaceModelPath(`/${item.id}`)
       if (!route || `${route.owner}/${route.repo}` !== item.id) return []
       return [{
@@ -458,9 +518,15 @@ export async function handleModelSearchApi(
         trendingScore: finiteSearchMetric(item.trendingScore),
         gated: Boolean(item.gated),
       }]
+    }).sort((left, right) => {
+      const rankDifference = searchMatchRank(left.id, query) - searchMatchRank(right.id, query)
+      if (rankDifference !== 0) return rankDifference
+      if (right.trendingScore !== left.trendingScore) return right.trendingScore - left.trendingScore
+      if (right.downloads !== left.downloads) return right.downloads - left.downloads
+      return left.id.localeCompare(right.id)
     }).slice(0, 12)
 
-    return json({ query, models: searchModels }, 200, {
+    return json({ query, models: searchModels, nextCursor: getNextSearchCursor(response.headers.get('Link')) }, 200, {
       'Cache-Control': 'public, max-age=60',
       'Cloudflare-CDN-Cache-Control': 'public, max-age=600, stale-while-revalidate=3600',
     })

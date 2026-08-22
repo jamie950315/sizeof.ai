@@ -46,9 +46,9 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-22: Speculative target lookups use canonical Hugging Face ids and revision-locked artifact sizes, degrade safely to draft-only profiles, and remain excluded from ordinary community quantization discovery.
 - 2026-08-22: Model API responses now use version-isolated Cloudflare Workers Caching with a 24-hour fresh window and seven-day stale refresh/error fallback. Browser caching remains five minutes, failed API responses are never cached, and the legacy per-data-center `hf-model-v24` Cache API layer has been removed.
 - 2026-08-22: A free-plan Workers KV model cache now sits between Workers Caching and Hugging Face. Successful model responses are retained for 30 days, refreshed after 24 hours, and may serve as stale fallback for transient failures only until the response is eight days old; missing or private models never use stale data.
-- 2026-08-22: Model Index now searches the live Hugging Face catalog only after an explicit Search click or Enter/Return submission. Results are trend-ranked, capped at 12, cached briefly at the edge, and link directly to sizeof.ai model detail pages; typing alone never sends a request and failures retain the curated catalog.
+- 2026-08-22: Homepage Hugging Face search now submits only on Search or Enter/Return, prioritizes exact and official-author matches, supports author and model-type filters, and loads cursor-paginated results in 12-model batches with cross-page deduplication and re-sorting. The built-in Model Index remains independently visible.
 - 2026-08-22: Hugging Face search and model-detail requests now authenticate with the `HF_TOKEN` Cloudflare secret. Public endpoints explicitly reject private top-level repositories and exclude private community, VAE-base, speculative-target, and quantized/adapter-base metadata from public estimates and caches.
-- Cloudflare production version: `128c9f2a-5230-4ac8-9951-cac7bb39c8ad` (deployed 2026-08-22).
+- Cloudflare production version: `5cc488cc-7910-42d5-b6ca-2aec69db5ea1` (deployed 2026-08-22).
 
 ## Commands
 
