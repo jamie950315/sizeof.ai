@@ -43,8 +43,9 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-21: Model-weight bars and their breakdown swatches now use the same warning and offload overlay stack, producing pixel-identical colors in safe and over-capacity states.
 - 2026-08-22: Homepage examples now track current popular Hugging Face text-output models with only estimator-safe cache layouts. Qwen3.8-27B is the default demonstration as the current Base-only trending leader below 40B; hybrid and local/sliding cache exclusions are disclosed in the methodology.
 - 2026-08-22: Frontier architecture support now separates MoE total and active parameters, identifies integrated and sidecar MTP, models DFlash/EAGLE draft pair static weights, and exposes full/sliding/linear/KDA/recurrent/SSM topology without presenting runtime-specific state as a safe fit estimate.
-- 2026-08-22: Speculative target lookups use canonical Hugging Face ids and revision-locked artifact sizes, degrade safely to draft-only profiles, and remain excluded from ordinary community quantization discovery. Public API cache namespace is `hf-model-v24`.
-- Cloudflare production version: `09f603a6-cb1f-44d5-afa3-6beb7bb25d60` (deployed 2026-08-22).
+- 2026-08-22: Speculative target lookups use canonical Hugging Face ids and revision-locked artifact sizes, degrade safely to draft-only profiles, and remain excluded from ordinary community quantization discovery.
+- 2026-08-22: Model API responses now use version-isolated Cloudflare Workers Caching with a one-hour fresh window and one-day stale refresh/error fallback. Browser caching remains five minutes, failed API responses are never cached, and the legacy per-data-center `hf-model-v24` Cache API layer has been removed.
+- Cloudflare production version: `9a6d9996-df67-46a5-8497-d2b6997d99bb` (deployed 2026-08-22).
 
 ## Commands
 

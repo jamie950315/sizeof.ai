@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { applyAssetCachePolicy, createModelCacheKey, handleModelApi, readGguf, selectCommunityRepositories, selectCommunityRepository } from './index'
+import { applyAssetCachePolicy, handleModelApi, readGguf, selectCommunityRepositories, selectCommunityRepository } from './index'
 
 describe('Hugging Face model API', () => {
   it('requires HTML shells to revalidate while leaving hashed assets cacheable', () => {
@@ -14,13 +14,14 @@ describe('Hugging Face model API', () => {
     expect(applyAssetCachePolicy(script)).toBe(script)
   })
 
-  it('uses an internal versioned cache key independent of the public schema query', () => {
-    const key = createModelCacheKey(
-      new Request('https://sizeof.ai/api/models/moonshotai/Kimi-K3?schema=2&random=uncached'),
+  it('prevents Workers Caching from storing API errors', async () => {
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/invalid'),
     )
 
-    expect(new URL(key.url).searchParams.get('__sizeof_cache')).toBe('hf-model-v24')
-    expect([...new URL(key.url).searchParams.keys()]).toEqual(['__sizeof_cache'])
+    expect(response.status).toBe(400)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe('no-store')
   })
 
   it('does not offer speculative draft repositories as ordinary community quantizations', () => {
@@ -185,6 +186,10 @@ describe('Hugging Face model API', () => {
     const body = await response.json() as { id: string; spec: { attentionLayers: number } }
 
     expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('public, max-age=300')
+    expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe(
+      'public, max-age=3600, stale-while-revalidate=86400, stale-if-error=86400',
+    )
     expect(body.id).toBe('Qwen/Qwen3.8-27B')
     expect(body.spec.attentionLayers).toBe(32)
     expect(fetcher).toHaveBeenNthCalledWith(

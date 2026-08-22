@@ -4,6 +4,10 @@
   "main": "./worker/index.ts",
   "compatibility_date": "2026-08-18",
   "compatibility_flags": ["nodejs_compat"],
+  "cache": {
+    "enabled": true,
+    "cross_version_cache": false
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

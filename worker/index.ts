@@ -118,13 +118,21 @@ export const readGguf: GgufReader = async (url, options) => {
 
 const responseHeaders = {
   'Content-Type': 'application/json; charset=utf-8',
-  'Cache-Control': 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400',
+  'Cache-Control': 'public, max-age=300',
+  'Cloudflare-CDN-Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400, stale-if-error=86400',
 }
 
 function json(data: unknown, status = 200, headers?: Record<string, string>) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...responseHeaders, ...headers },
+    headers: {
+      ...responseHeaders,
+      ...headers,
+      ...(status >= 200 && status < 300 ? {} : {
+        'Cache-Control': 'no-store',
+        'Cloudflare-CDN-Cache-Control': 'no-store',
+      }),
+    },
   })
 }
 
@@ -374,13 +382,6 @@ async function discoverCommunityVariants(
     }
   }))
   return discoveredByRepository.flat()
-}
-
-export function createModelCacheKey(request: Request) {
-  const url = new URL(request.url)
-  url.search = ''
-  url.searchParams.set('__sizeof_cache', 'hf-model-v24')
-  return new Request(url.toString())
 }
 
 export function applyAssetCachePolicy(response: Response) {
@@ -907,19 +908,12 @@ export async function handleModelApi(
 }
 
 export default {
-  async fetch(request, env, ctx): Promise<Response> {
+  async fetch(request, env): Promise<Response> {
     const url = new URL(request.url)
     if (!url.pathname.startsWith('/api/models/')) {
       return applyAssetCachePolicy(await env.ASSETS.fetch(request))
     }
 
-    const cache = caches.default
-    const cacheKey = createModelCacheKey(request)
-    const cached = await cache.match(cacheKey)
-    if (cached) return cached
-
-    const response = await handleModelApi(request)
-    if (response.ok) ctx.waitUntil(cache.put(cacheKey, response.clone()))
-    return response
+    return handleModelApi(request)
   },
 } satisfies ExportedHandler<Env>
