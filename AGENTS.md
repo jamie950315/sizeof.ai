@@ -48,7 +48,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-22: A free-plan Workers KV model cache now sits between Workers Caching and Hugging Face. Successful model responses are retained for 30 days, refreshed after 24 hours, and may serve as stale fallback for transient failures only until the response is eight days old; missing or private models never use stale data.
 - 2026-08-22: Homepage Hugging Face search now submits only on Search or Enter/Return, prioritizes exact and official-author matches, supports author and model-type filters, and loads cursor-paginated results in 12-model batches with cross-page deduplication and re-sorting. The built-in Model Index remains independently visible.
 - 2026-08-22: Hugging Face search and model-detail requests now authenticate with the `HF_TOKEN` Cloudflare secret. Public endpoints explicitly reject private top-level repositories and exclude private community, VAE-base, speculative-target, and quantized/adapter-base metadata from public estimates and caches.
-- Cloudflare production version: `5cc488cc-7910-42d5-b6ca-2aec69db5ea1` (deployed 2026-08-22).
+- 2026-08-22: Homepage and Hugging Face model-detail calculators now default to 32 GiB VRAM while preserving all selectable VRAM capacities.
+- Cloudflare production version: `39c0e2ac-1a85-4cc4-8978-7cd0b741382b` (deployed 2026-08-22).
 
 ## Commands
 

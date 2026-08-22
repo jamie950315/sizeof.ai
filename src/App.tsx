@@ -119,7 +119,7 @@ function HomePage() {
   const [quantization, setQuantization] = useState<QuantizationId>(initial.quantization)
   const [context, setContext] = useState(initial.context)
   const [kvPrecision, setKvPrecision] = useState<KvPrecisionId>(initial.kvPrecision)
-  const [vramBudget, setVramBudget] = useState(16)
+  const [vramBudget, setVramBudget] = useState(32)
   const [catalogQuery, setCatalogQuery] = useState('')
   const [searchAuthor, setSearchAuthor] = useState('')
   const [searchModelType, setSearchModelType] = useState('')

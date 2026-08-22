@@ -71,6 +71,14 @@ describe('Hugging Face-style model detail route', () => {
     expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=13')
   })
 
+  it('defaults every model calculator to 32 GiB VRAM', async () => {
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByRole('combobox', { name: 'Your VRAM' })).toHaveValue('32')
+    expect(within(calculator).getByText('COMFORTABLE ON 32 GB')).toBeInTheDocument()
+  })
+
   it('keeps the detail context spinner aligned and charts usage against selected VRAM', async () => {
     const user = userEvent.setup()
     render(<App />)
@@ -108,6 +116,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(used.style.width).toMatch(/%$/)
     expect(remaining.style.width).toMatch(/%$/)
 
+    await user.selectOptions(within(calculator).getByRole('combobox', { name: 'Your VRAM' }), '16')
     await user.click(within(calculator).getByRole('button', { name: '256K' }))
     await user.click(within(calculator).getByRole('button', { name: 'Increase context window' }))
     expect(within(calculator).getByRole('img', { name: /memory usage/i })).toHaveTextContent(/OFFLOAD\s+\d+\.\d+ GiB/)

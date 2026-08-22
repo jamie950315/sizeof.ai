@@ -142,7 +142,7 @@ export default function ModelDetailPage({ route }: Props) {
   const [context, setContext] = useState(8192)
   const [kvPrecision, setKvPrecision] = useState<KvPrecisionId>('fp16')
   const [mlaCacheMode, setMlaCacheMode] = useState<'expanded' | 'latent'>('expanded')
-  const [vram, setVram] = useState(24)
+  const [vram, setVram] = useState(32)
   const [copied, setCopied] = useState(false)
   const [selectedSource, setSelectedSource] = useState('estimated')
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)

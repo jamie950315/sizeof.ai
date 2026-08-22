@@ -26,6 +26,13 @@ describe('sizeof.ai app', () => {
     expect(screen.getByText('Runtime buffer')).toBeInTheDocument()
   })
 
+  it('defaults the homepage calculator to 32 GiB VRAM', () => {
+    render(<App />)
+
+    expect(screen.getByRole('combobox', { name: 'Your VRAM' })).toHaveValue('32')
+    expect(screen.getByText('COMFORTABLE ON 32 GB')).toBeInTheDocument()
+  })
+
   it('shows a current Hugging Face text-output example catalog', () => {
     render(<App />)
 
@@ -156,6 +163,7 @@ describe('sizeof.ai app', () => {
     const user = userEvent.setup()
     render(<App />)
 
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Your VRAM' }), '16')
     await user.click(screen.getByRole('button', { name: '256K' }))
     const chart = screen.getByRole('img', { name: /memory usage/i })
     const used = chart.querySelector('.memory-bar-used') as HTMLElement
