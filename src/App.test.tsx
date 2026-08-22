@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import stylesCss from './styles.css?inline'
 
@@ -177,15 +177,66 @@ describe('sizeof.ai app', () => {
     expect(window.location.search).toContain('model=minicpm5-1b')
   })
 
-  it('filters the catalog by maker, family, or strength', async () => {
+  it('does not search while the user is still typing', async () => {
     const user = userEvent.setup()
+    const fetcher = vi.spyOn(globalThis, 'fetch')
     render(<App />)
 
-    await user.type(screen.getByRole('searchbox', { name: 'Search model catalog' }), 'openbmb')
-    const catalog = screen.getByRole('region', { name: 'Model catalog' })
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN')
 
-    expect(within(catalog).getByText('MiniCPM5 1B')).toBeInTheDocument()
-    expect(within(catalog).queryByText('Ornith 1.5 9B')).not.toBeInTheDocument()
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B')).toBeInTheDocument()
+    fetcher.mockRestore()
+  })
+
+  it('searches on Enter and links each result to its sizeof.ai model page', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+      query: 'QWEN',
+      models: [{
+        id: 'Qwen/Qwen3.8-27B', owner: 'Qwen', name: 'Qwen3.8-27B',
+        downloads: 2_090_699, likes: 12_025, task: 'image-text-to-text',
+        trendingScore: 2_236, gated: false,
+      }],
+    }))
+    render(<App />)
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN{enter}')
+
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN')
+    expect(await screen.findByRole('link', { name: 'Open Qwen/Qwen3.8-27B' })).toHaveAttribute(
+      'href',
+      '/Qwen/Qwen3.8-27B',
+    )
+    fetcher.mockRestore()
+  })
+
+  it('searches when the user clicks the search button', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+      query: 'QWEN',
+      models: [],
+    }))
+    render(<App />)
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN')
+    await user.click(screen.getByRole('button', { name: 'Search Hugging Face' }))
+
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN')
+    expect(await screen.findByText('No Hugging Face models matched “QWEN”.')).toBeInTheDocument()
+    fetcher.mockRestore()
+  })
+
+  it('keeps the curated catalog visible when Hugging Face search fails', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'))
+    render(<App />)
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN{enter}')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('curated model index is unchanged')
+    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B')).toBeInTheDocument()
+    fetcher.mockRestore()
   })
 
   it('describes KV sizing for hybrid-attention models', () => {

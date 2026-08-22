@@ -58,6 +58,108 @@ function mockSuccessfulModelFetch() {
 }
 
 describe('Hugging Face model API', () => {
+  it('returns a compact trending model list for a submitted search', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([
+      {
+        id: 'Qwen/Qwen3.8-27B',
+        downloads: 2_090_699,
+        likes: 12_025,
+        pipeline_tag: 'image-text-to-text',
+        trendingScore: 2_236,
+        gated: false,
+        private: false,
+      },
+    ]))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/search/models?q=QWEN'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        ctx,
+      )
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({
+        query: 'QWEN',
+        models: [{
+          id: 'Qwen/Qwen3.8-27B',
+          owner: 'Qwen',
+          name: 'Qwen3.8-27B',
+          downloads: 2_090_699,
+          likes: 12_025,
+          task: 'image-text-to-text',
+          trendingScore: 2_236,
+          gated: false,
+        }],
+      })
+      expect(fetcher).toHaveBeenCalledWith(
+        'https://huggingface.co/api/models?search=QWEN&sort=trendingScore&direction=-1&limit=12',
+        { headers: { Accept: 'application/json' } },
+      )
+      expect(response.headers.get('Cache-Control')).toBe('public, max-age=60')
+      expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe(
+        'public, max-age=600, stale-while-revalidate=3600',
+      )
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('rejects a search shorter than two characters without contacting Hugging Face', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch')
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/search/models?q=Q'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        ctx,
+      )
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Search query must contain between 2 and 80 characters',
+      })
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+      expect(fetcher).not.toHaveBeenCalled()
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('limits the search response even when Hugging Face returns too many models', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json(
+      Array.from({ length: 13 }, (_, index) => ({
+        id: `Org/Model-${index + 1}`,
+        downloads: 100 - index,
+        likes: index,
+        pipeline_tag: 'text-generation',
+        trendingScore: 100 - index,
+        gated: false,
+        private: false,
+      })),
+    ))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/search/models?q=Model'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        ctx,
+      )
+      const body = await response.json() as { models: Array<{ id: string }> }
+
+      expect(body.models).toHaveLength(12)
+      expect(body.models.at(-1)?.id).toBe('Org/Model-12')
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
   it('requires HTML shells to revalidate while leaving hashed assets cacheable', () => {
     const html = applyAssetCachePolicy(new Response('<!doctype html>', {
       headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=3600' },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -35,12 +35,32 @@ import { parseHuggingFaceModelPath } from './lib/huggingface'
 const contextPresets = contextLevels
 const vramPresets = [8, 12, 16, 24, 32, 48, 64, 80]
 
+interface HuggingFaceSearchModel {
+  id: string
+  owner: string
+  name: string
+  downloads: number
+  likes: number
+  task: string | null
+  trendingScore: number
+  gated: boolean
+}
+
+interface HuggingFaceSearchResponse {
+  query: string
+  models: HuggingFaceSearchModel[]
+}
+
 function formatGiB(value: number, digits = 2) {
   return `${value.toFixed(digits)} GiB`
 }
 
 function formatContext(value: number) {
   return value >= 1024 ? `${Math.round(value / 1024)}K` : String(value)
+}
+
+function formatCompactNumber(value: number) {
+  return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
 }
 
 const fitLabels: Record<Fit, string> = {
@@ -65,6 +85,9 @@ function HomePage() {
   const [kvPrecision, setKvPrecision] = useState<KvPrecisionId>(initial.kvPrecision)
   const [vramBudget, setVramBudget] = useState(16)
   const [catalogQuery, setCatalogQuery] = useState('')
+  const [submittedCatalogQuery, setSubmittedCatalogQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<HuggingFaceSearchModel[] | null>(null)
+  const [searchState, setSearchState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [copied, setCopied] = useState(false)
 
   const model = models.find((item) => item.id === modelId) ?? models[0]
@@ -92,21 +115,35 @@ function HomePage() {
     [context, kvPrecision, quantization, vramBudget],
   )
 
-  const filteredModels = useMemo(() => {
-    const query = catalogQuery.trim().toLowerCase()
-    if (!query) return models
-    return models.filter((item) =>
-      [item.name, item.family, item.maker, ...item.strengths]
-        .join(' ')
-        .toLowerCase()
-        .includes(query),
-    )
-  }, [catalogQuery])
-
   async function copyShareLink() {
     await navigator.clipboard.writeText(window.location.href)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1600)
+  }
+
+  async function searchHuggingFace(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const query = catalogQuery.trim()
+    if (!query) {
+      setSubmittedCatalogQuery('')
+      setSearchResults(null)
+      setSearchState('idle')
+      return
+    }
+    if (query.length < 2 || query.length > 80 || searchState === 'loading') return
+
+    setSubmittedCatalogQuery(query)
+    setSearchState('loading')
+    try {
+      const response = await fetch(`/api/search/models?q=${encodeURIComponent(query)}`)
+      if (!response.ok) throw new Error('Search request failed')
+      const payload = await response.json() as HuggingFaceSearchResponse
+      setSearchResults(Array.isArray(payload.models) ? payload.models : [])
+      setSearchState('idle')
+    } catch {
+      setSearchResults(null)
+      setSearchState('error')
+    }
   }
 
   const memoryParts = [
@@ -443,23 +480,63 @@ function HomePage() {
             <h2>Specs you can<br />inspect.</h2>
           </div>
           <div className="catalog-toolbar">
-            <div className="search-box">
+            <form className="search-box" onSubmit={searchHuggingFace}>
               <Search size={19} />
               <input
                 type="search"
-                aria-label="Search model catalog"
-                placeholder="SEARCH NAME, MAKER, STRENGTH…"
+                aria-label="Search Hugging Face models"
+                placeholder="SEARCH HUGGING FACE MODELS…"
                 value={catalogQuery}
                 onChange={(event) => setCatalogQuery(event.target.value)}
+                maxLength={80}
               />
-            </div>
-            <span>{String(filteredModels.length).padStart(2, '0')} / {String(models.length).padStart(2, '0')} MODELS</span>
+              <button type="submit" aria-label="Search Hugging Face" disabled={searchState === 'loading'}>
+                {searchState === 'loading' ? 'SEARCHING' : 'SEARCH'} <ArrowUpRight size={15} />
+              </button>
+            </form>
+            <span>{searchResults
+              ? `${String(searchResults.length).padStart(2, '0')} HF RESULTS`
+              : `${String(models.length).padStart(2, '0')} CURATED MODELS`}</span>
+          </div>
+          <div className="catalog-search-note">
+            <span>LIVE HUGGING FACE INDEX</span>
+            <p>Type a model name, then press Enter / Return or Search.</p>
           </div>
           <div className="catalog-table">
             <div className="catalog-header">
-              <span>MODEL</span><span>PARAMETERS</span><span>MAX CONTEXT</span><span>ARCHITECTURE</span><span />
+              {searchResults
+                ? <><span>MODEL</span><span>DOWNLOADS</span><span>LIKES</span><span>TASK</span><span /></>
+                : <><span>MODEL</span><span>PARAMETERS</span><span>MAX CONTEXT</span><span>ARCHITECTURE</span><span /></>}
             </div>
-            {filteredModels.map((item) => (
+            {searchState === 'loading' && (
+              <div className="catalog-state" role="status"><span className="pulse-dot" /> Searching Hugging Face for “{submittedCatalogQuery}”…</div>
+            )}
+            {searchState === 'error' && (
+              <div className="catalog-state catalog-error" role="alert">Hugging Face search is unavailable. Your curated model index is unchanged.</div>
+            )}
+            {searchState === 'idle' && searchResults?.length === 0 && (
+              <div className="catalog-state">No Hugging Face models matched “{submittedCatalogQuery}”.</div>
+            )}
+            {searchState === 'idle' && searchResults?.map((item) => (
+              <article key={item.id} className="catalog-row hf-search-row">
+                <div className="catalog-name">
+                  <span>{item.owner}</span>
+                  <strong>{item.name}</strong>
+                  <div>
+                    <i>{item.owner}</i>
+                    {item.gated && <i>GATED</i>}
+                  </div>
+                </div>
+                <div><small>DOWNLOADS</small><strong>{formatCompactNumber(item.downloads)}</strong></div>
+                <div><small>LIKES</small><strong>{formatCompactNumber(item.likes)}</strong></div>
+                <div><small>TASK</small><strong>{item.task?.replaceAll('-', ' ') ?? 'UNSPECIFIED'}</strong></div>
+                <div className="catalog-actions">
+                  <a className="catalog-open-model" href={`/${item.owner}/${item.name}`} aria-label={`Open ${item.id}`}>OPEN</a>
+                  <a href={`https://huggingface.co/${item.id}`} target="_blank" rel="noreferrer" aria-label={`${item.id} on Hugging Face`}><ArrowUpRight size={17} /></a>
+                </div>
+              </article>
+            ))}
+            {searchState !== 'loading' && searchResults === null && models.map((item) => (
               <article key={item.id} className="catalog-row">
                 <div className="catalog-name">
                   <span>{item.maker}</span>

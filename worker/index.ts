@@ -398,6 +398,70 @@ export function applyAssetCachePolicy(response: Response) {
   })
 }
 
+function finiteSearchMetric(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0
+}
+
+export async function handleModelSearchApi(
+  request: Request,
+  fetcher: Fetcher = fetch,
+): Promise<Response> {
+  const url = new URL(request.url)
+  const query = url.searchParams.get('q')?.trim() ?? ''
+  if (query.length < 2 || query.length > 80) {
+    return json({ error: 'Search query must contain between 2 and 80 characters' }, 400)
+  }
+
+  const upstreamUrl = new URL('https://huggingface.co/api/models')
+  upstreamUrl.searchParams.set('search', query)
+  upstreamUrl.searchParams.set('sort', 'trendingScore')
+  upstreamUrl.searchParams.set('direction', '-1')
+  upstreamUrl.searchParams.set('limit', '12')
+
+  try {
+    const response = await fetcher(upstreamUrl.toString(), {
+      headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) {
+      return json({ error: 'Hugging Face search is temporarily unavailable' }, 502)
+    }
+
+    const value = await response.json()
+    if (!Array.isArray(value)) {
+      return json({ error: 'Hugging Face returned an unreadable search response' }, 502)
+    }
+
+    const searchModels = value.flatMap((raw) => {
+      if (typeof raw !== 'object' || raw === null) return []
+      const item = raw as Record<string, unknown>
+      if (typeof item.id !== 'string' || item.private === true) return []
+      const route = parseHuggingFaceModelPath(`/${item.id}`)
+      if (!route || `${route.owner}/${route.repo}` !== item.id) return []
+      return [{
+        id: item.id,
+        owner: route.owner,
+        name: route.repo,
+        downloads: finiteSearchMetric(item.downloads),
+        likes: finiteSearchMetric(item.likes),
+        task: typeof item.pipeline_tag === 'string' ? item.pipeline_tag : null,
+        trendingScore: finiteSearchMetric(item.trendingScore),
+        gated: Boolean(item.gated),
+      }]
+    }).slice(0, 12)
+
+    return json({ query, models: searchModels }, 200, {
+      'Cache-Control': 'public, max-age=60',
+      'Cloudflare-CDN-Cache-Control': 'public, max-age=600, stale-while-revalidate=3600',
+    })
+  } catch (error) {
+    console.warn(JSON.stringify({
+      message: 'Hugging Face model search failed',
+      error: error instanceof Error ? error.message : String(error),
+    }))
+    return json({ error: 'Hugging Face search is temporarily unavailable' }, 502)
+  }
+}
+
 export async function handleModelApi(
   request: Request,
   fetcher: Fetcher = fetch,
@@ -920,6 +984,9 @@ export async function handleWorkerRequest(
   ctx: ExecutionContext,
 ): Promise<Response> {
   const url = new URL(request.url)
+  if (url.pathname === '/api/search/models') {
+    return handleModelSearchApi(request)
+  }
   if (!url.pathname.startsWith('/api/models/')) {
     return applyAssetCachePolicy(await env.ASSETS.fetch(request))
   }

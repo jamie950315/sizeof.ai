@@ -46,7 +46,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-22: Speculative target lookups use canonical Hugging Face ids and revision-locked artifact sizes, degrade safely to draft-only profiles, and remain excluded from ordinary community quantization discovery.
 - 2026-08-22: Model API responses now use version-isolated Cloudflare Workers Caching with a 24-hour fresh window and seven-day stale refresh/error fallback. Browser caching remains five minutes, failed API responses are never cached, and the legacy per-data-center `hf-model-v24` Cache API layer has been removed.
 - 2026-08-22: A free-plan Workers KV model cache now sits between Workers Caching and Hugging Face. Successful model responses are retained for 30 days, refreshed after 24 hours, and may serve as stale fallback for transient failures only until the response is eight days old; missing or private models never use stale data.
-- Cloudflare production version: `fbdfe8e9-6514-49d3-8628-87f7c252e500` (deployed 2026-08-22).
+- 2026-08-22: Model Index now searches the live Hugging Face catalog only after an explicit Search click or Enter/Return submission. Results are trend-ranked, capped at 12, cached briefly at the edge, and link directly to sizeof.ai model detail pages; typing alone never sends a request and failures retain the curated catalog.
+- Cloudflare production version: `cb2b6307-168c-4ad2-be07-68d07da59147` (deployed 2026-08-22).
 
 ## Commands
 
