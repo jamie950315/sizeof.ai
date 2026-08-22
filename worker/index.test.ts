@@ -76,7 +76,7 @@ describe('Hugging Face model API', () => {
     try {
       const response = await handleWorkerRequest(
         new Request('https://sizeof.ai/api/search/models?q=QWEN'),
-        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache, HF_TOKEN: 'hf_test_token' },
         ctx,
       )
 
@@ -96,7 +96,7 @@ describe('Hugging Face model API', () => {
       })
       expect(fetcher).toHaveBeenCalledWith(
         'https://huggingface.co/api/models?search=QWEN&sort=trendingScore&direction=-1&limit=12',
-        { headers: { Accept: 'application/json' } },
+        { headers: { Accept: 'application/json', Authorization: 'Bearer hf_test_token' } },
       )
       expect(response.headers.get('Cache-Control')).toBe('public, max-age=60')
       expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe(
@@ -182,6 +182,27 @@ describe('Hugging Face model API', () => {
     expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe('no-store')
   })
 
+  it('rejects a private repository even when the token can read it', async () => {
+    const fetcher = vi.fn(async () => Response.json({
+      id: 'jamie950315/private-model',
+      sha: 'private123',
+      private: true,
+      tags: ['safetensors'],
+      safetensors: { total: 1_000_000 },
+    }))
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/jamie950315/private-model'),
+      fetcher,
+      readGguf,
+      'hf_test_token',
+    )
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({ error: 'Model not found or private' })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
   it('serves a fresh model from KV without calling Hugging Face', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
@@ -196,6 +217,7 @@ describe('Hugging Face model API', () => {
     const env = {
       ASSETS: { fetch: vi.fn() },
       MODEL_CACHE: cache,
+      HF_TOKEN: 'hf_test_token',
     }
 
     try {
@@ -230,6 +252,7 @@ describe('Hugging Face model API', () => {
     const env = {
       ASSETS: { fetch: vi.fn() },
       MODEL_CACHE: cache,
+      HF_TOKEN: 'hf_test_token',
     }
 
     try {
@@ -240,6 +263,17 @@ describe('Hugging Face model API', () => {
       )
       expect(response.status).toBe(200)
       expect(response.headers.get('X-Sizeof-Model-Source')).toBe('huggingface')
+      expect(fetcher.mock.calls[0]?.[1]).toEqual({
+        headers: {
+          Accept: 'application/json',
+          Authorization: 'Bearer hf_test_token',
+          'User-Agent': 'sizeof.ai/1.0 (+https://sizeof.ai)',
+        },
+      })
+      expect(fetcher.mock.calls.length).toBeGreaterThan(1)
+      for (const [, init] of fetcher.mock.calls) {
+        expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer hf_test_token')
+      }
       await flush()
 
       const key = 'model-response-v1:Qwen/Qwen3.8-27B'
@@ -488,6 +522,13 @@ describe('Hugging Face model API', () => {
         tags: ['gguf', 'draft-model', 'speculative-decoding', 'base_model:quantized:Qwen/Qwen3.8-27B'],
       },
     ], 'Qwen/Qwen3.8-27B')).toEqual([])
+  })
+
+  it('does not offer private repositories as community quantizations', () => {
+    expect(selectCommunityRepositories([{
+      id: 'unsloth/Private-Model-GGUF', author: 'unsloth', sha: 'a'.repeat(40), private: true,
+      tags: ['gguf', 'base_model:quantized:Org/Model'], siblings: [],
+    }], 'Org/Model')).toEqual([])
   })
 
   it('does not exclude a normal quantization only because its repository name contains Eagle', () => {
@@ -853,6 +894,42 @@ describe('Hugging Face model API', () => {
     })
   })
 
+  it('does not include a private declared base in a public VAE estimate', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/models/Example/Private-Base-VAE')) return Response.json({
+        id: 'Example/Private-Base-VAE', sha: 'derived123', pipeline_tag: 'image-to-image',
+        tags: ['vae', 'base_model:Example/Private-Base'],
+        safetensors: { parameters: { F16: 1_000 } },
+      })
+      if (url.includes('/Example/Private-Base-VAE/resolve/derived123/config.json')) {
+        return Response.json({ architectures: ['AutoencoderKL'], model_type: 'autoencoder_kl' })
+      }
+      if (url.includes('/Example/Private-Base-VAE/tree/derived123')) return Response.json([])
+      if (url.includes('/api/models/Example/Private-Base')) return Response.json({
+        id: 'Example/Private-Base', sha: 'base456', private: true,
+        safetensors: { parameters: { BF16: 8_000_000 } },
+      })
+      throw new Error(`Unexpected private VAE base fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Example/Private-Base-VAE'),
+      fetcher,
+      readGguf,
+      'hf_test_token',
+    )
+    const body = await response.json() as {
+      resourceEstimate: { baseModelId: string | null; options: Array<{ components: Array<{ id: string }> }> }
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.resourceEstimate).toMatchObject({
+      baseModelId: null,
+      options: [{ components: [{ id: 'vae-weights' }] }],
+    })
+  })
+
   it('accepts a declared VAE base whose canonical metadata only differs by casing', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
@@ -987,6 +1064,43 @@ describe('Hugging Face model API', () => {
     expect(body.quantizationFormat).toBe('gguf')
     expect(body.configSourceId).toBe('Qwen/Qwen3.8-27B')
     expect(body.spec.layers).toBe(64)
+  })
+
+  it('does not inherit architecture facts from a private base model', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/models/Example/Public-GGUF')) return Response.json({
+        id: 'Example/Public-GGUF', sha: 'derived123',
+        tags: ['gguf', 'base_model:Example/Private-Base', 'base_model:quantized:Example/Private-Base'],
+        gguf: { total: 7_000_000_000, context_length: 131072 },
+      })
+      if (url.includes('/Example/Public-GGUF/resolve/derived123/config.json')) return Response.json({})
+      if (url.includes('/api/models/Example/Private-Base')) return Response.json({
+        id: 'Example/Private-Base', sha: 'base456', private: true,
+        safetensors: { total: 14_000_000_000 },
+      })
+      if (url.includes('/Example/Private-Base/resolve/base456/config.json')) return Response.json({
+        architectures: ['Qwen3ForCausalLM'], num_hidden_layers: 32,
+        num_key_value_heads: 8, num_attention_heads: 32, head_dim: 128,
+        max_position_embeddings: 131072,
+      })
+      throw new Error(`Unexpected private quantized base fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/Example/Public-GGUF'),
+      fetcher,
+      readGguf,
+      'hf_test_token',
+    )
+    const body = await response.json() as { spec: unknown; configSourceId: string | null }
+
+    expect(response.status).toBe(200)
+    expect(body.spec).toBeNull()
+    expect(body.configSourceId).toBeNull()
+    expect(fetcher.mock.calls.some(([input]) => (
+      String(input).includes('/Example/Private-Base/resolve/')
+    ))).toBe(false)
   })
 
   it('combines an MTP sidecar with its revision-locked base model', async () => {
@@ -1204,6 +1318,41 @@ describe('Hugging Face model API', () => {
     expect(body.modelKind).toBe('speculative-draft')
     expect(body.resourceEstimate).toMatchObject({
       kind: 'speculative-draft',
+      options: [{ components: [{ id: 'draft-weights' }] }],
+    })
+  })
+
+  it('does not include private target weights in a public speculative profile', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/z-lab/Private-Target-Draft/tree/draft123')) return Response.json([])
+      if (url.includes('/api/models/z-lab/Private-Target-Draft')) return Response.json({
+        id: 'z-lab/Private-Target-Draft', sha: 'draft123', pipeline_tag: 'text-generation',
+        tags: ['dflash', 'draft-model', 'base_model:Example/Private-Target'],
+        safetensors: { parameters: { BF16: 100_000_000 }, total: 100_000_000 },
+      })
+      if (url.includes('/z-lab/Private-Target-Draft/resolve/draft123/config.json')) {
+        return Response.json({ architectures: ['DFlashDraftModel'], dflash_config: { block_size: 8 } })
+      }
+      if (url.includes('/api/models/Example/Private-Target')) return Response.json({
+        id: 'Example/Private-Target', sha: 'target456', private: true,
+        safetensors: { parameters: { BF16: 7_000_000_000 }, total: 7_000_000_000 },
+      })
+      throw new Error(`Unexpected private speculative target fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/z-lab/Private-Target-Draft'),
+      fetcher,
+      readGguf,
+      'hf_test_token',
+    )
+    const body = await response.json() as {
+      resourceEstimate: { options: Array<{ components: Array<{ id: string }> }> } | null
+    }
+
+    expect(response.status).toBe(200)
+    expect(body.resourceEstimate).toMatchObject({
       options: [{ components: [{ id: 'draft-weights' }] }],
     })
   })

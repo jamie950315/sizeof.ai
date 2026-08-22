@@ -41,6 +41,7 @@ interface CommunityRepositoryCandidate {
   sha?: unknown
   tags?: unknown
   siblings?: unknown
+  private?: unknown
 }
 
 const trustedQuantizationPublishers = [
@@ -61,6 +62,7 @@ export function selectCommunityRepositories(
   }> => {
     if (typeof raw !== 'object' || raw === null) return []
     const item = raw as CommunityRepositoryCandidate
+    if (item.private === true) return []
     if (typeof item.id !== 'string' || typeof item.author !== 'string'
       || typeof item.sha !== 'string' || !/^[a-f0-9]{40}$/i.test(item.sha)) return []
     const repositoryName = item.id.split('/')[1] ?? ''
@@ -402,9 +404,15 @@ function finiteSearchMetric(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0
 }
 
+function isPrivateModelMetadata(value: unknown) {
+  return typeof value === 'object' && value !== null
+    && 'private' in value && value.private === true
+}
+
 export async function handleModelSearchApi(
   request: Request,
   fetcher: Fetcher = fetch,
+  token?: string,
 ): Promise<Response> {
   const url = new URL(request.url)
   const query = url.searchParams.get('q')?.trim() ?? ''
@@ -420,7 +428,10 @@ export async function handleModelSearchApi(
 
   try {
     const response = await fetcher(upstreamUrl.toString(), {
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
     })
     if (!response.ok) {
       return json({ error: 'Hugging Face search is temporarily unavailable' }, 502)
@@ -466,6 +477,7 @@ export async function handleModelApi(
   request: Request,
   fetcher: Fetcher = fetch,
   ggufReader: GgufReader = readGguf,
+  token?: string,
 ): Promise<Response> {
   const route = apiRoute(new URL(request.url).pathname)
   if (!route) return json({ error: 'Invalid Hugging Face model path' }, 400)
@@ -474,6 +486,7 @@ export async function handleModelApi(
   const repo = encodeURIComponent(route.repo)
   const headers = {
     Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     'User-Agent': 'sizeof.ai/1.0 (+https://sizeof.ai)',
   }
   const metadataUrl = new URL(`https://huggingface.co/api/models/${owner}/${repo}`)
@@ -522,6 +535,9 @@ export async function handleModelApi(
 
   try {
     const metadata: unknown = await metadataResponse.json()
+    if (isPrivateModelMetadata(metadata)) {
+      return json({ error: 'Model not found or private' }, 404)
+    }
     const revision = typeof metadata === 'object' && metadata !== null && 'sha' in metadata && typeof metadata.sha === 'string'
       ? metadata.sha
       : 'main'
@@ -608,6 +624,7 @@ export async function handleModelApi(
           const baseMetadataUrl = new URL(`https://huggingface.co/api/models/${baseOwner}/${baseRepo}`)
           baseMetadataUrl.searchParams.append('expand', 'sha')
           baseMetadataUrl.searchParams.append('expand', 'safetensors')
+          baseMetadataUrl.searchParams.append('expand', 'private')
           const baseMetadata = await fetchJson(fetcher, baseMetadataUrl.toString(), headers)
           const baseMetadataRoute = typeof baseMetadata === 'object' && baseMetadata !== null
             && 'id' in baseMetadata && typeof baseMetadata.id === 'string'
@@ -617,6 +634,7 @@ export async function handleModelApi(
             ? `${baseMetadataRoute.owner}/${baseMetadataRoute.repo}`
             : null
           if (typeof baseMetadata === 'object' && baseMetadata !== null
+            && !isPrivateModelMetadata(baseMetadata)
             && canonicalBaseId !== null && canonicalBaseId.toLowerCase() === vaeBaseId.toLowerCase()
             && 'sha' in baseMetadata && typeof baseMetadata.sha === 'string' && baseMetadata.sha) {
             const base = normalizeHuggingFaceModel(baseMetadata, {})
@@ -693,7 +711,7 @@ export async function handleModelApi(
             const targetUrl = new URL(
               `https://huggingface.co/api/models/${encodeURIComponent(targetRoute.owner)}/${encodeURIComponent(targetRoute.repo)}`,
             )
-            for (const field of ['sha', 'safetensors', 'gguf', 'tags']) {
+            for (const field of ['sha', 'safetensors', 'gguf', 'tags', 'private']) {
               targetUrl.searchParams.append('expand', field)
             }
             try {
@@ -705,6 +723,7 @@ export async function handleModelApi(
                   ? targetMetadata.id
                   : null
                 const target = canonicalTargetId
+                  && !isPrivateModelMetadata(targetMetadata)
                   && typeof targetMetadata.sha === 'string' && targetMetadata.sha
                   ? normalizeHuggingFaceModel(targetMetadata, {})
                   : null
@@ -811,7 +830,7 @@ export async function handleModelApi(
           const baseOwner = encodeURIComponent(baseRoute.owner)
           const baseRepo = encodeURIComponent(baseRoute.repo)
           const baseMetadataUrl = new URL(`https://huggingface.co/api/models/${baseOwner}/${baseRepo}`)
-          for (const field of ['sha', 'safetensors', 'gguf', 'tags']) {
+          for (const field of ['sha', 'safetensors', 'gguf', 'tags', 'private']) {
             baseMetadataUrl.searchParams.append('expand', field)
           }
           if (discovered.ninfer?.baseModelId === nextBaseId) {
@@ -824,6 +843,11 @@ export async function handleModelApi(
             break
           }
           const baseMetadata = await baseMetadataResponse.json() as Record<string, unknown>
+          if (isPrivateModelMetadata(baseMetadata)) {
+            allowEstimate = false
+            estimateReason = 'unverified-base'
+            break
+          }
           if (baseMetadata.id !== nextBaseId) {
             allowEstimate = false
             estimateReason = 'unverified-base'
@@ -976,6 +1000,7 @@ export async function handleModelApi(
 interface WorkerBindings {
   MODEL_CACHE: ModelCacheNamespace
   ASSETS: { fetch(request: Request): Promise<Response> }
+  HF_TOKEN?: string
 }
 
 export async function handleWorkerRequest(
@@ -985,7 +1010,7 @@ export async function handleWorkerRequest(
 ): Promise<Response> {
   const url = new URL(request.url)
   if (url.pathname === '/api/search/models') {
-    return handleModelSearchApi(request)
+    return handleModelSearchApi(request, fetch, env.HF_TOKEN)
   }
   if (!url.pathname.startsWith('/api/models/')) {
     return applyAssetCachePolicy(await env.ASSETS.fetch(request))
@@ -1001,7 +1026,7 @@ export async function handleWorkerRequest(
     if (cachedModel?.state === 'fresh') return modelResponseFromCache(cachedModel)
   }
 
-  const response = await handleModelApi(request)
+  const response = await handleModelApi(request, fetch, readGguf, env.HF_TOKEN)
   if (route && response.ok) {
     response.headers.set('X-Sizeof-Model-Source', 'huggingface')
     queueModelResponseWrite(
