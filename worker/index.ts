@@ -20,6 +20,14 @@ import {
   type VariantArtifactManifestFacts,
 } from '../src/lib/huggingface-variants'
 import { deriveGgufModelFacts, parseGgufMetadataPrefix } from '../src/lib/gguf'
+import {
+  createModelKvKey,
+  modelResponseHeaders,
+  modelResponseFromCache,
+  queueModelResponseWrite,
+  readModelResponse,
+  type ModelCacheNamespace,
+} from './model-cache'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 type GgufReader = (
@@ -116,17 +124,11 @@ export const readGguf: GgufReader = async (url, options) => {
   }
 }
 
-const responseHeaders = {
-  'Content-Type': 'application/json; charset=utf-8',
-  'Cache-Control': 'public, max-age=300',
-  'Cloudflare-CDN-Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400, stale-if-error=86400',
-}
-
 function json(data: unknown, status = 200, headers?: Record<string, string>) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      ...responseHeaders,
+      ...modelResponseHeaders,
       ...headers,
       ...(status >= 200 && status < 300 ? {} : {
         'Cache-Control': 'no-store',
@@ -907,13 +909,47 @@ export async function handleModelApi(
   }
 }
 
-export default {
-  async fetch(request, env): Promise<Response> {
-    const url = new URL(request.url)
-    if (!url.pathname.startsWith('/api/models/')) {
-      return applyAssetCachePolicy(await env.ASSETS.fetch(request))
-    }
+interface WorkerBindings {
+  MODEL_CACHE: ModelCacheNamespace
+  ASSETS: { fetch(request: Request): Promise<Response> }
+}
 
-    return handleModelApi(request)
-  },
+export async function handleWorkerRequest(
+  request: Request,
+  env: WorkerBindings,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  const url = new URL(request.url)
+  if (!url.pathname.startsWith('/api/models/')) {
+    return applyAssetCachePolicy(await env.ASSETS.fetch(request))
+  }
+
+  const route = apiRoute(url.pathname)
+  let cachedModel: Awaited<ReturnType<typeof readModelResponse>> = null
+  if (route) {
+    cachedModel = await readModelResponse(
+      env.MODEL_CACHE,
+      createModelKvKey(route.owner, route.repo),
+    )
+    if (cachedModel?.state === 'fresh') return modelResponseFromCache(cachedModel)
+  }
+
+  const response = await handleModelApi(request)
+  if (route && response.ok) {
+    response.headers.set('X-Sizeof-Model-Source', 'huggingface')
+    queueModelResponseWrite(
+      env.MODEL_CACHE,
+      createModelKvKey(route.owner, route.repo),
+      response.clone(),
+      ctx,
+    )
+  }
+  if (cachedModel?.state === 'stale' && response.status >= 500) {
+    return modelResponseFromCache(cachedModel)
+  }
+  return response
+}
+
+export default {
+  fetch: handleWorkerRequest,
 } satisfies ExportedHandler<Env>

@@ -8,6 +8,9 @@
     "enabled": true,
     "cross_version_cache": false
   },
+  "kv_namespaces": [
+    { "binding": "MODEL_CACHE", "id": "64daa9eb377a4098969912297dbecbef" }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

@@ -1,5 +1,61 @@
 import { describe, expect, it, vi } from 'vitest'
-import { applyAssetCachePolicy, handleModelApi, readGguf, selectCommunityRepositories, selectCommunityRepository } from './index'
+import { applyAssetCachePolicy, handleModelApi, handleWorkerRequest, readGguf, selectCommunityRepositories, selectCommunityRepository } from './index'
+
+class MemoryModelCache {
+  readonly values = new Map<string, string>()
+  readonly options = new Map<string, KVNamespacePutOptions>()
+  readonly reads: Array<{ key: string; options: unknown }> = []
+
+  async get(key: string, options?: unknown) {
+    this.reads.push({ key, options })
+    const value = this.values.get(key)
+    return value ? JSON.parse(value) as unknown : null
+  }
+
+  async put(key: string, value: string, options?: KVNamespacePutOptions) {
+    this.values.set(key, value)
+    this.options.set(key, options ?? {})
+  }
+}
+
+function modelCacheContext() {
+  const pending: Promise<unknown>[] = []
+  return {
+    ctx: {
+      waitUntil(promise: Promise<unknown>) {
+        pending.push(promise)
+      },
+    } as ExecutionContext,
+    flush: () => Promise.all(pending),
+  }
+}
+
+function mockSuccessfulModelFetch() {
+  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const url = String(input)
+    if (url.includes('/api/models/Qwen/Qwen3.8-27B?')) {
+      return Response.json({
+        id: 'Qwen/Qwen3.8-27B',
+        sha: 'abc123',
+        safetensors: { total: 27_781_427_952 },
+        tags: ['safetensors'],
+      })
+    }
+    if (url.includes('/Qwen/Qwen3.8-27B/resolve/abc123/config.json')) {
+      return Response.json({
+        architectures: ['Qwen3_5ForCausalLM'],
+        model_type: 'qwen3_5',
+        num_hidden_layers: 64,
+        num_key_value_heads: 4,
+        head_dim: 256,
+        max_position_embeddings: 262_144,
+      })
+    }
+    if (url.includes('/Qwen/Qwen3.8-27B/tree/abc123')) return Response.json([])
+    if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
+    throw new Error(`Unexpected cached-model fetch: ${url}`)
+  })
+}
 
 describe('Hugging Face model API', () => {
   it('requires HTML shells to revalidate while leaving hashed assets cacheable', () => {
@@ -22,6 +78,301 @@ describe('Hugging Face model API', () => {
     expect(response.status).toBe(400)
     expect(response.headers.get('Cache-Control')).toBe('no-store')
     expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe('no-store')
+  })
+
+  it('serves a fresh model from KV without calling Hugging Face', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
+    const cache = new MemoryModelCache()
+    cache.values.set('model-response-v1:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 1,
+      fetchedAt: Date.now() - 23 * 60 * 60 * 1_000,
+      body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'kv' }),
+    }))
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Hugging Face should not be called'))
+    const { ctx } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+    }
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B?schema=13'),
+        env,
+        ctx,
+      )
+
+      await expect(response.json()).resolves.toEqual({ id: 'Qwen/Qwen3.8-27B', source: 'kv' })
+      expect(response.headers.get('X-Sizeof-Model-Source')).toBe('kv')
+      expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe(
+        'public, max-age=3600, stale-while-revalidate=604800, stale-if-error=604800',
+      )
+      expect(cache.reads).toEqual([{
+        key: 'model-response-v1:Qwen/Qwen3.8-27B',
+        options: { type: 'json', cacheTtl: 60 },
+      }])
+      expect(fetcher).not.toHaveBeenCalled()
+    } finally {
+      fetcher.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('writes a successful Hugging Face response to KV for 30 days', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
+    const cache = new MemoryModelCache()
+    const fetcher = mockSuccessfulModelFetch()
+    const { ctx, flush } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+    }
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B?schema=13'),
+        env,
+        ctx,
+      )
+      expect(response.status).toBe(200)
+      expect(response.headers.get('X-Sizeof-Model-Source')).toBe('huggingface')
+      await flush()
+
+      const key = 'model-response-v1:Qwen/Qwen3.8-27B'
+      expect(JSON.parse(cache.values.get(key)!)).toMatchObject({
+        version: 1,
+        fetchedAt: Date.parse('2026-08-22T12:00:00Z'),
+      })
+      expect(cache.options.get(key)).toEqual({ expirationTtl: 2_592_000 })
+    } finally {
+      fetcher.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('serves stale KV data when Hugging Face has a transient failure', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
+    const cache = new MemoryModelCache()
+    cache.values.set('model-response-v1:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 1,
+      fetchedAt: Date.now() - 2 * 24 * 60 * 60 * 1_000,
+      body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'stale-kv' }),
+    }))
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 500 }),
+    )
+    const { ctx } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+    }
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B?schema=13'),
+        env,
+        ctx,
+      )
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ id: 'Qwen/Qwen3.8-27B', source: 'stale-kv' })
+      expect(response.headers.get('X-Sizeof-Model-Source')).toBe('kv-stale')
+      expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe(
+        'public, max-age=0, stale-while-revalidate=60, stale-if-error=518400',
+      )
+    } finally {
+      fetcher.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not serve stale KV data when a model is private or missing', async () => {
+    const cache = new MemoryModelCache()
+    cache.values.set('model-response-v1:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 1,
+      fetchedAt: Date.now() - 2 * 24 * 60 * 60 * 1_000,
+      body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'stale-kv' }),
+    }))
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 404 }),
+    )
+    const { ctx } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+    }
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B?schema=13'),
+        env,
+        ctx,
+      )
+
+      expect(response.status).toBe(404)
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+      expect(response.headers.get('X-Sizeof-Model-Source')).toBeNull()
+      expect(cache.options.size).toBe(0)
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('does not serve KV data older than the eight-day fallback window', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
+    const cache = new MemoryModelCache()
+    cache.values.set('model-response-v1:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 1,
+      fetchedAt: Date.now() - 8 * 24 * 60 * 60 * 1_000,
+      body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'expired-kv' }),
+    }))
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 500 }),
+    )
+    const { ctx } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+    }
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B?schema=13'),
+        env,
+        ctx,
+      )
+      expect(response.status).toBe(502)
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+    } finally {
+      fetcher.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('refreshes stale KV data after a successful Hugging Face lookup', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
+    const key = 'model-response-v1:Qwen/Qwen3.8-27B'
+    const cache = new MemoryModelCache()
+    cache.values.set(key, JSON.stringify({
+      version: 1,
+      fetchedAt: Date.now() - 2 * 24 * 60 * 60 * 1_000,
+      body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'stale-kv' }),
+    }))
+    const fetcher = mockSuccessfulModelFetch()
+    const { ctx, flush } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+    }
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B?schema=refresh'),
+        env,
+        ctx,
+      )
+      expect(response.status).toBe(200)
+      expect(response.headers.get('X-Sizeof-Model-Source')).toBe('huggingface')
+      await flush()
+
+      const refreshed = JSON.parse(cache.values.get(key)!) as { fetchedAt: number; body: string }
+      expect(refreshed.fetchedAt).toBe(Date.parse('2026-08-22T12:00:00Z'))
+      expect(JSON.parse(refreshed.body)).not.toHaveProperty('source', 'stale-kv')
+    } finally {
+      fetcher.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps a successful response available when the KV write fails', async () => {
+    class RejectingModelCache extends MemoryModelCache {
+      override async put() {
+        throw new Error('KV write quota exceeded')
+      }
+    }
+    const cache = new RejectingModelCache()
+    const fetcher = mockSuccessfulModelFetch()
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { ctx, flush } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+    }
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B?schema=13'),
+        env,
+        ctx,
+      )
+      expect(response.status).toBe(200)
+      await expect(response.clone().json()).resolves.toMatchObject({ id: 'Qwen/Qwen3.8-27B' })
+      await expect(flush()).resolves.toBeDefined()
+    } finally {
+      fetcher.mockRestore()
+      errorLog.mockRestore()
+    }
+  })
+
+  it('does not read KV for an invalid model route', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+    }
+
+    const response = await handleWorkerRequest(
+      new Request('https://sizeof.ai/api/models/invalid'),
+      env,
+      ctx,
+    )
+
+    expect(response.status).toBe(400)
+    expect(cache.reads).toEqual([])
+  })
+
+  it('uses the same model key for different API query strings', async () => {
+    const cache = new MemoryModelCache()
+    cache.values.set('model-response-v1:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 1,
+      fetchedAt: Date.now(),
+      body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'kv' }),
+    }))
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Hugging Face should not be called'))
+    const { ctx } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+    }
+
+    try {
+      const first = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B?schema=13&probe=one'),
+        env,
+        ctx,
+      )
+      const second = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B?schema=13&probe=two'),
+        env,
+        ctx,
+      )
+
+      expect(first.status).toBe(200)
+      expect(second.status).toBe(200)
+      expect(cache.reads.map((read) => read.key)).toEqual([
+        'model-response-v1:Qwen/Qwen3.8-27B',
+        'model-response-v1:Qwen/Qwen3.8-27B',
+      ])
+      expect(fetcher).not.toHaveBeenCalled()
+    } finally {
+      fetcher.mockRestore()
+    }
   })
 
   it('does not offer speculative draft repositories as ordinary community quantizations', () => {
@@ -188,7 +539,7 @@ describe('Hugging Face model API', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Cache-Control')).toBe('public, max-age=300')
     expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe(
-      'public, max-age=3600, stale-while-revalidate=86400, stale-if-error=86400',
+      'public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800',
     )
     expect(body.id).toBe('Qwen/Qwen3.8-27B')
     expect(body.spec.attentionLayers).toBe(32)

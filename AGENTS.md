@@ -44,8 +44,9 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-22: Homepage examples now track current popular Hugging Face text-output models with only estimator-safe cache layouts. Qwen3.8-27B is the default demonstration as the current Base-only trending leader below 40B; hybrid and local/sliding cache exclusions are disclosed in the methodology.
 - 2026-08-22: Frontier architecture support now separates MoE total and active parameters, identifies integrated and sidecar MTP, models DFlash/EAGLE draft pair static weights, and exposes full/sliding/linear/KDA/recurrent/SSM topology without presenting runtime-specific state as a safe fit estimate.
 - 2026-08-22: Speculative target lookups use canonical Hugging Face ids and revision-locked artifact sizes, degrade safely to draft-only profiles, and remain excluded from ordinary community quantization discovery.
-- 2026-08-22: Model API responses now use version-isolated Cloudflare Workers Caching with a one-hour fresh window and one-day stale refresh/error fallback. Browser caching remains five minutes, failed API responses are never cached, and the legacy per-data-center `hf-model-v24` Cache API layer has been removed.
-- Cloudflare production version: `9a6d9996-df67-46a5-8497-d2b6997d99bb` (deployed 2026-08-22).
+- 2026-08-22: Model API responses now use version-isolated Cloudflare Workers Caching with a 24-hour fresh window and seven-day stale refresh/error fallback. Browser caching remains five minutes, failed API responses are never cached, and the legacy per-data-center `hf-model-v24` Cache API layer has been removed.
+- 2026-08-22: A free-plan Workers KV model cache now sits between Workers Caching and Hugging Face. Successful model responses are retained for 30 days, refreshed after 24 hours, and may serve as stale fallback for transient failures only until the response is eight days old; missing or private models never use stale data.
+- Cloudflare production version: `fbdfe8e9-6514-49d3-8628-87f7c252e500` (deployed 2026-08-22).
 
 ## Commands
 
