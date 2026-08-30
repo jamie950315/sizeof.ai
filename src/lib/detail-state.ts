@@ -62,12 +62,16 @@ function serializeQuery(entries: Array<[string, string]>): string {
 
 export function parseDetailState(search: string, defaults: DetailCalculatorState): DetailCalculatorState {
   const params = parseQuery(search)
+  const versioned = params.get('state') === '1'
   const quantization = params.get('quant') ?? null
   const kvPrecision = params.get('kv') ?? null
   const context = Number(params.get('ctx') ?? null)
   const vramGiB = Number(params.get('vram') ?? null)
   const mlaCacheMode = params.get('mla') ?? null
-  const parsedHardwareProfile = parseHardwareProfile(params.get('hardware') ?? null)
+  const hardwareValue = params.get('hardware') ?? null
+  const parsedHardwareProfile = parseHardwareProfile(hardwareValue)
+  const selectedSource = safeSource(params.get('source') ?? null, defaults.selectedSource)
+  const variantValue = params.get('variant') ?? null
 
   return {
     quantization: quantizations.some((item) => item.id === quantization)
@@ -81,11 +85,15 @@ export function parseDetailState(search: string, defaults: DetailCalculatorState
       ? mlaCacheMode
       : defaults.mlaCacheMode,
     vramGiB: VRAM_CAPACITIES.has(vramGiB) ? vramGiB : defaults.vramGiB,
-    selectedSource: safeSource(params.get('source') ?? null, defaults.selectedSource),
-    selectedVariantId: params.has('variant')
-      ? safeVariant(params.get('variant') ?? null) ?? defaults.selectedVariantId
+    selectedSource,
+    selectedVariantId: selectedSource === 'estimated' || (versioned && variantValue === 'none')
+      ? null
+      : params.has('variant')
+        ? safeVariant(variantValue) ?? defaults.selectedVariantId
       : defaults.selectedVariantId,
-    ...(parsedHardwareProfile
+    ...(versioned && hardwareValue === 'none'
+      ? {}
+      : parsedHardwareProfile
       ? { hardwareProfile: parsedHardwareProfile }
       : defaults.hardwareProfile ? { hardwareProfile: defaults.hardwareProfile } : {}),
   }
@@ -93,6 +101,7 @@ export function parseDetailState(search: string, defaults: DetailCalculatorState
 
 export function serializeDetailState(state: DetailCalculatorState): string {
   const entries: Array<[string, string]> = [
+    ['state', '1'],
     ['quant', state.quantization],
     ['ctx', String(state.context)],
     ['kv', state.kvPrecision],
@@ -100,7 +109,7 @@ export function serializeDetailState(state: DetailCalculatorState): string {
     ['vram', String(state.vramGiB)],
     ['source', state.selectedSource],
   ]
-  if (state.selectedVariantId) entries.push(['variant', state.selectedVariantId])
-  if (state.hardwareProfile) entries.push(['hardware', serializeHardwareProfile(state.hardwareProfile)])
+  entries.push(['variant', state.selectedVariantId ?? 'none'])
+  entries.push(['hardware', state.hardwareProfile ? serializeHardwareProfile(state.hardwareProfile) : 'none'])
   return serializeQuery(entries)
 }

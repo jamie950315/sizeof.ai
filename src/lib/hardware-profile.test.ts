@@ -38,6 +38,7 @@ describe('hardware profiles', () => {
     expect(parseHardwareProfile(JSON.stringify({ version: 1, profile: { ...discrete, reservedGiB: -1 } }))).toBeNull()
     expect(parseHardwareProfile(JSON.stringify({ version: 1, profile: { ...discrete, capacityGiB: 0 } }))).toBeNull()
     expect(parseHardwareProfile(JSON.stringify({ version: 1, profile: { ...discrete, capacityGiB: 999_999 } }))).toBeNull()
+    expect(parseHardwareProfile(JSON.stringify({ version: 1, profile: { ...discrete, reservedGiB: 999_999 } }))).toBeNull()
     expect(parseHardwareProfile(JSON.stringify({ version: 1, profile: { ...discrete, label: 'x'.repeat(201) } }))).toBeNull()
     expect(parseHardwareProfile(JSON.stringify({ version: 1, profile: {
       kind: 'unified-memory', label: 'M-series', capacityGiB: 16, reservedGiB: 1, systemRamGiB: 32,

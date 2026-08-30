@@ -29,7 +29,8 @@ function profileFromUnknown(value: unknown): HardwareProfile | null {
   const profile = value as Record<string, unknown>
   if (profile.kind !== 'discrete-gpu' && profile.kind !== 'unified-memory') return null
   if (typeof profile.label !== 'string' || !profile.label.trim() || profile.label.length > MAX_LABEL_LENGTH) return null
-  if (!isMemorySize(profile.capacityGiB) || !isNonNegative(profile.reservedGiB)) return null
+  if (!isMemorySize(profile.capacityGiB) || !isNonNegative(profile.reservedGiB)
+    || profile.reservedGiB > MAX_MEMORY_GIB) return null
   const systemRamGiB = profile.systemRamGiB
   if (profile.kind === 'unified-memory' && systemRamGiB !== undefined) return null
   if (profile.kind === 'discrete-gpu') {

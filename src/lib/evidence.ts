@@ -15,7 +15,8 @@ export function buildModelEvidence(
   model: ModelSpec,
   selectedVariant: HuggingFaceVariant | null,
 ): EvidenceEntry[] {
-  const entries: EvidenceEntry[] = [{
+  const weightsOnly = model.estimateConfidence === 'weights-only'
+  const entries: EvidenceEntry[] = weightsOnly ? [] : [{
     id: 'model-specification',
     label: 'Published model specification',
     kind: 'verified',
@@ -42,12 +43,14 @@ export function buildModelEvidence(
     })
   }
 
-  entries.push({
-    id: 'memory-formula',
-    label: 'Derived memory estimate',
-    kind: 'derived',
-    detail: 'KV cache and runtime reserve are calculated from the selected context and precision settings.',
-  })
+  if (!weightsOnly) {
+    entries.push({
+      id: 'memory-formula',
+      label: 'Derived memory estimate',
+      kind: 'derived',
+      detail: 'KV cache and runtime reserve are calculated from the selected context and precision settings.',
+    })
+  }
 
   if (model.estimateConfidence === 'runtime-specific') {
     entries.push({
@@ -59,10 +62,21 @@ export function buildModelEvidence(
   }
   if (model.estimateConfidence === 'weights-only') {
     entries.push({
+      id: 'cache-geometry',
+      label: 'Cache geometry',
+      kind: 'unknown',
+      detail: 'The repository does not provide enough cache geometry for a safe context-dependent estimate.',
+    }, {
+      id: 'kv-cache',
+      label: 'KV cache memory',
+      kind: 'unknown',
+      detail: 'KV cache residency cannot be calculated safely from the available repository facts.',
+    })
+    entries.push({
       id: 'runtime-factors',
       label: 'Runtime memory factors',
       kind: 'unknown',
-      detail: 'The repository does not provide enough runtime geometry for a complete memory estimate.',
+      detail: 'The repository does not provide enough runtime facts for a complete memory estimate.',
     })
   }
   return entries

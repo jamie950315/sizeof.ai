@@ -36,4 +36,14 @@ describe('model evidence', () => {
     expect(buildModelEvidence({ ...safeModel, estimateConfidence: 'runtime-specific' }, null))
       .toContainEqual(expect.objectContaining({ id: 'estimate-confidence', kind: 'unknown' }))
   })
+
+  it('keeps weights-only cache geometry, KV, and runtime facts unknown', () => {
+    const evidence = buildModelEvidence({ ...safeModel, estimateConfidence: 'weights-only' }, null)
+
+    expect(evidence).toContainEqual(expect.objectContaining({ id: 'cache-geometry', kind: 'unknown' }))
+    expect(evidence).toContainEqual(expect.objectContaining({ id: 'kv-cache', kind: 'unknown' }))
+    expect(evidence).toContainEqual(expect.objectContaining({ id: 'runtime-factors', kind: 'unknown' }))
+    expect(evidence).not.toContainEqual(expect.objectContaining({ id: 'model-specification' }))
+    expect(evidence).not.toContainEqual(expect.objectContaining({ id: 'memory-formula' }))
+  })
 })

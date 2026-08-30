@@ -22,7 +22,7 @@ describe('detail calculator URL state', () => {
     }
 
     const search = serializeDetailState(state)
-    expect(search).toBe('quant=q6_k&ctx=32768&kv=q8_0&mla=latent&vram=64&source=mlx-community&variant=abc%3Aweights.gguf&hardware=' + encodeURIComponent('{"version":1,"profile":{"kind":"discrete-gpu","label":"RTX workstation","capacityGiB":64,"reservedGiB":4,"systemRamGiB":128}}'))
+    expect(search).toBe('state=1&quant=q6_k&ctx=32768&kv=q8_0&mla=latent&vram=64&source=mlx-community&variant=abc%3Aweights.gguf&hardware=' + encodeURIComponent('{"version":1,"profile":{"kind":"discrete-gpu","label":"RTX workstation","capacityGiB":64,"reservedGiB":4,"systemRamGiB":128}}'))
     expect(parseDetailState(search, defaults)).toEqual(state)
   })
 
@@ -38,10 +38,10 @@ describe('detail calculator URL state', () => {
 
   it('does not serialize unknown query parameters', () => {
     const parsed = parseDetailState('?unknown=value&ctx=16384', defaults)
-    expect(serializeDetailState(parsed)).toBe('quant=q4_k_m&ctx=16384&kv=fp16&mla=expanded&vram=32&source=estimated')
+    expect(serializeDetailState(parsed)).toBe('state=1&quant=q4_k_m&ctx=16384&kv=fp16&mla=expanded&vram=32&source=estimated&variant=none&hardware=none')
   })
 
-  it('keeps optional defaults when their URL values are invalid', () => {
+  it('keeps hardware defaults while clearing stale estimated variants', () => {
     const defaultsWithOptionalState: DetailCalculatorState = {
       ...defaults,
       selectedVariantId: 'known:variant',
@@ -51,6 +51,29 @@ describe('detail calculator URL state', () => {
     }
 
     expect(parseDetailState('?variant=../../unsafe&hardware=%7Bbad', defaultsWithOptionalState))
-      .toEqual(defaultsWithOptionalState)
+      .toEqual({ ...defaultsWithOptionalState, selectedVariantId: null })
+  })
+
+  it('round-trips explicit null optional state across browsers with stale defaults', () => {
+    const staleDefaults: DetailCalculatorState = {
+      ...defaults,
+      selectedSource: 'mlx-community',
+      selectedVariantId: 'stale:variant',
+      hardwareProfile: {
+        kind: 'unified-memory', label: 'M-series', capacityGiB: 32, reservedGiB: 4,
+      },
+    }
+    const intentionallyCleared: DetailCalculatorState = {
+      ...defaults,
+      selectedSource: 'estimated',
+      selectedVariantId: null,
+    }
+
+    const serialized = serializeDetailState(intentionallyCleared)
+    expect(serialized).toContain('state=1')
+    expect(serialized).toContain('variant=none')
+    expect(serialized).toContain('hardware=none')
+    expect(parseDetailState(serialized, staleDefaults)).toEqual(intentionallyCleared)
+    expect(parseDetailState('?source=estimated', staleDefaults).selectedVariantId).toBeNull()
   })
 })

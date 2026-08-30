@@ -20,7 +20,17 @@ export type MaximumSafeContextResult =
 
 export type HighestPrecisionFitResult =
   | { kind: 'available'; quantization: QuantizationId; estimate: VramEstimate }
-  | { kind: 'unavailable'; reason: PlannerUnavailableReason }
+  | {
+      kind: 'unavailable'
+      reason:
+        | 'invalid-capacity'
+        | 'runtime-specific'
+        | 'weights-only'
+        | 'missing-safe-geometry'
+        | 'mla-mode-required'
+        | 'native-context-too-small'
+        | 'no-precision-fits'
+    }
 
 export interface FitAdjustment {
   field: 'context' | 'kvPrecision' | 'quantization'
@@ -32,14 +42,57 @@ export interface FitAdjustmentOptions extends EstimateOptions {
   capacityGiB: number
 }
 
+function isPositiveFinite(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
+function hasSafeGeometry(
+  model: ModelSpec,
+  options: Pick<EstimateOptions, 'mlaCacheMode' | 'weightBytesOverride' | 'additionalWeightBytes'>,
+): boolean {
+  if (!isPositiveFinite(model.parametersB)
+    || !isPositiveInteger(model.layers)
+    || !isPositiveInteger(model.maxContext)) return false
+  if (model.attentionLayers !== undefined
+    && (!isPositiveInteger(model.attentionLayers) || model.attentionLayers > model.layers)) return false
+  if (model.attentionProfile) {
+    const profile = model.attentionProfile
+    if (!isPositiveInteger(profile.fullLayers)
+      || profile.fullLayers > model.layers
+      || ![profile.slidingLayers, profile.linearLayers, profile.kdaLayers, profile.recurrentLayers, profile.ssmLayers]
+        .every(isNonNegativeInteger)
+      || (profile.slidingWindow !== null && !isPositiveInteger(profile.slidingWindow))) return false
+  }
+  if (model.kvCache?.kind === 'standard') {
+    if (!isPositiveInteger(model.kvCache.heads) || !isPositiveInteger(model.kvCache.headDim)) return false
+  } else if (model.kvCache?.kind === 'mla') {
+    if (![model.kvCache.heads, model.kvCache.keyHeadDim, model.kvCache.valueHeadDim,
+      model.kvCache.latentDim, model.kvCache.ropeDim].every(isPositiveInteger)) return false
+  } else if (!isPositiveInteger(model.kvHeads) || !isPositiveInteger(model.headDim)) {
+    return false
+  }
+  return (options.weightBytesOverride === undefined || isPositiveFinite(options.weightBytesOverride))
+    && (options.additionalWeightBytes === undefined
+      || (Number.isFinite(options.additionalWeightBytes) && options.additionalWeightBytes >= 0))
+}
+
 function safetyReason(
   model: ModelSpec,
-  options: Pick<EstimateOptions, 'mlaCacheMode'>,
+  options: Pick<EstimateOptions, 'mlaCacheMode' | 'weightBytesOverride' | 'additionalWeightBytes'>,
   capacityGiB: number,
 ) {
   if (!Number.isFinite(capacityGiB) || capacityGiB <= 0) return 'invalid-capacity' as const
   if (model.estimateConfidence === 'runtime-specific') return 'runtime-specific' as const
   if (model.estimateConfidence === 'weights-only') return 'weights-only' as const
+  if (!hasSafeGeometry(model, options)) return 'missing-safe-geometry' as const
   if (model.kvCache?.kind === 'mla' && !options.mlaCacheMode) return 'mla-mode-required' as const
   if (model.maxContext < 1024) return 'native-context-too-small' as const
   return null
@@ -51,7 +104,10 @@ function estimateAt(
   context: number,
 ): VramEstimate | null {
   try {
-    return estimateVram(model, { ...options, context })
+    const estimate = estimateVram(model, { ...options, context })
+    return Object.values(estimate).every((value) => typeof value !== 'number' || Number.isFinite(value))
+      ? estimate
+      : null
   } catch {
     return null
   }
@@ -100,6 +156,7 @@ export function findHighestPrecisionFit(
 
   for (const quantization of [...quantizations].sort((a, b) => b.bitsPerWeight - a.bitsPerWeight)) {
     const estimate = estimateAt(model, { ...options, quantization: quantization.id }, options.context)
+    if (!estimate) return { kind: 'unavailable', reason: 'missing-safe-geometry' }
     if (estimate && estimate.totalGiB <= capacityGiB) {
       return { kind: 'available', quantization: quantization.id, estimate }
     }

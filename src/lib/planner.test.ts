@@ -51,6 +51,53 @@ describe('inverse fit planner', () => {
       .toEqual({ kind: 'unavailable', reason: 'no-precision-fits' })
   })
 
+  it('refuses invalid geometry and never returns a non-finite estimate', () => {
+    const invalidModels: ModelSpec[] = [
+      { ...model, maxContext: Number.NaN },
+      { ...model, maxContext: Number.POSITIVE_INFINITY },
+      { ...model, maxContext: 0 },
+      { ...model, parametersB: Number.NaN },
+      { ...model, parametersB: Number.POSITIVE_INFINITY },
+      { ...model, parametersB: 0 },
+      { ...model, layers: Number.NaN },
+      { ...model, layers: Number.POSITIVE_INFINITY },
+      { ...model, layers: 0 },
+      { ...model, kvHeads: 0 },
+      { ...model, kvHeads: Number.NaN },
+      { ...model, headDim: Number.POSITIVE_INFINITY },
+      { ...model, kvCache: { kind: 'standard', heads: 0, headDim: 64 } },
+      { ...model, kvCache: { kind: 'standard', heads: Number.POSITIVE_INFINITY, headDim: 64 } },
+      { ...model, kvCache: {
+        kind: 'mla', heads: 8, keyHeadDim: 64, valueHeadDim: 64, latentDim: 0, ropeDim: 8,
+      } },
+    ]
+
+    for (const invalidModel of invalidModels) {
+      expect(findMaximumSafeContext(invalidModel, {
+        ...options,
+        ...(invalidModel.kvCache?.kind === 'mla' ? { mlaCacheMode: 'expanded' as const } : {}),
+      }, 32)).toEqual({ kind: 'unavailable', reason: 'missing-safe-geometry' })
+      expect(findHighestPrecisionFit(invalidModel, {
+        context: 4096,
+        kvPrecision: 'fp16',
+        ...(invalidModel.kvCache?.kind === 'mla' ? { mlaCacheMode: 'expanded' as const } : {}),
+      }, 32)).toEqual({ kind: 'unavailable', reason: 'missing-safe-geometry' })
+    }
+
+    const available = findMaximumSafeContext(model, options, 10)
+    expect(available.kind).toBe('available')
+    if (available.kind === 'available') {
+      expect(Object.values(available.estimate).filter((value) => typeof value === 'number')
+        .every(Number.isFinite)).toBe(true)
+    }
+  })
+
+  it('reports geometry failures separately from an ordinary no-fit result', () => {
+    expect(findHighestPrecisionFit({ ...model, kvHeads: 0 }, {
+      context: 4096, kvPrecision: 'fp16',
+    }, 32)).toEqual({ kind: 'unavailable', reason: 'missing-safe-geometry' })
+  })
+
   it('suggests independently verifiable adjustments in context, KV, then weight order', () => {
     const adjustments = buildFitAdjustments(model, {
       quantization: 'q8_0', context: 8192, kvPrecision: 'fp16', capacityGiB: 1.61,
