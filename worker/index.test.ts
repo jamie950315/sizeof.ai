@@ -244,6 +244,19 @@ describe('Hugging Face model API', () => {
     expect(await compare.text()).toContain('<title>Compare model memory estimates | sizeof.ai</title>')
   })
 
+  it('rewrites only the testnet homepage static canonical to the testnet host', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const html = '<html><head><link rel="canonical" href="https://sizeof.ai/" /></head><body></body></html>'
+    const assets = { fetch: vi.fn(() => Promise.resolve(new Response(html, { headers: { 'Content-Type': 'text/html' } }))) }
+
+    const production = await handleWorkerRequest(new Request('https://sizeof.ai/'), { ASSETS: assets, MODEL_CACHE: cache }, ctx)
+    const testnet = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/'), { ASSETS: assets, MODEL_CACHE: cache, ENVIRONMENT: 'testnet' }, ctx)
+
+    expect(await production.text()).toContain('<link rel="canonical" href="https://sizeof.ai/" />')
+    expect(await testnet.text()).toContain('<link rel="canonical" href="https://testnet.sizeof.ai/" />')
+  })
+
   it('serves a bounded script-free SVG share card with conservative headers', async () => {
     const cache = new MemoryModelCache()
     const { ctx } = modelCacheContext()

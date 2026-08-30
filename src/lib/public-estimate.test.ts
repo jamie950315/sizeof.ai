@@ -66,7 +66,8 @@ describe('public estimate contract', () => {
     expect(result.result.estimate?.totalGiB).toBeGreaterThan(0)
     expect(result.planner.maximumSafeContext).toBeTruthy()
     expect(result.evidence.length).toBeGreaterThan(0)
-    expect(result.reproducibleUrl).toContain('https://testnet.sizeof.ai/Qwen/Qwen3.8-27B?')
+    expect(result.detailUrl).toContain('https://testnet.sizeof.ai/Qwen/Qwen3.8-27B?')
+    expect(result.apiReproductionUrl).toContain('https://testnet.sizeof.ai/api/v1/estimate?')
     expect(JSON.stringify(result)).not.toMatch(/NaN|Infinity|HF_TOKEN|hf_secret/)
   })
 
@@ -103,12 +104,43 @@ describe('public estimate contract', () => {
   })
 
   it('includes a conservative serving scenario only when explicitly requested', () => {
-    const parsed = parsePublicEstimateQuery('model=Qwen%2FQwen3.8-27B&engine=vllm&prompt=2048&generated=256&concurrency=4')
+    const parsed = parsePublicEstimateQuery('model=Qwen%2FQwen3.8-27B&quant=q5_k_m&context=16384&kv=q8_0&mla=latent&vram=48&profile=unified-memory&engine=vllm&prompt=2048&generated=256&concurrency=4')
     if (!parsed.ok) throw new Error(parsed.error)
     const result = buildPublicEstimate(safeModel(), parsed.value)
     expect(result.serving).toMatchObject({ inputs: { profileId: 'vllm', concurrency: 4 } })
     expect(result.serving).not.toHaveProperty('throughput')
     expect(result.serving).not.toHaveProperty('latency')
+    const replay = new URL(result.apiReproductionUrl)
+    expect(replay.pathname).toBe('/api/v1/estimate')
+    expect(Object.fromEntries(replay.searchParams)).toEqual({
+      model: 'Qwen/Qwen3.8-27B', quant: 'q5_k_m', context: '16384', kv: 'q8_0', mla: 'latent',
+      vram: '48', profile: 'unified-memory', source: 'estimated',
+      engine: 'vllm', prompt: '2048', generated: '256', concurrency: '4',
+    })
+    const detail = new URL(result.detailUrl)
+    expect(detail.pathname).toBe('/Qwen/Qwen3.8-27B')
+    expect(Object.fromEntries(detail.searchParams)).toEqual({
+      state: '1', quant: 'q5_k_m', ctx: '16384', kv: 'q8_0', mla: 'latent',
+      vram: '48', source: 'estimated', variant: 'none',
+    })
+    expect(result).not.toHaveProperty('reproducibleUrl')
+  })
+
+  it('maps an official repository artifact to the detail source that the UI can restore', () => {
+    const model = safeModel()
+    model.variants = [{
+      id: 'official-q4', label: 'Official Q4', format: 'gguf', role: 'model', path: 'model-q4.gguf',
+      revision: 'c'.repeat(40), bitsPerWeight: 4.5, weightSizeBytes: 10_000_000_000,
+      totalSizeBytes: 10_000_000_000, source: 'file', provenance: 'repository',
+      repositoryId: model.id, sourceUrl: model.sourceUrl,
+    }]
+    const parsed = parsePublicEstimateQuery('model=Qwen%2FQwen3.8-27B&source=repository&artifact=official-q4')
+    if (!parsed.ok) throw new Error(parsed.error)
+    const result = buildPublicEstimate(model, parsed.value)
+    expect(new URL(result.apiReproductionUrl).searchParams.get('source')).toBe('repository')
+    const detail = new URL(result.detailUrl)
+    expect(detail.searchParams.get('source')).toBe('qwen')
+    expect(detail.searchParams.get('variant')).toBe('official-q4')
   })
 
   it('refuses a requested serving window beyond the model native context', () => {

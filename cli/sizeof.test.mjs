@@ -73,6 +73,8 @@ describe('sizeof CLI', () => {
     expect(action).toContain('total:')
     expect(action).toContain('status:')
     expect(action).toContain('cli/sizeof.mjs')
+    expect(action).toContain('cli/action-result.mjs')
+    expect(action).not.toContain('value.result?.state')
     expect(action).not.toMatch(/token|secret/i)
   })
 

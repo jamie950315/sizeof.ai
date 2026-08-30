@@ -59,11 +59,4 @@ runs:
         args=("${INPUT_MODEL}" --quant "${INPUT_QUANT}" --context "${INPUT_CONTEXT}" --kv "${INPUT_KV}" --vram "${INPUT_VRAM}" --concurrency "${INPUT_CONCURRENCY}" --base-url "${INPUT_BASE_URL}" --json)
         if [[ -n "${INPUT_ENGINE}" ]]; then args+=(--engine "${INPUT_ENGINE}"); fi
         node "${GITHUB_ACTION_PATH}/cli/sizeof.mjs" "${args[@]}" > "${result_file}"
-        RESULT_FILE="${result_file}" node -e '
-          const fs = require("node:fs");
-          const value = JSON.parse(fs.readFileSync(process.env.RESULT_FILE, "utf8"));
-          const status = value.result?.state ?? "unavailable";
-          const total = Number.isFinite(value.result?.estimate?.totalGiB) ? value.result.estimate.totalGiB : "";
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `status=${status}\ntotal=${total}\n`);
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### sizeof.ai testnet estimate\n\n- Model: ${value.model?.id ?? "unknown"}\n- Status: ${status}\n- Total: ${total === "" ? "unavailable" : `${total.toFixed(2)} GiB`}\n\n${value.disclaimer}\n`);
-        '
+        RESULT_FILE="${result_file}" node "${GITHUB_ACTION_PATH}/cli/action-result.mjs"

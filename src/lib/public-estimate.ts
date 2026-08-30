@@ -93,7 +93,8 @@ export interface PublicEstimateResponse {
   }
   serving: ServingScenarioEstimate | null
   sourceUrl: string
-  reproducibleUrl: string
+  detailUrl: string
+  apiReproductionUrl: string
   generatedAt: string
   disclaimer: string
 }
@@ -190,12 +191,37 @@ function finiteEstimate(estimate: VramEstimate) {
   return Object.values(estimate).every((value) => typeof value !== 'number' || Number.isFinite(value))
 }
 
-function detailsQuery(input: PublicEstimateInput) {
+function detailSource(model: HuggingFaceModel, artifact: HuggingFaceVariant | null) {
+  if (!artifact) return 'estimated'
+  if (model.addon || artifact.role === 'addon') return 'repository'
+  return (artifact.publisher ?? model.owner ?? 'repository').toLowerCase()
+}
+
+function detailsQuery(model: HuggingFaceModel, input: PublicEstimateInput, artifact: HuggingFaceVariant | null) {
   const query = new URLSearchParams({
     state: '1', quant: input.quantization, ctx: String(input.context), kv: input.kvPrecision,
-    mla: input.mlaCacheMode, vram: String(input.capacityGiB), source: input.source,
-    variant: input.artifactId ?? 'none',
+    mla: input.mlaCacheMode, vram: String(input.capacityGiB), source: detailSource(model, artifact),
+    variant: artifact?.id ?? 'none',
   })
+  return query.toString()
+}
+
+function apiQuery(input: PublicEstimateInput) {
+  const query = new URLSearchParams({
+    model: input.model,
+    quant: input.quantization,
+    context: String(input.context),
+    kv: input.kvPrecision,
+    mla: input.mlaCacheMode,
+    vram: String(input.capacityGiB),
+    profile: input.hardwareKind,
+    source: input.source,
+    prompt: String(input.promptTokens),
+    generated: String(input.generatedTokens),
+    concurrency: String(input.concurrency),
+  })
+  if (input.artifactId) query.set('artifact', input.artifactId)
+  if (input.engine) query.set('engine', input.engine)
   return query.toString()
 }
 
@@ -306,7 +332,8 @@ export function buildPublicEstimate(
     },
     serving,
     sourceUrl: model.sourceUrl,
-    reproducibleUrl: `${base}${detailPath}?${detailsQuery(input)}`,
+    detailUrl: `${base}${detailPath}?${detailsQuery(model, input, artifact)}`,
+    apiReproductionUrl: `${base}/api/v1/estimate?${apiQuery(input)}`,
     generatedAt,
     disclaimer: PUBLIC_ESTIMATE_DISCLAIMER,
   }

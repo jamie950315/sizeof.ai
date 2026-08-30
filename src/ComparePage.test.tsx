@@ -3,10 +3,12 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ComparePage from './ComparePage'
+import { buildPublicEstimate, parsePublicEstimateQuery } from './lib/public-estimate'
+import type { HuggingFaceModel } from './lib/huggingface'
 
 let writeText: ReturnType<typeof vi.fn>
 
-const safeModel = (id: string) => {
+const safeModel = (id: string): HuggingFaceModel => {
   const [owner, name] = id.split('/')
   return {
     id, owner, name, author: owner, parametersB: 7, downloads: 1, likes: 1, lastModified: null,
@@ -66,6 +68,42 @@ describe('model comparison workspace', () => {
     await user.click(screen.getByRole('button', { name: 'Export comparison' }))
     expect(screen.getByRole('button', { name: 'Download JSON export' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Copy Markdown export' })).toBeInTheDocument()
+  })
+
+  it('matches the public API when addon weights affect card totals, fit, headroom, and export', async () => {
+    const user = userEvent.setup()
+    const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    const addonBytes = 1024 ** 3
+    const addonModel: HuggingFaceModel = {
+      ...safeModel('Qwen/One'),
+      variants: [{
+        id: 'mtp-head', label: 'MTP head', format: 'safetensors', revision: 'a'.repeat(40),
+        path: 'mtp.safetensors', source: 'file', role: 'addon', bitsPerWeight: null,
+        weightSizeBytes: addonBytes, totalSizeBytes: addonBytes,
+      }],
+      addon: { kind: 'mtp', baseModelId: 'Qwen/Base', parametersB: 1, sizeBytes: addonBytes },
+    }
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => Promise.resolve(Response.json(
+      String(input).includes('/Qwen/One?') ? addonModel : safeModel('Meta/Two'),
+    ))))
+    const parsed = parsePublicEstimateQuery('model=Qwen%2FOne&quant=q4_k_m&context=8192&kv=fp16&vram=32')
+    if (!parsed.ok) throw new Error(parsed.error)
+    const api = buildPublicEstimate(addonModel, parsed.value)
+    const expected = api.result.estimate
+    if (!expected) throw new Error('Expected a safe addon estimate')
+
+    render(<ComparePage />)
+    const card = await screen.findByRole('region', { name: 'Comparison for Qwen/One' })
+    expect(within(card).getByText('TOTAL').parentElement).toHaveTextContent(`${expected.totalGiB.toFixed(2)} GiB`)
+    expect(within(card).getByText('WEIGHTS').parentElement).toHaveTextContent(`${expected.weightsGiB.toFixed(2)} GiB`)
+    expect(within(card).getByText('HEADROOM / FIT').parentElement).toHaveTextContent(`${(32 - expected.totalGiB).toFixed(2)} GiB`)
+
+    await user.click(screen.getByRole('button', { name: 'Export comparison' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+    await vi.waitFor(() => expect(copy).toHaveBeenCalled())
+    const markdown = copy.mock.calls.at(-1)?.[0] as string
+    expect(markdown).toContain(`- Total: ${expected.totalGiB} GiB`)
+    expect(markdown).toContain(`- Weights: ${expected.weightsGiB} GiB`)
   })
 
   it('does not expose comparison export until every visible model record is ready', async () => {

@@ -450,6 +450,14 @@ function injectMetadata(html: string, metadata: NonNullable<ReturnType<typeof pa
     .replace(/<\/head>/i, `${tags}</head>`)
 }
 
+function rewriteHomepageCanonical(html: string, host: string) {
+  const canonical = escapeHtml(`${host}/`)
+  return html.replace(
+    /<link\s+rel=["']canonical["'][^>]*>/i,
+    `<link rel="canonical" href="${canonical}" />`,
+  )
+}
+
 function staticResponse(body: string, type: string, cacheControl: string, status = 200) {
   return new Response(body, { status, headers: { 'Content-Type': type, 'Cache-Control': cacheControl, 'X-Content-Type-Options': 'nosniff' } })
 }
@@ -1284,7 +1292,7 @@ function embedHtml(result: PublicEstimateResponse | null) {
   const state = result.result.state === 'estimate' ? `Estimate · ${result.result.fit}`
     : result.result.state === 'lower-bound' ? 'Lower bound' : 'Unavailable'
   const total = result.result.estimate ? `${result.result.estimate.totalGiB.toFixed(2)} GiB` : 'No safe total'
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(result.model.id)} estimate | sizeof.ai</title><style>html{color-scheme:dark}body{margin:0;padding:16px;background:#15181d;color:#f5f7fa;font:14px system-ui,sans-serif}.card{border:1px solid #3b4350;border-radius:10px;padding:16px;max-width:440px}h1{font-size:16px;margin:0 0 12px}strong{font-size:24px}p{color:#b8c0cc}a{color:#8eaeff}</style></head><body><main class="card"><h1>${escapeHtml(result.model.id)}</h1><div>${escapeHtml(state)}</div><strong>${escapeHtml(total)} / ${escapeHtml(String(result.hardware.capacityGiB))} GiB</strong><p>${escapeHtml(result.disclaimer)}</p><a href="${escapeHtml(result.reproducibleUrl)}">Open reproducible estimate</a></main></body></html>`
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(result.model.id)} estimate | sizeof.ai</title><style>html{color-scheme:dark}body{margin:0;padding:16px;background:#15181d;color:#f5f7fa;font:14px system-ui,sans-serif}.card{border:1px solid #3b4350;border-radius:10px;padding:16px;max-width:440px}h1{font-size:16px;margin:0 0 12px}strong{font-size:24px}p{color:#b8c0cc}a{color:#8eaeff}</style></head><body><main class="card"><h1>${escapeHtml(result.model.id)}</h1><div>${escapeHtml(state)}</div><strong>${escapeHtml(total)} / ${escapeHtml(String(result.hardware.capacityGiB))} GiB</strong><p>${escapeHtml(result.disclaimer)}</p><a href="${escapeHtml(result.detailUrl)}">Open detail calculator</a></main></body></html>`
 }
 
 const embedSecurityHeaders = {
@@ -1378,6 +1386,11 @@ export async function handleWorkerRequest(
   if (!url.pathname.startsWith('/api/models/')) {
     const asset = await env.ASSETS.fetch(request)
     const metadata = pageMetadata(url.pathname, host)
+    if (url.pathname === '/' && env.ENVIRONMENT === 'testnet' && asset.headers.get('Content-Type')?.includes('text/html')) {
+      const headers = new Headers(asset.headers)
+      headers.set('Cache-Control', 'no-cache')
+      return new Response(rewriteHomepageCanonical(await asset.text(), host), { status: asset.status, statusText: asset.statusText, headers })
+    }
     if (!metadata || !asset.headers.get('Content-Type')?.includes('text/html')) return applyAssetCachePolicy(asset)
     const headers = new Headers(asset.headers)
     headers.set('Cache-Control', 'no-cache')

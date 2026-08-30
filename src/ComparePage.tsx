@@ -16,6 +16,19 @@ const defaults: Omit<CompareItemState, 'modelId'> = {
 type ModelStatus = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; model: HuggingFaceModel }
 type QueuedModel = { key: string; modelId: string; generation: number }
 
+function estimateOptions(model: HuggingFaceModel, item: CompareItemState, selectedVariant: HuggingFaceModel['variants'][number] | null) {
+  return {
+    quantization: item.quantization,
+    context: item.context,
+    kvPrecision: item.kvPrecision,
+    mlaCacheMode: item.mlaCacheMode,
+    weightBytesOverride: selectedVariant?.role === 'model' ? selectedVariant.weightSizeBytes : undefined,
+    additionalWeightBytes: model.addon
+      ? selectedVariant?.role === 'addon' ? selectedVariant.weightSizeBytes : model.addon.sizeBytes ?? undefined
+      : undefined,
+  }
+}
+
 function currentItems() {
   return parseCompareState(window.location.search, defaults).items
 }
@@ -80,10 +93,10 @@ export default function ComparePage() {
       const status = models[canonicalModelKey(item.modelId)]
       if (status?.kind !== 'ready') return []
       const model = status.model
-      const variants = model.variants.filter((variant) => variant.role === 'model')
+      const variants = model.variants.filter((variant) => variant.role === (model.addon ? 'addon' : 'model'))
       const selectedVariant = variants.find((variant) => (variant.publisher ?? model.owner ?? 'repository').toLowerCase() === item.source && variant.id === item.variantId) ?? null
       const estimate = model.spec && model.estimateConfidence !== 'weights-only'
-        ? estimateVram(model.spec, { quantization: item.quantization, context: item.context, kvPrecision: item.kvPrecision, mlaCacheMode: item.mlaCacheMode, weightBytesOverride: selectedVariant?.weightSizeBytes })
+        ? estimateVram(model.spec, estimateOptions(model, item, selectedVariant))
         : null
       return [{ item, model, estimate, selectedVariant }]
     })
@@ -390,16 +403,13 @@ interface CompareCardProps {
 function CompareCard({ item, index, status, onChange, onRemove, canMoveLeft, canMoveRight, onMove }: CompareCardProps) {
   const label = displayModelId(item, index)
   const model = status.kind === 'ready' ? status.model : null
-  const variants = useMemo(() => model?.variants.filter((variant) => variant.role === 'model') ?? [], [model])
+  const variants = useMemo(() => model?.variants.filter((variant) => variant.role === (model.addon ? 'addon' : 'model')) ?? [], [model])
   const sources = useMemo(() => ['estimated', ...new Set(variants.map((variant) => (variant.publisher ?? model?.owner ?? 'repository').toLowerCase()))], [model?.owner, variants])
   const sourceVariants = variants.filter((variant) => (variant.publisher ?? model?.owner ?? 'repository').toLowerCase() === item.source)
   const selectedVariant = sourceVariants.find((variant) => variant.id === item.variantId)
   const comparable = model?.spec !== null && model?.spec !== undefined && model.estimateConfidence !== 'weights-only'
   const estimate = comparable && model?.spec
-    ? estimateVram(model.spec, {
-      quantization: item.quantization, context: item.context, kvPrecision: item.kvPrecision, mlaCacheMode: item.mlaCacheMode,
-      weightBytesOverride: selectedVariant?.weightSizeBytes,
-    })
+    ? estimateVram(model.spec, estimateOptions(model, item, selectedVariant ?? null))
     : null
   const fit = estimate ? classifyFit(estimate.totalGiB, item.vramGiB) : null
 
