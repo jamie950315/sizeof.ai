@@ -476,6 +476,29 @@ describe('Hugging Face-style model detail route', () => {
     expect(markdown).toContain('Published static resource component selected on this page.')
   })
 
+  it('does not assign the current repository update date to external resource components', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'Inner-Reflections/MiniMax-H3-Looping-Sketch-Anime', owner: 'Inner-Reflections', name: 'MiniMax-H3-Looping-Sketch-Anime',
+      modelKind: 'adapter', estimateReason: 'adapter-only', spec: null,
+      sourceUrl: 'https://huggingface.co/Inner-Reflections/MiniMax-H3-Looping-Sketch-Anime',
+      resourceEstimate: curatedHuggingFaceResourceProfiles['Inner-Reflections/MiniMax-H3-Looping-Sketch-Anime']?.resourceEstimate,
+    })))
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<App />)
+
+    await screen.findByRole('region', { name: 'Model load estimate' })
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalled())
+    const externalLine = (writeText.mock.calls[0]?.[0] as string).split('\n').find((line) => line.includes('Resource component: minimax-r2v'))
+    expect(externalLine).toContain('repository Comfy-Org/MiniMax-H3')
+    expect(externalLine).not.toContain('updated 2026-08-14T15:00:01.000Z')
+  })
+
   it('asks for an unknown workflow artifact classification instead of inventing a VRAM figure', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({
       ...apiModel,
@@ -845,6 +868,13 @@ describe('Hugging Face-style model detail route', () => {
     const copiedUrl = window.location.href
     expect(new URL(copiedUrl).search).toContain('vram=64')
     expect(new URL(copiedUrl).search).not.toMatch(/Private|reservedGiB|hardware=/)
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(2))
+    const manualPresetExport = writeText.mock.calls.at(-1)?.[0] as string
+    expect(manualPresetExport).not.toContain('Private profile')
+    expect(manualPresetExport).not.toContain('48 GiB − 8 GiB reserved')
+    expect(manualPresetExport).not.toContain('System RAM')
 
     first.unmount()
     window.history.replaceState(null, '', new URL(copiedUrl).pathname + new URL(copiedUrl).search)

@@ -310,7 +310,9 @@ export default function ModelDetailPage({ route }: Props) {
     () => model?.spec ? buildModelEvidence(model.spec, selectedVariant, model.lastModified ?? undefined) : [],
     [model, selectedVariant],
   )
-  const exportHardwareProfile = savedHardwareProfile ? {
+  const exportHardwareProfile = savedHardwareProfile
+    && isHardwareProfileApplied
+    && vram === usableMemoryGiB(savedHardwareProfile) ? {
     kind: savedHardwareProfile.kind,
     label: savedHardwareProfile.label,
     capacityGiB: savedHardwareProfile.capacityGiB,
@@ -342,7 +344,7 @@ export default function ModelDetailPage({ route }: Props) {
             repositoryId,
             provenance: 'Published static resource component selected on this page.',
             sourceUrl: repositoryId === model.id ? model.sourceUrl : `https://huggingface.co/${repositoryId.split('/').map(encodeURIComponent).join('/')}`,
-            repositoryUpdatedAt: model.lastModified,
+            repositoryUpdatedAt: repositoryId === model.id ? model.lastModified : undefined,
           }
         }),
       } : null,
