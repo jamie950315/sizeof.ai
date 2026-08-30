@@ -76,6 +76,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Cloudflare production version: `f92be8ce-1399-4318-b912-230a7ac1aa5b` (deployed 2026-08-30).
 - 2026-08-30: The obsolete lime bracketed-S favicon was replaced with the selected cobalt VRAM-frame mark. Browser-tab assets now include dedicated 16px and 32px PNGs plus a 180px Apple touch icon, and the old SVG is no longer referenced by the page.
 - Cloudflare production version: `3d4e767d-bdaa-4402-842b-f687ac5b4cfa` (deployed 2026-08-30).
+- 2026-08-31: Six-phase planning preview deployed only to `https://testnet.sizeof.ai` as the isolated `sizeof-ai-testnet` Worker. It includes evidence-aware fit planning, local hardware profiles, 2–4 model comparison, exports/share/indexing, conservative engine serving scenarios, and the testnet API/CLI/Action/MCP ecosystem. Public API, badge/embed, robots/sitemap, desktop 1280×800, mobile 390×844, CLI, and MCP checks passed; production remained on its existing Worker version and API response.
+- Cloudflare testnet version: `6ce49d13-e0c7-4502-a3e7-c40fd15cd23d` (deployed 2026-08-31).
 
 ## Commands
 
