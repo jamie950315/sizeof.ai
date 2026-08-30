@@ -37,6 +37,79 @@ For MLA models, cache memory depends on the inference engine. The model detail p
 
 The total adds 10% of weights plus KV cache as workspace and a fixed 0.5 GiB runtime allowance. Results are planning estimates, not guarantees: inference engine, GPU offload, batch size, flash attention, multimodal projectors, and driver allocations can change real usage.
 
+## Testnet preview
+
+The public ecosystem interfaces below are a testnet preview at `https://testnet.sizeof.ai`. Their schemas and commands may change before a stable release. They require no account, credential, or telemetry setup, and every result retains its evidence and estimate disclaimer.
+
+### Public API
+
+`GET /api/v1/estimate` returns the versioned `sizeof-estimate/v1` schema. The model is required; all other inputs are bounded and optional.
+
+```bash
+curl 'https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FQwen3.8-27B&quant=q4_k_m&context=8192&kv=q8_0&vram=32'
+```
+
+The response includes canonical model facts, the selected configuration and capacity, an estimate/lower-bound/unavailable state, fit and inverse-planner results when safe, provenance, evidence, a reproducible detail URL, and the disclaimer. Add `engine=vllm&prompt=2048&generated=256&concurrency=4` to request a conservative serving scenario. The API never treats a serving result as a benchmark.
+
+### CLI
+
+The checked-in CLI uses only Node.js built-ins and defaults to the testnet API:
+
+```bash
+node ./cli/sizeof.mjs Qwen/Qwen3.8-27B --quant q4_k_m --context 8192 --kv q8_0 --vram 32
+node ./cli/sizeof.mjs Qwen/Qwen3.8-27B --json
+```
+
+Use `SIZEOF_API_BASE` or `--base-url` for a trusted local/test endpoint. The explicit flag takes precedence. Non-success responses return a non-zero exit status without printing arbitrary upstream bodies.
+
+### GitHub Action
+
+The repository includes a composite Action that runs the checked-in CLI, writes a concise Step Summary, and exposes `status` and `total` outputs:
+
+```yaml
+- id: memory
+  uses: your-org/sizeof.ai@your-pinned-ref
+  with:
+    model: Qwen/Qwen3.8-27B
+    quant: q4_k_m
+    context: '8192'
+    vram: '32'
+```
+
+Pin a reviewed commit while this interface remains a preview.
+
+### Badge and embed
+
+The badge is a bounded, script-free SVG generated from the same estimate core:
+
+```text
+https://testnet.sizeof.ai/badge/v1/estimate.svg?model=Qwen%2FQwen3.8-27B&vram=32
+```
+
+The accessible static card has no script and links to the reproducible detail page:
+
+```html
+<iframe title="Qwen memory estimate" src="https://testnet.sizeof.ai/embed/v1/estimate?model=Qwen%2FQwen3.8-27B&amp;vram=32"></iframe>
+```
+
+### MCP
+
+The stdio MCP server exposes `estimate`, `compare` (two to four models), and `find_fit`. Its network destination is process configuration only; individual tool calls cannot choose a URL.
+
+```json
+{
+  "mcpServers": {
+    "sizeof-testnet": {
+      "command": "node",
+      "args": ["/absolute/path/to/sizeof.ai/mcp/server.mjs"],
+      "env": { "SIZEOF_API_BASE": "https://testnet.sizeof.ai" }
+    }
+  }
+}
+```
+
+The server performs no filesystem writes, shell execution, credential handling, or telemetry.
+
 ## Development
 
 Node.js 24 or later is recommended.

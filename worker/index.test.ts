@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { applyAssetCachePolicy, handleModelApi, handleWorkerRequest, readGguf, selectCommunityRepositories, selectCommunityRepository } from './index'
+import { normalizeHuggingFaceModel } from '../src/lib/huggingface'
 
 class MemoryModelCache {
   readonly values = new Map<string, string>()
@@ -56,6 +57,138 @@ function mockSuccessfulModelFetch() {
     throw new Error(`Unexpected cached-model fetch: ${url}`)
   })
 }
+
+function primePublicModel(cache: MemoryModelCache) {
+  const model = normalizeHuggingFaceModel({
+    id: 'Qwen/Qwen3.8-27B', sha: 'a'.repeat(40), author: 'Qwen',
+    lastModified: '2026-08-30T00:00:00.000Z',
+    safetensors: { parameters: { BF16: 27_000_000_000 } }, tags: ['text-generation'],
+  }, {
+    architectures: ['Qwen3_5ForCausalLM'], model_type: 'qwen3_5', num_hidden_layers: 64,
+    num_key_value_heads: 4, head_dim: 256, max_position_embeddings: 262_144,
+  })
+  cache.values.set('model-response-v1:Qwen/Qwen3.8-27B', JSON.stringify({
+    version: 1, fetchedAt: Date.now(), body: JSON.stringify(model),
+  }))
+  return model
+}
+
+describe('public estimate API, badge, and embed', () => {
+  it('serves a finite provenance-rich v1 response from the shared model cache with explicit CORS', async () => {
+    const cache = new MemoryModelCache()
+    primePublicModel(cache)
+    const { ctx } = modelCacheContext()
+    const response = await handleWorkerRequest(
+      new Request('https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FQwen3.8-27B&quant=q4_k_m&context=8192&kv=q8_0&vram=32'),
+      { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache, ENVIRONMENT: 'testnet', HF_TOKEN: 'hf_secret_should_never_escape' },
+      ctx,
+    )
+    const text = await response.text()
+    const body = JSON.parse(text)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET, OPTIONS')
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(response.headers.get('Cache-Control')).toBe('public, max-age=300')
+    expect(body).toMatchObject({
+      schema: 'sizeof-estimate/v1', model: { id: 'Qwen/Qwen3.8-27B' },
+      result: { state: 'estimate' }, provenance: { modelSource: 'https://huggingface.co/Qwen/Qwen3.8-27B' },
+    })
+    expect(text).not.toMatch(/NaN|Infinity|hf_secret|HF_TOKEN/)
+  })
+
+  it('handles OPTIONS and refuses invalid methods, long URLs, unknown, duplicate, and malformed inputs before lookup', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch')
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache }
+    try {
+      const options = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/api/v1/estimate', { method: 'OPTIONS' }), env, ctx)
+      expect(options.status).toBe(204)
+      expect(options.headers.get('Access-Control-Allow-Origin')).toBe('*')
+      expect(options.headers.get('Access-Control-Max-Age')).toBe('86400')
+      expect(options.headers.get('Content-Type')).toContain('application/json')
+
+      const requests = [
+        new Request('https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FModel', { method: 'POST' }),
+        new Request(`https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FModel&unused=${'x'.repeat(5000)}`),
+        new Request('https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FModel&destination=https%3A%2F%2Fevil.example'),
+        new Request('https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FModel&model=Other%2FModel'),
+        new Request('https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FModel&context=NaN'),
+      ]
+      for (const request of requests) {
+        const response = await handleWorkerRequest(request, env, ctx)
+        expect([400, 405, 414]).toContain(response.status)
+        expect(response.headers.get('Cache-Control')).toBe('no-store')
+        expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+        if (request.method === 'POST') expect(response.headers.get('Allow')).toBe('GET, OPTIONS')
+      }
+      expect(fetcher).not.toHaveBeenCalled()
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('retains private/not-found normalization and does not leak upstream metadata', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ private: true, secret: 'hidden' }), { status: 401 }))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://testnet.sizeof.ai/api/v1/estimate?model=Private%2FModel'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache, HF_TOKEN: 'hf_secret' }, ctx,
+      )
+      expect(response.status).toBe(404)
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+      await expect(response.json()).resolves.toEqual({ error: 'Model not found or private' })
+
+      const badge = await handleWorkerRequest(
+        new Request('https://testnet.sizeof.ai/badge/v1/estimate.svg?model=Private%2FModel'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache, HF_TOKEN: 'hf_secret' }, ctx,
+      )
+      expect(await badge.text()).toContain('Private/Model')
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('renders bounded script-free badge and accessible embed from the same result', async () => {
+    const cache = new MemoryModelCache()
+    primePublicModel(cache)
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache, ENVIRONMENT: 'testnet' }
+    const query = 'model=Qwen%2FQwen3.8-27B&vram=32'
+    const badge = await handleWorkerRequest(new Request(`https://testnet.sizeof.ai/badge/v1/estimate.svg?${query}`), env, ctx)
+    const svg = await badge.text()
+    expect(badge.headers.get('Content-Type')).toContain('image/svg+xml')
+    expect(svg).toContain('Qwen/Qwen3.8-27B')
+    expect(svg).toContain('ESTIMATE')
+    expect(svg).toContain('32 GiB')
+    expect(svg).not.toMatch(/<script|href=["']https?:/i)
+
+    const embed = await handleWorkerRequest(new Request(`https://testnet.sizeof.ai/embed/v1/estimate?${query}`), env, ctx)
+    const html = await embed.text()
+    expect(embed.headers.get('Content-Security-Policy')).toContain("default-src 'none'")
+    expect(embed.headers.get('Referrer-Policy')).toBe('no-referrer')
+    expect(html).toContain('<main')
+    expect(html).toContain('Estimate only.')
+    expect(html).toContain('https://testnet.sizeof.ai/Qwen/Qwen3.8-27B?')
+    expect(html).not.toContain('<script')
+  })
+
+  it('renders normalized badge and card errors without stack traces', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache }
+    const badge = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/badge/v1/estimate.svg?model=invalid'), env, ctx)
+    const embed = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/embed/v1/estimate?model=invalid'), env, ctx)
+    expect(badge.status).toBe(400)
+    expect(await badge.text()).toContain('UNAVAILABLE')
+    expect(embed.status).toBe(400)
+    expect(await embed.text()).toContain('Unable to create this estimate safely')
+  })
+})
 
 describe('Hugging Face model API', () => {
   it('renders safe testnet model metadata without an upstream Hugging Face request', async () => {

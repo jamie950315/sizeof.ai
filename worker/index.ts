@@ -3,6 +3,7 @@ import {
   isHuggingFaceVae,
   normalizeHuggingFaceModel,
   parseHuggingFaceModelPath,
+  type HuggingFaceModel,
   type HuggingFaceModelKind,
   type HuggingFaceResourceEstimate,
 } from '../src/lib/huggingface'
@@ -10,6 +11,11 @@ import { curatedHuggingFaceConfigs } from '../src/data/huggingface-configs'
 import { curatedHuggingFaceResourceProfiles } from '../src/data/huggingface-resource-profiles'
 import { models } from '../src/data/models'
 import { renderShareCard, type ShareCardInput } from '../src/lib/share-card'
+import {
+  buildPublicEstimate,
+  parsePublicEstimateQuery,
+  type PublicEstimateResponse,
+} from '../src/lib/public-estimate'
 import {
   applyReleaseManifest,
   parseHuggingFaceVariants,
@@ -1164,6 +1170,123 @@ interface WorkerBindings {
   ENVIRONMENT?: string
 }
 
+const publicEstimateCorsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Accept, Content-Type',
+  'Access-Control-Max-Age': '86400',
+  'Content-Type': 'application/json; charset=utf-8',
+  'X-Content-Type-Options': 'nosniff',
+}
+
+function publicEstimateJson(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      ...publicEstimateCorsHeaders,
+      'Content-Type': 'application/json; charset=utf-8',
+      ...(status >= 200 && status < 300
+        ? {
+            'Cache-Control': 'public, max-age=300',
+            'Cloudflare-CDN-Cache-Control': 'public, max-age=600, stale-while-revalidate=3600',
+          }
+        : {
+            'Cache-Control': 'no-store',
+            'Cloudflare-CDN-Cache-Control': 'no-store',
+          }),
+    },
+  })
+}
+
+async function loadPublicModelResponse(
+  route: { owner: string; repo: string },
+  env: WorkerBindings,
+  ctx: ExecutionContext,
+) {
+  const key = createModelKvKey(route.owner, route.repo)
+  const cached = await readModelResponse(env.MODEL_CACHE, key)
+  if (cached?.state === 'fresh') return modelResponseFromCache(cached)
+
+  const internalRequest = new Request(
+    `https://sizeof.internal/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}`,
+  )
+  const response = await handleModelApi(internalRequest, fetch, readGguf, env.HF_TOKEN)
+  if (response.ok) {
+    response.headers.set('X-Sizeof-Model-Source', 'huggingface')
+    queueModelResponseWrite(env.MODEL_CACHE, key, response.clone(), ctx)
+  }
+  if (cached?.state === 'stale' && response.status >= 500) return modelResponseFromCache(cached)
+  return response
+}
+
+type PublicEstimateResolution =
+  | { ok: true; value: PublicEstimateResponse }
+  | { ok: false; status: number; error: string }
+
+async function resolvePublicEstimate(
+  url: URL,
+  env: WorkerBindings,
+  ctx: ExecutionContext,
+): Promise<PublicEstimateResolution> {
+  const parsed = parsePublicEstimateQuery(url.searchParams)
+  if (!parsed.ok) return { ok: false, status: 400, error: parsed.error }
+  const route = parseHuggingFaceModelPath(`/${parsed.value.model}`)
+  if (!route) return { ok: false, status: 400, error: 'Invalid Hugging Face model path' }
+  const modelResponse = await loadPublicModelResponse(route, env, ctx)
+  if (!modelResponse.ok) {
+    let error = modelResponse.status === 404 ? 'Model not found or private' : 'Model metadata is temporarily unavailable'
+    try {
+      const body = await modelResponse.json() as { error?: unknown }
+      if (typeof body.error === 'string' && body.error.length <= 200) error = body.error
+    } catch { /* retain the normalized status message */ }
+    return { ok: false, status: modelResponse.status, error }
+  }
+  try {
+    const model = await modelResponse.json() as HuggingFaceModel
+    return {
+      ok: true,
+      value: buildPublicEstimate(model, parsed.value, { publicBaseUrl: publicHost(env.ENVIRONMENT) }),
+    }
+  } catch (error) {
+    const isInvalidInput = error instanceof Error
+      && (error.message.startsWith('Selected artifact') || error.message.startsWith('Serving scenario inputs'))
+    return {
+      ok: false,
+      status: isInvalidInput ? 400 : 502,
+      error: isInvalidInput && error instanceof Error
+        ? error.message
+        : 'Model metadata could not be converted into a safe estimate',
+    }
+  }
+}
+
+function escapeXml(value: string) {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;')
+}
+
+function badgeSvg(result: PublicEstimateResponse | null, error?: string, requestedModel?: string) {
+  const model = (result?.model.id ?? requestedModel ?? 'sizeof.ai').slice(0, 56)
+  const state = result?.result.state === 'estimate'
+    ? result.result.fit?.toUpperCase() ?? 'ESTIMATE'
+    : result?.result.state === 'lower-bound' ? 'LOWER BOUND' : 'UNAVAILABLE'
+  const total = result?.result.estimate?.totalGiB
+  const capacity = result ? `${result.hardware.capacityGiB} GiB` : '—'
+  const detail = result && Number.isFinite(total) ? `${total!.toFixed(2)} / ${capacity}` : error ? 'SAFE ERROR' : capacity
+  const color = result?.result.state === 'estimate' && result.result.fit !== 'too-large'
+    ? '#16845b' : result?.result.state === 'lower-bound' ? '#9a5b13' : '#5e6673'
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="520" height="88" viewBox="0 0 520 88" role="img" aria-label="${escapeXml(`${model}: ${state}, ${detail}, ESTIMATE`)}"><rect width="520" height="88" rx="8" fill="#15181d"/><rect x="0" y="0" width="7" height="88" rx="4" fill="${color}"/><text x="22" y="28" fill="#f5f7fa" font-family="system-ui,sans-serif" font-size="15" font-weight="700">${escapeXml(model)}</text><text x="22" y="54" fill="#b8c0cc" font-family="system-ui,sans-serif" font-size="13">${escapeXml(`${state} · ${detail}`)}</text><text x="424" y="55" fill="#7ea5ff" font-family="monospace" font-size="12" font-weight="700">ESTIMATE</text></svg>`
+}
+
+function embedHtml(result: PublicEstimateResponse | null) {
+  if (!result) {
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Estimate unavailable | sizeof.ai</title></head><body><main><h1>Estimate unavailable</h1><p>Unable to create this estimate safely.</p><p>Estimate only.</p></main></body></html>'
+  }
+  const state = result.result.state === 'estimate' ? `Estimate · ${result.result.fit}`
+    : result.result.state === 'lower-bound' ? 'Lower bound' : 'Unavailable'
+  const total = result.result.estimate ? `${result.result.estimate.totalGiB.toFixed(2)} GiB` : 'No safe total'
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(result.model.id)} estimate | sizeof.ai</title><style>html{color-scheme:dark}body{margin:0;padding:16px;background:#15181d;color:#f5f7fa;font:14px system-ui,sans-serif}.card{border:1px solid #3b4350;border-radius:10px;padding:16px;max-width:440px}h1{font-size:16px;margin:0 0 12px}strong{font-size:24px}p{color:#b8c0cc}a{color:#8eaeff}</style></head><body><main class="card"><h1>${escapeHtml(result.model.id)}</h1><div>${escapeHtml(state)}</div><strong>${escapeHtml(total)} / ${escapeHtml(String(result.hardware.capacityGiB))} GiB</strong><p>${escapeHtml(result.disclaimer)}</p><a href="${escapeHtml(result.reproducibleUrl)}">Open reproducible estimate</a></main></body></html>`
+}
+
 export async function handleWorkerRequest(
   request: Request,
   env: WorkerBindings,
@@ -1171,6 +1294,66 @@ export async function handleWorkerRequest(
 ): Promise<Response> {
   const url = new URL(request.url)
   const host = publicHost(env.ENVIRONMENT)
+  const estimateApi = url.pathname === '/api/v1/estimate'
+  const estimateBadge = url.pathname === '/badge/v1/estimate.svg'
+  const estimateEmbed = url.pathname === '/embed/v1/estimate'
+  if (estimateApi || estimateBadge || estimateEmbed) {
+    if (estimateApi && request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: publicEstimateCorsHeaders })
+    }
+    if (request.method !== 'GET') {
+      if (estimateApi) {
+        const response = publicEstimateJson({ error: 'Method not allowed' }, 405)
+        response.headers.set('Allow', 'GET, OPTIONS')
+        return response
+      }
+      const body = estimateBadge ? badgeSvg(null, 'Method not allowed') : embedHtml(null)
+      return new Response(body, {
+        status: 405,
+        headers: {
+          'Content-Type': estimateBadge ? 'image/svg+xml; charset=utf-8' : 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+        },
+      })
+    }
+    if (request.url.length > 4096) {
+      if (estimateApi) return publicEstimateJson({ error: 'Request URL is too long' }, 414)
+      const body = estimateBadge ? badgeSvg(null, 'Request URL is too long') : embedHtml(null)
+      return new Response(body, {
+        status: 414,
+        headers: {
+          'Content-Type': estimateBadge ? 'image/svg+xml; charset=utf-8' : 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+        },
+      })
+    }
+    const resolved = await resolvePublicEstimate(url, env, ctx)
+    if (estimateApi) return resolved.ok
+      ? publicEstimateJson(resolved.value)
+      : publicEstimateJson({ error: resolved.error }, resolved.status)
+    if (estimateBadge) {
+      const requestedRoute = parseHuggingFaceModelPath(`/${url.searchParams.get('model') ?? ''}`)
+      const requestedModel = requestedRoute ? `${requestedRoute.owner}/${requestedRoute.repo}` : undefined
+      return new Response(resolved.ok ? badgeSvg(resolved.value) : badgeSvg(null, resolved.error, requestedModel), {
+        status: resolved.ok ? 200 : resolved.status,
+        headers: {
+          'Content-Type': 'image/svg+xml; charset=utf-8',
+          'Cache-Control': resolved.ok ? 'public, max-age=300' : 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      })
+    }
+    return new Response(resolved.ok ? embedHtml(resolved.value) : embedHtml(null), {
+      status: resolved.ok ? 200 : resolved.status,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': resolved.ok ? 'public, max-age=300' : 'no-store',
+        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors *",
+        'Referrer-Policy': 'no-referrer',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    })
+  }
   if (url.pathname === '/share/card.svg') {
     const card = svgCardInput(url)
     return card

@@ -1,0 +1,69 @@
+name: sizeof.ai testnet estimate
+description: Request a conservative model-memory estimate from the sizeof.ai testnet preview.
+inputs:
+  model:
+    description: Hugging Face owner/repository.
+    required: true
+  quant:
+    description: Weight precision.
+    required: false
+    default: q4_k_m
+  context:
+    description: Context length.
+    required: false
+    default: '4096'
+  kv:
+    description: KV precision.
+    required: false
+    default: fp16
+  vram:
+    description: Available memory in GiB.
+    required: false
+    default: '32'
+  engine:
+    description: Optional serving engine.
+    required: false
+    default: ''
+  concurrency:
+    description: Concurrent sequences.
+    required: false
+    default: '1'
+  base-url:
+    description: Preview API base URL.
+    required: false
+    default: https://testnet.sizeof.ai
+outputs:
+  total:
+    description: Estimated total GiB when available.
+    value: ${{ steps.estimate.outputs.total }}
+  status:
+    description: Estimate, lower-bound, or unavailable.
+    value: ${{ steps.estimate.outputs.status }}
+runs:
+  using: composite
+  steps:
+    - id: estimate
+      shell: bash
+      env:
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_QUANT: ${{ inputs.quant }}
+        INPUT_CONTEXT: ${{ inputs.context }}
+        INPUT_KV: ${{ inputs.kv }}
+        INPUT_VRAM: ${{ inputs.vram }}
+        INPUT_ENGINE: ${{ inputs.engine }}
+        INPUT_CONCURRENCY: ${{ inputs.concurrency }}
+        INPUT_BASE_URL: ${{ inputs.base-url }}
+      run: |
+        set -euo pipefail
+        result_file="${RUNNER_TEMP}/sizeof-result-${GITHUB_RUN_ID}-${GITHUB_ACTION}.json"
+        args=("${INPUT_MODEL}" --quant "${INPUT_QUANT}" --context "${INPUT_CONTEXT}" --kv "${INPUT_KV}" --vram "${INPUT_VRAM}" --concurrency "${INPUT_CONCURRENCY}" --base-url "${INPUT_BASE_URL}" --json)
+        if [[ -n "${INPUT_ENGINE}" ]]; then args+=(--engine "${INPUT_ENGINE}"); fi
+        node "${GITHUB_ACTION_PATH}/cli/sizeof.mjs" "${args[@]}" > "${result_file}"
+        RESULT_FILE="${result_file}" node -e '
+          const fs = require("node:fs");
+          const value = JSON.parse(fs.readFileSync(process.env.RESULT_FILE, "utf8"));
+          const status = value.result?.state ?? "unavailable";
+          const total = Number.isFinite(value.result?.estimate?.totalGiB) ? value.result.estimate.totalGiB : "";
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `status=${status}\ntotal=${total}\n`);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### sizeof.ai testnet estimate\n\n- Model: ${value.model?.id ?? "unknown"}\n- Status: ${status}\n- Total: ${total === "" ? "unavailable" : `${total.toFixed(2)} GiB`}\n\n${value.disclaimer}\n`);
+        '
