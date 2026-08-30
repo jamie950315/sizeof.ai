@@ -49,6 +49,23 @@ describe('sizeof CLI', () => {
     expect(stderr.mock.calls.flat().join('')).not.toContain('secret body')
   })
 
+  it('keeps useful remote JSON errors bounded to one printable line', async () => {
+    const stderr = vi.fn()
+    const injected = `Model not found\r\n\u001b[31mred\u001b[0m\u001b]0;title\u0007${'x'.repeat(500)}`
+    const status = await runCli(['Org/Missing'], {
+      fetch: vi.fn().mockResolvedValue(Response.json({ error: injected }, { status: 404 })),
+      stdout: vi.fn(), stderr, env: {},
+    })
+    expect(status).toBe(1)
+    const output = stderr.mock.calls.flat().join('')
+    expect(output).toContain('Model not found')
+    expect(output.split('\n')).toHaveLength(2)
+    expect(output).not.toMatch(/[\r\u0000-\u0009\u000B-\u001F\u007F-\u009F]/)
+    expect(output).not.toContain('\u001b[')
+    expect(output).not.toContain('\u001b]')
+    expect(output.length).toBeLessThanOrEqual(220)
+  })
+
   it('ships a composite Action with bounded inputs, testnet default, outputs, and no token surface', async () => {
     const action = await readFile(`${process.cwd()}/action.yml`, 'utf8')
     expect(action).toContain('using: composite')

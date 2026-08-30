@@ -97,6 +97,17 @@ export function buildEstimateUrl(options) {
   return url
 }
 
+export function sanitizeRemoteError(value, maximumLength = 160) {
+  if (typeof value !== 'string') return ''
+  const printable = value
+    .replace(/(?:\u001B\]|\u009D)[^\u0007\u001B\u009C]*(?:\u0007|\u001B\\|\u009C)?/g, '')
+    .replace(/(?:\u001B\[|\u009B)[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return Array.from(printable).slice(0, maximumLength).join('')
+}
+
 function humanOutput(result) {
   const state = String(result?.result?.state ?? 'unavailable').toUpperCase().replace('-', ' ')
   const fit = result?.result?.fit ? ` · ${result.result.fit}` : ''
@@ -139,7 +150,8 @@ export async function runCli(argv, dependencies = {}) {
     if (response.headers.get('Content-Type')?.includes('application/json')) {
       try {
         const body = await response.json()
-        if (typeof body?.error === 'string' && body.error.length <= 200) message = `: ${body.error}`
+        const safeError = sanitizeRemoteError(body?.error)
+        if (safeError) message = `: ${safeError}`
       } catch { /* keep normalized status-only error */ }
     }
     stderr(`sizeof: Request failed (${response.status})${message}\n`)

@@ -1287,6 +1287,11 @@ function embedHtml(result: PublicEstimateResponse | null) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(result.model.id)} estimate | sizeof.ai</title><style>html{color-scheme:dark}body{margin:0;padding:16px;background:#15181d;color:#f5f7fa;font:14px system-ui,sans-serif}.card{border:1px solid #3b4350;border-radius:10px;padding:16px;max-width:440px}h1{font-size:16px;margin:0 0 12px}strong{font-size:24px}p{color:#b8c0cc}a{color:#8eaeff}</style></head><body><main class="card"><h1>${escapeHtml(result.model.id)}</h1><div>${escapeHtml(state)}</div><strong>${escapeHtml(total)} / ${escapeHtml(String(result.hardware.capacityGiB))} GiB</strong><p>${escapeHtml(result.disclaimer)}</p><a href="${escapeHtml(result.reproducibleUrl)}">Open reproducible estimate</a></main></body></html>`
 }
 
+const embedSecurityHeaders = {
+  'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors *",
+  'Referrer-Policy': 'no-referrer',
+}
+
 export async function handleWorkerRequest(
   request: Request,
   env: WorkerBindings,
@@ -1313,6 +1318,7 @@ export async function handleWorkerRequest(
         headers: {
           'Content-Type': estimateBadge ? 'image/svg+xml; charset=utf-8' : 'text/html; charset=utf-8',
           'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+          ...(estimateEmbed ? embedSecurityHeaders : {}),
         },
       })
     }
@@ -1324,6 +1330,7 @@ export async function handleWorkerRequest(
         headers: {
           'Content-Type': estimateBadge ? 'image/svg+xml; charset=utf-8' : 'text/html; charset=utf-8',
           'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+          ...(estimateEmbed ? embedSecurityHeaders : {}),
         },
       })
     }
@@ -1348,8 +1355,7 @@ export async function handleWorkerRequest(
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': resolved.ok ? 'public, max-age=300' : 'no-store',
-        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors *",
-        'Referrer-Policy': 'no-referrer',
+        ...embedSecurityHeaders,
         'X-Content-Type-Options': 'nosniff',
       },
     })

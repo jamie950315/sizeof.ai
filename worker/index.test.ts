@@ -188,6 +188,23 @@ describe('public estimate API, badge, and embed', () => {
     expect(embed.status).toBe(400)
     expect(await embed.text()).toContain('Unable to create this estimate safely')
   })
+
+  it('keeps strict embed security headers on early method and URL-length refusals', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache }
+    const responses = [
+      await handleWorkerRequest(new Request('https://testnet.sizeof.ai/embed/v1/estimate?model=Org%2FModel', { method: 'POST' }), env, ctx),
+      await handleWorkerRequest(new Request(`https://testnet.sizeof.ai/embed/v1/estimate?model=Org%2FModel&unused=${'x'.repeat(5000)}`), env, ctx),
+    ]
+    expect(responses.map((response) => response.status)).toEqual([405, 414])
+    for (const response of responses) {
+      expect(response.headers.get('Content-Security-Policy')).toBe("default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors *")
+      expect(response.headers.get('Referrer-Policy')).toBe('no-referrer')
+      expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+    }
+  })
 })
 
 describe('Hugging Face model API', () => {

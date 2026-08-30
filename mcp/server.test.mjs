@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { TOOL_DEFINITIONS, callTool } from './server.mjs'
+import { TOOL_DEFINITIONS, callTool, createMcpServer } from './server.mjs'
 
 function estimate(model, total = 10) {
   return {
@@ -20,6 +20,7 @@ describe('sizeof MCP stdio server', () => {
       expect(tool.inputSchema.properties).not.toHaveProperty('url')
       expect(tool.inputSchema.properties).not.toHaveProperty('token')
     }
+    expect(createMcpServer().constructor.name).toBe('McpServer')
   })
 
   it('validates before fetch and returns structured estimate content', async () => {
@@ -51,6 +52,29 @@ describe('sizeof MCP stdio server', () => {
     expect(result.structuredContent.results).toHaveLength(1)
     expect(result.structuredContent.failures).toEqual([{ model: 'Org/Offline', status: 502, error: 'Estimate service is temporarily unavailable' }])
     expect(JSON.stringify(result)).not.toContain('private network detail')
+  })
+
+  it('keeps useful remote tool errors bounded to one printable line', async () => {
+    const injected = `Model not found\r\n\u001b[31mred\u001b[0m\u001b]0;title\u0007${'x'.repeat(500)}`
+    const fetch = vi.fn().mockResolvedValue(Response.json({ error: injected }, { status: 404 }))
+    await expect(callTool('estimate', { model: 'Org/Missing' }, { fetch, baseUrl: 'https://testnet.sizeof.ai' }))
+      .rejects.toThrow('Model not found')
+    try {
+      await callTool('estimate', { model: 'Org/Missing' }, { fetch: vi.fn().mockResolvedValue(Response.json({ error: injected }, { status: 404 })), baseUrl: 'https://testnet.sizeof.ai' })
+    } catch (error) {
+      const message = error.message
+      expect(message).not.toMatch(/[\r\n\u0000-\u001F\u007F-\u009F]/)
+      expect(message).not.toContain('\u001b[')
+      expect(message).not.toContain('\u001b]')
+      expect(message.length).toBeLessThanOrEqual(180)
+    }
+
+    const compared = await callTool('compare', { models: ['Org/One', 'Org/Two'] }, {
+      fetch: vi.fn().mockImplementation(() => Promise.resolve(Response.json({ error: injected }, { status: 404 }))),
+      baseUrl: 'https://testnet.sizeof.ai',
+    })
+    expect(compared.structuredContent.failures[0].error).toContain('Model not found')
+    expect(JSON.stringify(compared.structuredContent.failures)).not.toMatch(/[\r\n\u0000-\u001F\u007F-\u009F]/)
   })
 
   it('returns inverse planner output and always uses the process-level base URL', async () => {

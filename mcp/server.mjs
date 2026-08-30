@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 import { pathToFileURL } from 'node:url'
-import { Server } from '@modelcontextprotocol/server'
+import { fromJsonSchema, McpServer } from '@modelcontextprotocol/server'
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio'
+import { sanitizeRemoteError } from '../cli/sizeof.mjs'
 
 const DEFAULT_BASE_URL = 'https://testnet.sizeof.ai'
 const MODEL_PATTERN = '^[A-Za-z0-9][A-Za-z0-9._-]{0,95}/[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'
@@ -119,7 +120,7 @@ async function requestEstimate(model, args, runtime) {
     try { body = await response.json() } catch { /* normalized below */ }
   }
   if (!response.ok) {
-    const error = typeof body?.error === 'string' && body.error.length <= 200 ? body.error : `Request failed (${response.status})`
+    const error = sanitizeRemoteError(body?.error) || `Request failed (${response.status})`
     return { ok: false, model, status: response.status, error }
   }
   if (!record(body) || body.schema !== 'sizeof-estimate/v1') return { ok: false, model, status: 502, error: 'The estimate API returned an unreadable response' }
@@ -167,18 +168,23 @@ export async function callTool(name, args, dependencies = {}) {
 }
 
 export function createMcpServer(dependencies = {}) {
-  const server = new Server({ name: 'sizeof-ai-testnet', version: '0.1.0' }, { capabilities: { tools: {} } })
-  server.setRequestHandler('tools/list', async () => ({ tools: TOOL_DEFINITIONS }))
-  server.setRequestHandler('tools/call', async (request) => {
-    try {
-      return await callTool(request.params.name, request.params.arguments ?? {}, dependencies)
-    } catch (error) {
-      return {
-        isError: true,
-        content: [{ type: 'text', text: error instanceof Error ? error.message : 'Tool call failed' }],
+  const server = new McpServer({ name: 'sizeof-ai-testnet', version: '0.1.0' })
+  for (const definition of TOOL_DEFINITIONS) {
+    const name = definition.name
+    server.registerTool(name, {
+      description: definition.description,
+      inputSchema: fromJsonSchema(definition.inputSchema),
+    }, async (argumentsValue) => {
+      try {
+        return await callTool(name, argumentsValue, dependencies)
+      } catch (error) {
+        return {
+          isError: true,
+          content: [{ type: 'text', text: error instanceof Error ? error.message : 'Tool call failed' }],
+        }
       }
-    }
-  })
+    })
+  }
   return server
 }
 
