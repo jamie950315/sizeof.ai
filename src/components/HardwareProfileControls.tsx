@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { HardwareKind, HardwareProfile } from '../lib/hardware-profile'
+import { validateHardwareProfile, type HardwareKind, type HardwareProfile } from '../lib/hardware-profile'
 
 interface Props {
   profile: HardwareProfile | null
@@ -12,12 +12,18 @@ export default function HardwareProfileControls({ profile, onApply, onClear }: P
   const [label, setLabel] = useState(profile?.label ?? '')
   const [capacityGiB, setCapacityGiB] = useState(String(profile?.capacityGiB ?? 32))
   const [reservedGiB, setReservedGiB] = useState(String(profile?.reservedGiB ?? 0))
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   function save() {
     const capacity = Number(capacityGiB)
     const reserved = Number(reservedGiB)
-    if (!label.trim() || !Number.isFinite(capacity) || capacity <= 0 || !Number.isFinite(reserved) || reserved < 0) return
-    onApply({ kind, label: label.trim(), capacityGiB: capacity, reservedGiB: reserved })
+    const candidate = validateHardwareProfile({ kind, label: label.trim(), capacityGiB: capacity, reservedGiB: reserved })
+    if (!candidate) {
+      setValidationError('Enter a valid hardware profile before applying it.')
+      return
+    }
+    setValidationError(null)
+    onApply(candidate)
   }
 
   return (
@@ -41,6 +47,7 @@ export default function HardwareProfileControls({ profile, onApply, onClear }: P
         <button type="button" onClick={save}>Apply local profile</button>
         {profile && <button type="button" onClick={onClear}>Clear profile</button>}
       </div>
+      {validationError && <p role="alert">{validationError}</p>}
       {profile && <p className="hardware-profile-summary">{profile.label}: {profile.capacityGiB} GiB total, {profile.reservedGiB} GiB reserved.</p>}
     </fieldset>
   )

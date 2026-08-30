@@ -44,6 +44,7 @@ const apiModel = {
 describe('Hugging Face-style model detail route', () => {
   beforeEach(() => {
     window.history.replaceState(null, '', '/Qwen/Qwen3.8-27B')
+    window.localStorage.clear()
     vi.stubGlobal('fetch', vi.fn(async () => Response.json(apiModel)))
   })
 
@@ -690,7 +691,7 @@ describe('Hugging Face-style model detail route', () => {
 
     await user.selectOptions(within(calculator).getByLabelText('Your VRAM'), '16')
     const planner = within(calculator).getByRole('region', { name: 'Fit planner' })
-    const suggestion = await within(planner).findByRole('button', { name: 'Apply' })
+    const suggestion = await within(planner).findByRole('button', { name: /Apply: Use q3_k_m weight precision/ })
     await user.click(suggestion)
     expect(within(calculator).getByRole('button', { name: '3bit' })).toHaveClass('active')
   })
@@ -723,5 +724,156 @@ describe('Hugging Face-style model detail route', () => {
     expect(window.location.search).toContain('vram=64')
     expect(window.location.search).toContain('source=estimated')
     expect(window.location.search).toContain('variant=none')
+  })
+
+  it('copies a hardware-profile URL that reproduces custom usable capacity in a fresh browser', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn()
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    window.localStorage.setItem('sizeof:hardware-profile:v1', JSON.stringify({
+      version: 1,
+      profile: { kind: 'unified-memory', label: 'Shared memory', capacityGiB: 48, reservedGiB: 8 },
+    }))
+    const first = render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('40')
+    await user.click(screen.getByRole('button', { name: /copy sizeof url/i }))
+    const copiedUrl = window.location.href
+    expect(writeText).toHaveBeenCalledWith(copiedUrl)
+
+    first.unmount()
+    window.localStorage.setItem('sizeof:hardware-profile:v1', JSON.stringify({
+      version: 1,
+      profile: { kind: 'discrete-gpu', label: 'Different local GPU', capacityGiB: 64, reservedGiB: 0 },
+    }))
+    window.history.replaceState(null, '', new URL(copiedUrl).pathname + new URL(copiedUrl).search)
+    render(<App />)
+
+    const freshCalculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(freshCalculator).getByLabelText('Your VRAM')).toHaveValue('40')
+    expect(within(freshCalculator).getByText('Shared memory: 48 GiB total, 8 GiB reserved.')).toBeInTheDocument()
+  })
+
+  it('atomically falls back to estimated sizing when a valid publisher has an invalid variant', async () => {
+    window.history.replaceState(null, '', '/Qwen/Qwen3.8-27B?state=1&source=unsloth&variant=missing')
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      variants: [{
+        id: 'unsloth-q4', label: 'GGUF Q4_K_M', format: 'gguf', revision: 'sha1', path: 'q4.gguf',
+        source: 'file', role: 'model', bitsPerWeight: 4, weightSizeBytes: 10 * 1024 ** 3,
+        totalSizeBytes: 10 * 1024 ** 3, provenance: 'community', publisher: 'unsloth',
+        repositoryId: 'unsloth/Qwen3.8-27B-GGUF', sourceUrl: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
+      }],
+    })))
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByRole('tab', { name: 'Estimated' })).toHaveAttribute('aria-selected', 'true')
+    expect(within(calculator).getByText('HYPOTHETICAL BIT/WEIGHT ESTIMATE')).toBeInTheDocument()
+    expect(window.location.search).toContain('source=estimated')
+    expect(window.location.search).toContain('variant=none')
+  })
+
+  it('guards browser storage failures and rejects invalid hardware form values before applying', async () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
+    const user = userEvent.setup()
+    render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('32')
+    getItem.mockRestore()
+    await user.clear(within(calculator).getByLabelText('Label'))
+    await user.type(within(calculator).getByLabelText('Label'), 'Too large')
+    await user.clear(within(calculator).getByLabelText('Total memory (GiB)'))
+    await user.type(within(calculator).getByLabelText('Total memory (GiB)'), '5000')
+    await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
+    expect(within(calculator).getByRole('alert')).toHaveTextContent(/valid hardware profile/i)
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('32')
+  })
+
+  it('shows time-aware evidence kinds and a numeric lower-bound sticky summary', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      estimateConfidence: 'runtime-specific',
+      spec: { ...apiModel.spec, estimateConfidence: 'runtime-specific' },
+    })))
+    const user = userEvent.setup()
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    await user.click(within(calculator).getByText(/Evidence:/))
+    expect(within(calculator).getByText(/Observed 2026-08-14T15:00:01.000Z/)).toBeInTheDocument()
+    expect(within(calculator).getByText(/UNKNOWN \/ Runtime-specific memory factors/).closest('li')).toHaveClass('evidence-unknown')
+    const sticky = within(calculator).getByRole('status', { name: 'Current memory result' })
+    expect(sticky).toHaveTextContent(/\d+\.\d+ GiB lower bound/i)
+    expect(sticky).toHaveTextContent(/32 GiB capacity/)
+  })
+
+  it('keeps a stable fit-planner refusal on resource-only pages without LLM controls', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'Example/Encoder', owner: 'Example', name: 'Encoder', modelKind: 'embedding', spec: null,
+      estimateReason: 'encoder-model',
+      resourceEstimate: {
+        kind: 'encoder', title: 'Encoder loaded weights', description: 'Static weights only.', note: 'Runtime varies.', baseModelId: null,
+        options: [{ id: 'weights', label: 'Weights', components: [{ id: 'weights', label: 'Weights', sizeBytes: 1024 ** 3 }] }],
+      },
+    })))
+    render(<App />)
+
+    const load = await screen.findByRole('region', { name: 'Model load estimate' })
+    expect(within(load).getByRole('region', { name: 'Fit planner' })).toHaveTextContent(/resource-only model/i)
+    expect(screen.queryByLabelText('Context window')).not.toBeInTheDocument()
+    expect(screen.queryByText('ESTIMATED VRAM')).not.toBeInTheDocument()
+  })
+
+  it('keeps storage errors session-local and restores the default capacity when cleared', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
+    const user = userEvent.setup()
+    render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    await user.clear(within(calculator).getByLabelText('Label'))
+    await user.type(within(calculator).getByLabelText('Label'), 'Session GPU')
+    await user.clear(within(calculator).getByLabelText('Total memory (GiB)'))
+    await user.type(within(calculator).getByLabelText('Total memory (GiB)'), '24')
+    await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('24')
+    await user.click(within(calculator).getByRole('button', { name: 'Clear profile' }))
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('32')
+    setItem.mockRestore()
+    removeItem.mockRestore()
+  })
+
+  it('serializes MLA mode and validated source/variant changes while retaining one semantic sticky result', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      spec: {
+        ...apiModel.spec,
+        kvHeads: undefined, headDim: undefined,
+        kvCache: { kind: 'mla', heads: 8, keyHeadDim: 64, valueHeadDim: 64, latentDim: 128, ropeDim: 32 },
+      },
+      variants: [{
+        id: 'unsloth-q4', label: 'GGUF Q4_K_M', format: 'gguf', revision: 'sha1', path: 'q4.gguf', source: 'file', role: 'model',
+        bitsPerWeight: 4, weightSizeBytes: 10 * 1024 ** 3, totalSizeBytes: 10 * 1024 ** 3, provenance: 'community', publisher: 'unsloth',
+        repositoryId: 'unsloth/Qwen3.8-27B-GGUF', sourceUrl: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
+      }],
+    })))
+    const user = userEvent.setup()
+    render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    await user.selectOptions(within(calculator).getByLabelText('MLA cache layout'), 'latent')
+    await user.click(within(calculator).getByRole('tab', { name: 'Unsloth' }))
+    expect(window.location.search).toContain('mla=latent')
+    expect(window.location.search).toContain('source=unsloth')
+    expect(window.location.search).toContain('variant=unsloth-q4')
+    expect(within(calculator).getAllByRole('status', { name: 'Current memory result' })).toHaveLength(1)
+  })
+
+  it('keeps the one normal-order sticky summary guarded for narrow, short, and reduced-motion viewports', async () => {
+    render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    const result = within(calculator).getByRole('region', { name: 'Memory summary' })
+    const sticky = within(calculator).getByRole('status', { name: 'Current memory result' })
+    expect(result.compareDocumentPosition(sticky) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })

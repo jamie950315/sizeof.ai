@@ -15,7 +15,7 @@ export default function EvidenceDrawer({ entries }: Props) {
       <summary>Evidence: {counts.verified} verified, {counts.derived} derived, {counts.unknown} unknown</summary>
       <ul aria-label="Estimate evidence">
         {entries.map((entry) => (
-          <li key={entry.id} data-evidence-kind={entry.kind}>
+          <li key={entry.id} className={`evidence-${entry.kind}`} data-evidence-kind={entry.kind}>
             <strong>{entry.kind.toUpperCase()} / {entry.label}</strong>
             <p>{entry.detail}</p>
             {(entry.revision || entry.fetchedAt) && <small>{entry.revision ? `Revision ${entry.revision}` : ''}{entry.revision && entry.fetchedAt ? ' · ' : ''}{entry.fetchedAt ? `Observed ${entry.fetchedAt}` : ''}</small>}

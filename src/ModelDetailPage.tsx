@@ -68,6 +68,14 @@ const quantizationBits = [1, 2, 3, 4, 5, 6, 8, 16] as const
 const preferredSourcePublishers = ['unsloth', 'lmstudio-community', 'mlx-community', 'bartowski'] as const
 const hardwareStorageKey = 'sizeof:hardware-profile:v1'
 
+function loadLocalHardwareProfile(): HardwareProfile | null {
+  try {
+    return parseHardwareProfile(window.localStorage.getItem(hardwareStorageKey))
+  } catch {
+    return null
+  }
+}
+
 function variantBits(variant: HuggingFaceVariant) {
   const searchable = [variant.label, variant.repositoryId, variant.path].filter(Boolean).join(' ')
   if (/\b(?:BF16|FP16)\b/i.test(searchable)) return 16
@@ -155,9 +163,8 @@ export default function ModelDetailPage({ route }: Props) {
   const [selectedSource, setSelectedSource] = useState('estimated')
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
   const [selectedResourceOptionId, setSelectedResourceOptionId] = useState<string | null>(null)
-  const [hardwareProfile, setHardwareProfile] = useState<HardwareProfile | null>(() => (
-    parseHardwareProfile(window.localStorage.getItem(hardwareStorageKey))
-  ))
+  const [hardwareProfile, setHardwareProfile] = useState<HardwareProfile | null>(loadLocalHardwareProfile)
+  const [fallbackVram, setFallbackVram] = useState(32)
   const restoredRouteState = useRef(false)
 
   useEffect(() => {
@@ -187,19 +194,21 @@ export default function ModelDetailPage({ route }: Props) {
             defaultSource,
             ...modelVariants.map((variant) => (variant.publisher ?? nextModel.owner ?? 'repository').toLowerCase()),
           ])
-          const selectedSource = allowedSources.has(parsed.selectedSource) ? parsed.selectedSource : defaultSource
-          const selectedVariantId = selectedSource === 'estimated'
-            ? null
-            : modelVariants.some((variant) => variant.id === parsed.selectedVariantId
-              && (nextModel.addon || (variant.publisher ?? nextModel.owner ?? 'repository').toLowerCase() === selectedSource))
-              ? parsed.selectedVariantId
-              : selectedSource === defaultSource ? defaultVariant?.id ?? null : null
+          const requestedSource = allowedSources.has(parsed.selectedSource) ? parsed.selectedSource : defaultSource
+          const variantIsValid = requestedSource !== 'estimated' && modelVariants.some((variant) => (
+            variant.id === parsed.selectedVariantId
+            && (nextModel.addon || (variant.publisher ?? nextModel.owner ?? 'repository').toLowerCase() === requestedSource)
+          ))
+          const selectedSource = requestedSource !== 'estimated' && !variantIsValid ? 'estimated' : requestedSource
+          const selectedVariantId = variantIsValid ? parsed.selectedVariantId : null
           setQuantization(parsed.quantization)
           setContext(parsed.context)
           setKvPrecision(parsed.kvPrecision)
           setMlaCacheMode(parsed.mlaCacheMode)
-          const savedProfile = parseHardwareProfile(window.localStorage.getItem(hardwareStorageKey))
+          const urlControlsHardware = /(?:^|[?&])hardware=/.test(window.location.search)
+          const savedProfile = urlControlsHardware ? parsed.hardwareProfile ?? null : loadLocalHardwareProfile()
           setHardwareProfile(savedProfile)
+          setFallbackVram(parsed.vramGiB)
           setVram(savedProfile ? usableMemoryGiB(savedProfile) : parsed.vramGiB)
           setSelectedSource(selectedSource)
           setSelectedVariantId(selectedVariantId)
@@ -217,13 +226,10 @@ export default function ModelDetailPage({ route }: Props) {
     if (!model || !restoredRouteState.current) return
     const query = serializeDetailState({
       quantization, context, kvPrecision, mlaCacheMode, vramGiB: vram, selectedSource, selectedVariantId,
+      ...(hardwareProfile ? { hardwareProfile } : {}),
     })
     window.history.replaceState(null, '', `${window.location.pathname}?${query}`)
-  }, [context, kvPrecision, mlaCacheMode, model, quantization, selectedSource, selectedVariantId, vram])
-
-  useEffect(() => {
-    if (model && hardwareProfile) setVram(usableMemoryGiB(hardwareProfile))
-  }, [hardwareProfile, model])
+  }, [context, hardwareProfile, kvPrecision, mlaCacheMode, model, quantization, selectedSource, selectedVariantId, vram])
 
   useEffect(() => {
     if (model) document.title = `${model.name} VRAM & specs — sizeof.ai`
@@ -284,7 +290,7 @@ export default function ModelDetailPage({ route }: Props) {
   const fit = estimate ? classifyFit(estimate.totalGiB, vram) : null
 
   const evidence = useMemo(
-    () => model?.spec ? buildModelEvidence(model.spec, selectedVariant) : [],
+    () => model?.spec ? buildModelEvidence(model.spec, selectedVariant, model.lastModified ?? undefined) : [],
     [model, selectedVariant],
   )
 
@@ -297,18 +303,21 @@ export default function ModelDetailPage({ route }: Props) {
   function applyHardwareProfile(profile: HardwareProfile) {
     try {
       window.localStorage.setItem(hardwareStorageKey, serializeHardwareProfile(profile))
-      setHardwareProfile(profile)
-      setVram(usableMemoryGiB(profile))
     } catch {
-      // Local storage may be disabled; the visible state remains usable for this session.
-      setHardwareProfile(profile)
-      setVram(usableMemoryGiB(profile))
+      // Browser storage may be unavailable; retain this explicit session configuration.
     }
+    setHardwareProfile(profile)
+    setVram(usableMemoryGiB(profile))
   }
 
   function clearHardwareProfile() {
-    window.localStorage.removeItem(hardwareStorageKey)
+    try {
+      window.localStorage.removeItem(hardwareStorageKey)
+    } catch {
+      // Clearing the in-memory profile must still restore the normal calculator capacity.
+    }
     setHardwareProfile(null)
+    setVram(fallbackVram)
   }
 
   function applyFitAdjustment(adjustment: FitAdjustment) {
@@ -712,7 +721,7 @@ export default function ModelDetailPage({ route }: Props) {
                   onApply={applyFitAdjustment}
                 />
                 <div className="detail-sticky-result" role="status" aria-label="Current memory result">
-                  <strong>{estimate.isLowerBound ? 'Lower bound' : `${estimate.totalGiB.toFixed(2)} GiB`}</strong>
+                  <strong>{estimate.isLowerBound ? `${estimate.totalGiB.toFixed(2)} GiB lower bound` : `${estimate.totalGiB.toFixed(2)} GiB`}</strong>
                   <span>{fitLabels[fit]} · {vram} GiB capacity</span>
                 </div>
               </div>
@@ -760,6 +769,7 @@ export default function ModelDetailPage({ route }: Props) {
                   ))}
                 </div>
                 <p className="estimate-note"><Info size={15} /> {resourceEstimate.note}</p>
+                <FitPlanner unavailableReason="This resource-only model does not have a safe autoregressive fit plan." />
               </div>
             </div>
           </section>

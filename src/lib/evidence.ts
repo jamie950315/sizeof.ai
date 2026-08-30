@@ -14,6 +14,7 @@ export interface EvidenceEntry {
 export function buildModelEvidence(
   model: ModelSpec,
   selectedVariant: HuggingFaceVariant | null,
+  fetchedAt?: string,
 ): EvidenceEntry[] {
   const weightsOnly = model.estimateConfidence === 'weights-only'
   const entries: EvidenceEntry[] = weightsOnly ? [] : [{
@@ -22,6 +23,7 @@ export function buildModelEvidence(
     kind: 'verified',
     detail: 'Published model parameters, context limit, and cache geometry used by this calculator.',
     sourceUrl: model.sourceUrl,
+    fetchedAt,
   }]
 
   if (selectedVariant) {

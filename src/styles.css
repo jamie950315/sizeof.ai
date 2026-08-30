@@ -920,6 +920,9 @@ body { background: var(--ink); }
 .evidence-drawer ul,
 .fit-planner ul { display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
 .evidence-drawer li { display: grid; gap: 5px; padding-top: 10px; border-top: 1px solid var(--line); }
+.evidence-drawer .evidence-verified { border-left: 3px solid var(--fit-green); padding-left: 9px; }
+.evidence-drawer .evidence-derived { border-left: 3px solid var(--accent); padding-left: 9px; }
+.evidence-drawer .evidence-unknown { border-left: 3px solid #f5b84b; padding-left: 9px; }
 .evidence-drawer li:first-child { border-top: 0; padding-top: 0; }
 .evidence-drawer strong { font-size: 11px; }
 .evidence-drawer small { color: var(--muted); }

@@ -53,6 +53,10 @@ function profileFromUnknown(value: unknown): HardwareProfile | null {
       }
 }
 
+export function validateHardwareProfile(value: unknown): HardwareProfile | null {
+  return profileFromUnknown(value)
+}
+
 export function usableMemoryGiB(profile: HardwareProfile): number {
   return Math.max(0, profile.capacityGiB - profile.reservedGiB)
 }
