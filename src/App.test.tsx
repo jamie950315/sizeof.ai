@@ -322,6 +322,28 @@ describe('sizeof.ai app', () => {
     fetcher.mockRestore()
   })
 
+  it('labels live search rows conservatively without another model request', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+      query: 'QWEN', nextCursor: null, models: [
+        { id: 'Qwen/Text', owner: 'Qwen', name: 'Text', downloads: 1, likes: 1, task: 'text-generation', trendingScore: 1, gated: false },
+        { id: 'Lab/Image', owner: 'Lab', name: 'Image', downloads: 1, likes: 1, task: 'text-to-image', trendingScore: 1, gated: false },
+        { id: 'Gated/Model', owner: 'Gated', name: 'Model', downloads: 1, likes: 1, task: null, trendingScore: 1, gated: true },
+      ],
+    }))
+    render(<App />)
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN{enter}')
+
+    const results = await screen.findByRole('region', { name: 'Hugging Face search results' })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    fetcher.mockRestore()
+    expect(within(results).getByText('CHECK ON OPEN')).toBeInTheDocument()
+    expect(within(results).getByText('RESOURCE PROFILE')).toBeInTheDocument()
+    expect(within(results).getAllByText('GATED')).toHaveLength(2)
+    expect(within(results).getAllByRole('link', { name: /^Compare / })).toHaveLength(3)
+  })
+
   it('submits model type and author filters only after Search is pressed', async () => {
     const user = userEvent.setup()
     const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({

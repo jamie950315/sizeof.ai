@@ -80,6 +80,17 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByRole('link', { name: 'Hugging Face' })).toHaveAttribute('href', apiModel.sourceUrl)
   })
 
+  it('provides accessible exports for the current model configuration', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Qwen3.8-27B' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    expect(screen.getByRole('menuitem', { name: 'Download JSON export' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Download CSV export' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Copy Markdown export' })).toBeInTheDocument()
+  })
+
   it('organizes the model as a true three-panel tool with compact architecture rows', async () => {
     render(<App />)
 

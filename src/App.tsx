@@ -54,6 +54,13 @@ interface HuggingFaceSearchResponse {
   nextCursor?: string | null
 }
 
+function searchSizingStatus(model: HuggingFaceSearchModel) {
+  if (model.gated) return 'GATED'
+  if (model.task === 'text-generation' || model.task === 'image-text-to-text') return 'CHECK ON OPEN'
+  if (model.task && ['text-to-image', 'text-to-video', 'automatic-speech-recognition', 'text-to-audio', 'feature-extraction', 'sentence-similarity'].includes(model.task)) return 'RESOURCE PROFILE'
+  return 'UNSPECIFIED'
+}
+
 const modelTypeOptions = [
   { value: '', label: 'All model types' },
   { value: 'text-generation', label: 'Text generation' },
@@ -347,7 +354,7 @@ function HomePage() {
             </div>
             <div className="catalog-table search-results-table">
               <div className="catalog-header">
-                <span>MODEL</span><span>DOWNLOADS</span><span>LIKES</span><span>TASK</span><span />
+                <span>MODEL</span><span>DOWNLOADS</span><span>LIKES</span><span>TASK</span><span>SIZING</span><span />
               </div>
               {searchState === 'loading' && (
                 <div className="catalog-state" role="status"><span className="pulse-dot" /> Searching Hugging Face for “{submittedCatalogQuery}”…</div>
@@ -371,6 +378,7 @@ function HomePage() {
                   <div><small>DOWNLOADS</small><strong>{formatCompactNumber(item.downloads)}</strong></div>
                   <div><small>LIKES</small><strong>{formatCompactNumber(item.likes)}</strong></div>
                   <div><small>TASK</small><strong>{item.task?.replaceAll('-', ' ') ?? 'UNSPECIFIED'}</strong></div>
+                  <div><small>SIZING</small><strong>{searchSizingStatus(item)}</strong></div>
                   <div className="catalog-actions">
                     <a className="catalog-open-model" href={`/${item.owner}/${item.name}`} aria-label={`Open ${item.id}`}>OPEN</a>
                     <a href={comparePath(item.id)} aria-label={`Compare ${item.id}`}>COMPARE</a>

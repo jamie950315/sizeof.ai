@@ -58,6 +58,16 @@ describe('model comparison workspace', () => {
     expect(window.location.search).toContain('compare=1')
   })
 
+  it('provides an accessible comparison export menu after public models load', async () => {
+    const user = userEvent.setup()
+    render(<ComparePage />)
+
+    await screen.findAllByRole('region', { name: /Comparison for / })
+    await user.click(screen.getByRole('button', { name: 'Export comparison' }))
+    expect(screen.getByRole('menuitem', { name: 'Download JSON export' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Copy Markdown export' })).toBeInTheDocument()
+  })
+
   it('keeps a successful card visible beside a normalized public failure', async () => {
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       if (String(input).includes('/Meta/Two?')) return Promise.resolve(Response.json({ error: 'Private model' }, { status: 404 }))

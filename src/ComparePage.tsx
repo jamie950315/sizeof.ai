@@ -5,6 +5,7 @@ import { classifyFit, estimateVram } from './lib/estimator'
 import type { HuggingFaceModel } from './lib/huggingface'
 import { parseCompareState, serializeCompareState, validateCompareModelId, type CompareItemState } from './lib/compare-state'
 import { vramPresets } from './lib/vram-presets'
+import ExportMenu from './components/ExportMenu'
 
 const defaults: Omit<CompareItemState, 'modelId'> = {
   quantization: 'q4_k_m', context: 8192, kvPrecision: 'fp16', mlaCacheMode: 'expanded', vramGiB: 32, source: 'estimated', variantId: null,
@@ -72,6 +73,26 @@ export default function ComparePage() {
   const sharedVram = activeItems.every((item) => item.vramGiB === activeItems[0]?.vramGiB)
     ? String(activeItems[0]?.vramGiB ?? '')
     : 'mixed'
+  const exportInput = useMemo(() => {
+    const ready = activeItems.flatMap((item) => {
+      const status = models[canonicalModelKey(item.modelId)]
+      if (status?.kind !== 'ready') return []
+      const model = status.model
+      const estimate = model.spec && model.estimateConfidence !== 'weights-only'
+        ? estimateVram(model.spec, { quantization: item.quantization, context: item.context, kvPrecision: item.kvPrecision, mlaCacheMode: item.mlaCacheMode })
+        : null
+      return [{ item, model, estimate }]
+    })
+    if (ready.length === 0) return null
+    return {
+      model: { id: ready.map(({ model }) => model.id).join(' | ') },
+      configuration: { quantization: 'comparison', contextTokens: ready[0]!.item.context, kvPrecision: 'per-model' },
+      hardware: { capacityGiB: Math.max(...ready.map(({ item }) => item.vramGiB)) },
+      estimate: { kind: ready.some(({ estimate }) => Boolean(estimate?.isLowerBound)) ? 'lower-bound' as const : 'estimate' as const, totalGiB: ready.reduce((sum, entry) => sum + (entry.estimate?.totalGiB ?? 0), 0) },
+      evidence: ready.map(({ model }) => ({ id: `comparison:${model.id}`, label: `Public model: ${model.id}`, kind: 'verified' as const, detail: 'Public model metadata included in this comparison.', sourceUrl: model.sourceUrl })),
+      generatedAt: new Date().toISOString(),
+    }
+  }, [activeItems, models])
 
   useEffect(() => {
     const restore = () => {
@@ -279,6 +300,7 @@ export default function ComparePage() {
               if (value) setItems((current) => current.map((item) => ({ ...item, vramGiB: value })))
             }}><option value="mixed">Mixed</option><option value="">Independent</option>{vramPresets.map((value) => <option value={value} key={value}>{value} GiB for all</option>)}</select>
           </label>
+          {exportInput && <ExportMenu input={exportInput} label="Export comparison" fileStem="sizeof-ai-comparison" />}
           <button type="button" onClick={() => void copyLink()} aria-label="Copy comparison link">{copied ? <Check size={16} /> : <Copy size={16} />} {copied ? 'COPIED' : 'COPY LINK'}</button>
         </div>
       </header>

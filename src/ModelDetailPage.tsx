@@ -25,6 +25,7 @@ import type { FitAdjustment } from './lib/planner'
 import EvidenceDrawer from './components/EvidenceDrawer'
 import HardwareProfileControls from './components/HardwareProfileControls'
 import FitPlanner from './components/FitPlanner'
+import ExportMenu from './components/ExportMenu'
 
 interface Props {
   route: HuggingFaceRoute
@@ -308,6 +309,14 @@ export default function ModelDetailPage({ route }: Props) {
     () => model?.spec ? buildModelEvidence(model.spec, selectedVariant, model.lastModified ?? undefined) : [],
     [model, selectedVariant],
   )
+  const exportInput = model?.spec && estimate ? {
+    model: { id: model.id, sourceUrl: model.sourceUrl },
+    configuration: { quantization: quantizations.find((item) => item.id === quantization)?.label ?? quantization, contextTokens: context, kvPrecision, mlaCacheMode },
+    hardware: { capacityGiB: vram },
+    estimate: { kind: estimate.isLowerBound ? 'lower-bound' as const : 'estimate' as const, totalGiB: estimate.totalGiB, weightsGiB: estimate.weightsGiB, kvCacheGiB: estimate.kvCacheGiB, runtimeGiB: estimate.runtimeGiB },
+    evidence,
+    generatedAt: new Date().toISOString(),
+  } : null
 
   async function copyUrl() {
     await navigator.clipboard.writeText(window.location.href)
@@ -519,6 +528,7 @@ export default function ModelDetailPage({ route }: Props) {
             <button type="button" onClick={() => void copyUrl()}>
               {copied ? <Check size={16} /> : <Copy size={16} />}{copied ? 'COPIED' : 'COPY SIZEOF URL'}
             </button>
+            {exportInput && <ExportMenu input={exportInput} fileStem="sizeof-ai-sizing" />}
             <a className="compare-entry" href={comparePath(model.id)} aria-label={`Compare ${model.id}`}>COMPARE</a>
           </div>
           <div className="detail-tags">

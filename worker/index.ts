@@ -8,6 +8,8 @@ import {
 } from '../src/lib/huggingface'
 import { curatedHuggingFaceConfigs } from '../src/data/huggingface-configs'
 import { curatedHuggingFaceResourceProfiles } from '../src/data/huggingface-resource-profiles'
+import { models } from '../src/data/models'
+import { renderShareCard, type ShareCardInput } from '../src/lib/share-card'
 import {
   applyReleaseManifest,
   parseHuggingFaceVariants,
@@ -398,6 +400,87 @@ export function applyAssetCachePolicy(response: Response) {
     statusText: response.statusText,
     headers,
   })
+}
+
+function publicHost(environment?: string) {
+  return environment === 'testnet' ? 'https://testnet.sizeof.ai' : 'https://sizeof.ai'
+}
+
+function escapeHtml(value: string) {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')
+}
+
+function pageMetadata(pathname: string, host: string) {
+  if (pathname === '/compare') return {
+    title: 'Compare model memory estimates | sizeof.ai',
+    description: 'Compare public model memory estimates across configurations and hardware capacity.',
+    canonical: `${host}/compare`,
+    type: 'website',
+  }
+  const route = parseHuggingFaceModelPath(pathname)
+  if (!route || pathname !== `/${route.owner}/${route.repo}`) return null
+  const canonicalId = `${route.owner}/${route.repo}`
+  return {
+    title: `${canonicalId} VRAM estimate | sizeof.ai`,
+    description: `Estimate memory for ${canonicalId} from public model metadata. Estimate, not a benchmark or guarantee.`,
+    canonical: `${host}/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}`,
+    type: 'article',
+  }
+}
+
+function injectMetadata(html: string, metadata: NonNullable<ReturnType<typeof pageMetadata>>) {
+  const title = escapeHtml(metadata.title)
+  const description = escapeHtml(metadata.description)
+  const canonical = escapeHtml(metadata.canonical)
+  const jsonLd = JSON.stringify({
+    '@context': 'https://schema.org', '@type': 'WebPage', name: metadata.title,
+    description: metadata.description, url: metadata.canonical,
+  }).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026')
+  const tags = `<meta property="og:title" content="${title}" /><meta property="og:description" content="${description}" /><meta property="og:type" content="${metadata.type}" /><meta property="og:url" content="${canonical}" /><meta name="twitter:card" content="summary" /><meta name="twitter:title" content="${title}" /><meta name="twitter:description" content="${description}" /><script type="application/ld+json">${jsonLd}</script>`
+  return html
+    .replace(/<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`)
+    .replace(/<meta\s+name=["']description["'][^>]*>/i, `<meta name="description" content="${description}" />`)
+    .replace(/<link\s+rel=["']canonical["'][^>]*>/i, `<link rel="canonical" href="${canonical}" />`)
+    .replace(/<\/head>/i, `${tags}</head>`)
+}
+
+function staticResponse(body: string, type: string, cacheControl: string) {
+  return new Response(body, { headers: { 'Content-Type': type, 'Cache-Control': cacheControl, 'X-Content-Type-Options': 'nosniff' } })
+}
+
+function svgCardInput(url: URL): ShareCardInput {
+  const boundedText = (value: string | null, limit: number, fallback: string) => (value ?? fallback).replace(/[\u0000-\u001F\u007F]/g, ' ').slice(0, limit)
+  const boundedNumber = (value: string | null) => {
+    const number = Number(value)
+    return Number.isFinite(number) && number >= 0 && number <= 4096 ? number : 0
+  }
+  const summary = url.searchParams.get('summary')
+  if (summary && summary.length <= 2048) {
+    try {
+      const parsed = JSON.parse(summary) as { models?: unknown; generatedAt?: unknown }
+      if (Array.isArray(parsed.models)) {
+        const models = parsed.models.flatMap((item) => {
+          if (!item || typeof item !== 'object') return []
+          const value = item as Record<string, unknown>
+          const id = typeof value.id === 'string' ? value.id : ''
+          const route = parseHuggingFaceModelPath(`/${id}`)
+          if (!route || `${route.owner}/${route.repo}` !== id) return []
+          return [{ id, configuration: boundedText(typeof value.configuration === 'string' ? value.configuration : null, 120, 'Configuration unavailable'), capacityGiB: boundedNumber(String(value.capacityGiB ?? '')), totalGiB: boundedNumber(String(value.totalGiB ?? '')), lowerBound: value.lowerBound === true }]
+        }).slice(0, 4)
+        if (models.length) return { models, generatedAt: boundedText(typeof parsed.generatedAt === 'string' ? parsed.generatedAt : null, 40, 'Date unavailable') }
+      }
+    } catch { /* fall through to bounded display parameters */ }
+  }
+  return {
+    models: [{ id: boundedText(url.searchParams.get('model'), 120, 'Model estimate'), configuration: boundedText(url.searchParams.get('config'), 120, 'Configuration unavailable'), capacityGiB: boundedNumber(url.searchParams.get('capacity')), totalGiB: boundedNumber(url.searchParams.get('total')), lowerBound: url.searchParams.get('lowerBound') === '1' }],
+    generatedAt: boundedText(url.searchParams.get('date'), 40, 'Date unavailable'),
+  }
+}
+
+function sitemap(host: string) {
+  const routes = ['/', '/compare', ...models.map((model) => new URL(model.sourceUrl).pathname)]
+  const locations = [...new Set(routes)].map((route) => `<url><loc>${escapeHtml(`${host}${route}`)}</loc></url>`).join('')
+  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${locations}</urlset>`
 }
 
 function finiteSearchMetric(value: unknown) {
@@ -1067,6 +1150,7 @@ interface WorkerBindings {
   MODEL_CACHE: ModelCacheNamespace
   ASSETS: { fetch(request: Request): Promise<Response> }
   HF_TOKEN?: string
+  ENVIRONMENT?: string
 }
 
 export async function handleWorkerRequest(
@@ -1075,11 +1159,26 @@ export async function handleWorkerRequest(
   ctx: ExecutionContext,
 ): Promise<Response> {
   const url = new URL(request.url)
+  const host = publicHost(env.ENVIRONMENT)
+  if (url.pathname === '/share/card.svg') {
+    return staticResponse(renderShareCard(svgCardInput(url)), 'image/svg+xml; charset=utf-8', 'public, max-age=300, stale-while-revalidate=600')
+  }
+  if (url.pathname === '/robots.txt') {
+    return staticResponse(`User-agent: *\nAllow: /\nSitemap: ${host}/sitemap.xml\n`, 'text/plain; charset=utf-8', 'public, max-age=3600')
+  }
+  if (url.pathname === '/sitemap.xml') {
+    return staticResponse(sitemap(host), 'application/xml; charset=utf-8', 'public, max-age=3600')
+  }
   if (url.pathname === '/api/search/models') {
     return handleModelSearchApi(request, fetch, env.HF_TOKEN)
   }
   if (!url.pathname.startsWith('/api/models/')) {
-    return applyAssetCachePolicy(await env.ASSETS.fetch(request))
+    const asset = await env.ASSETS.fetch(request)
+    const metadata = pageMetadata(url.pathname, host)
+    if (!metadata || !asset.headers.get('Content-Type')?.includes('text/html')) return applyAssetCachePolicy(asset)
+    const headers = new Headers(asset.headers)
+    headers.set('Cache-Control', 'no-cache')
+    return new Response(injectMetadata(await asset.text(), metadata), { status: asset.status, statusText: asset.statusText, headers })
   }
 
   const route = apiRoute(url.pathname)

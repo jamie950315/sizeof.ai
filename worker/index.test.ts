@@ -58,6 +58,74 @@ function mockSuccessfulModelFetch() {
 }
 
 describe('Hugging Face model API', () => {
+  it('renders safe testnet model metadata without an upstream Hugging Face request', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch')
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const assets = { fetch: vi.fn().mockResolvedValue(new Response('<!doctype html><html><head><title>sizeof.ai</title></head><body><div id="root"></div></body></html>', { headers: { 'Content-Type': 'text/html' } })) }
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://testnet.sizeof.ai/Qwen/Model'),
+        { ASSETS: assets, MODEL_CACHE: cache, ENVIRONMENT: 'testnet' },
+        ctx,
+      )
+      const html = await response.text()
+
+      expect(html).toContain('<title>Qwen/Model VRAM estimate | sizeof.ai</title>')
+      expect(html).toContain('https://testnet.sizeof.ai/Qwen/Model')
+      expect(html).toContain('application/ld+json')
+      expect(response.headers.get('Cache-Control')).toBe('no-cache')
+      expect(fetcher).not.toHaveBeenCalled()
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('keeps homepage metadata unchanged and gives compare its own escaped metadata', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const assets = { fetch: vi.fn(() => Promise.resolve(new Response('<html><head><title>sizeof.ai — LLM memory, measured</title></head><body></body></html>', { headers: { 'Content-Type': 'text/html' } }))) }
+
+    const home = await handleWorkerRequest(new Request('https://sizeof.ai/'), { ASSETS: assets, MODEL_CACHE: cache }, ctx)
+    const compare = await handleWorkerRequest(new Request('https://sizeof.ai/compare'), { ASSETS: assets, MODEL_CACHE: cache }, ctx)
+
+    expect(await home.text()).toContain('<title>sizeof.ai — LLM memory, measured</title>')
+    expect(await compare.text()).toContain('<title>Compare model memory estimates | sizeof.ai</title>')
+  })
+
+  it('serves a bounded script-free SVG share card with conservative headers', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const response = await handleWorkerRequest(
+      new Request('https://sizeof.ai/share/card.svg?model=Qwen%2F%3Cscript%3E&config=4bit&capacity=32&total=18.5&lowerBound=1&date=2026-08-30'),
+      { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+      ctx,
+    )
+
+    expect(response.headers.get('Content-Type')).toContain('image/svg+xml')
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(response.headers.get('Cache-Control')).toContain('max-age=300')
+    await expect(response.text()).resolves.toContain('LOWER BOUND')
+  })
+
+  it('serves bounded robots and curated sitemap routes without dynamic discovery', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache, ENVIRONMENT: 'testnet' }
+    const robots = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/robots.txt'), env, ctx)
+    const sitemap = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/sitemap.xml'), env, ctx)
+    const xml = await sitemap.text()
+
+    expect(robots.headers.get('Content-Type')).toContain('text/plain')
+    expect(await robots.text()).toContain('Sitemap: https://testnet.sizeof.ai/sitemap.xml')
+    expect(sitemap.headers.get('Content-Type')).toContain('application/xml')
+    expect(sitemap.headers.get('Cache-Control')).toContain('max-age=3600')
+    expect(xml).toContain('https://testnet.sizeof.ai/compare')
+    expect(xml).toContain('https://testnet.sizeof.ai/Qwen/Qwen3.8-27B')
+    expect(xml).not.toContain('huggingface.co')
+  })
+
   it('returns a compact trending model list for a submitted search', async () => {
     const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([
       {
