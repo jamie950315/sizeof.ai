@@ -72,6 +72,14 @@ describe('Hugging Face-style model detail route', () => {
     expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=13')
   })
 
+  it('keeps source actions and adds a comparison entry for the loaded model', async () => {
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Qwen3.8-27B' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Compare Qwen/Qwen3.8-27B' })).toHaveAttribute('href', expect.stringContaining('/compare?compare=1'))
+    expect(screen.getByRole('link', { name: 'Hugging Face' })).toHaveAttribute('href', apiModel.sourceUrl)
+  })
+
   it('organizes the model as a true three-panel tool with compact architecture rows', async () => {
     render(<App />)
 

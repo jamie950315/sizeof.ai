@@ -265,6 +265,18 @@ describe('sizeof.ai app', () => {
       .toHaveAttribute('target', '_blank')
   })
 
+  it('reserves /compare for the comparison workspace and exposes compare entry links', () => {
+    window.history.replaceState(null, '', '/compare')
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: 'Compare models' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Model VRAM calculator' })).not.toBeInTheDocument()
+
+    window.history.replaceState(null, '', '/')
+    render(<App />)
+    expect(screen.getByRole('link', { name: 'Compare MiniCPM5 1B' })).toHaveAttribute('href', expect.stringContaining('/compare?compare=1'))
+  })
+
   it('does not search while the user is still typing', async () => {
     const user = userEvent.setup()
     const fetcher = vi.spyOn(globalThis, 'fetch')

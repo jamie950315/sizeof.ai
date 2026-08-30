@@ -1070,3 +1070,50 @@ body { background: var(--ink); }
 @media (prefers-reduced-motion: reduce) {
   .detail-sticky-result { transition: none; }
 }
+
+/* Public model comparison workspace */
+.compare-page { min-height: 100vh; padding: 42px 4vw 72px; background: var(--ink); color: var(--paper); overflow-x: hidden; }
+.compare-page > span, .compare-header span { color: var(--accent); font: 650 10px/1 'JetBrains Mono Variable', monospace; letter-spacing: .12em; }
+.compare-page h1 { margin: 13px 0 0; font-size: clamp(42px, 6vw, 82px); line-height: .88; letter-spacing: -.065em; text-transform: uppercase; }
+.compare-builder { max-width: 860px; margin: 0 auto; padding-top: 12vh; }
+.compare-builder > p { max-width: 620px; color: var(--muted); font-size: 17px; line-height: 1.5; }
+.compare-builder-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 36px; }
+.compare-builder label, .compare-controls label, .compare-header-actions label { display: grid; gap: 8px; color: var(--muted); font: 600 10px/1.2 'JetBrains Mono Variable', monospace; letter-spacing: .07em; text-transform: uppercase; }
+.compare-page input, .compare-page select { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); color: var(--paper); padding: 10px 11px; outline-color: var(--accent); }
+.compare-examples button { border: 0; background: transparent; color: var(--paper); padding: 0; text-decoration: underline; cursor: pointer; }
+.compare-primary, .compare-add, .compare-header-actions > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--accent); background: var(--accent); color: #f7f9ff; padding: 12px 15px; font: 700 10px/1 'JetBrains Mono Variable', monospace; letter-spacing: .08em; cursor: pointer; text-transform: uppercase; }
+.compare-header { display: flex; align-items: end; justify-content: space-between; gap: 26px; padding-bottom: 28px; border-bottom: 1px solid var(--line); }
+.compare-header-actions { display: flex; align-items: end; gap: 12px; }
+.compare-header-actions > button { background: transparent; color: var(--paper); border-color: var(--line); }
+.compare-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1px; margin-top: 1px; background: var(--line); overflow-x: hidden; }
+.compare-card { min-width: 0; padding: 22px; background: var(--surface); transition: border-color .18s ease, background .18s ease; }
+.compare-card > header { display: flex; align-items: start; justify-content: space-between; gap: 14px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.compare-card header span { color: var(--muted); font: 600 9px/1 'JetBrains Mono Variable', monospace; letter-spacing: .1em; }
+.compare-card h2 { margin: 8px 0 0; font-size: 19px; overflow-wrap: anywhere; }
+.compare-card-actions { display: flex; gap: 4px; }
+.compare-card-actions button { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid var(--line); background: transparent; color: var(--paper); cursor: pointer; }
+.compare-card-actions button:disabled { opacity: .35; cursor: default; }
+.compare-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px 10px; margin: 20px 0; }
+.compare-rows { display: grid; gap: 0; margin: 20px 0 0; border-top: 1px solid var(--line); }
+.compare-rows > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.compare-rows dt, .compare-rows dd { margin: 0; font: 600 10px/1.35 'JetBrains Mono Variable', monospace; }
+.compare-rows dt { color: var(--muted); }
+.compare-rows dd { max-width: 190px; color: var(--paper); text-align: right; overflow-wrap: anywhere; }
+.compare-error, .compare-not-comparable { margin: 18px 0; color: #f5b84b; font-size: 13px; line-height: 1.45; }
+.compare-add { margin-top: 18px; background: transparent; color: var(--paper); border-color: var(--line); }
+.compare-pending { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 18px; border: 1px solid var(--line); border-top: 0; background: var(--surface-raised); }
+.compare-entry { display: flex; align-items: center; justify-content: center; width: 100%; margin-top: 8px; border: 1px solid var(--line); color: var(--paper); padding: 10px; font: 700 10px/1 'JetBrains Mono Variable', monospace; letter-spacing: .08em; }
+
+@media (max-width: 620px) {
+  .compare-page { padding: 28px 14px 42px; }
+  .compare-header { align-items: stretch; flex-direction: column; }
+  .compare-header-actions { align-items: stretch; flex-direction: column; }
+  .compare-builder { padding-top: 8vh; }
+  .compare-builder-inputs, .compare-controls, .compare-pending { grid-template-columns: 1fr; }
+  .compare-cards { grid-template-columns: 1fr; overflow-x: hidden; }
+  .compare-card { padding: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compare-card { transition: none; }
+}

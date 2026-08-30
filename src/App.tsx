@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { models } from './data/models'
 import ModelDetailPage from './ModelDetailPage'
+import ComparePage from './ComparePage'
 import {
   kvPrecisions,
   quantizations,
@@ -32,6 +33,7 @@ import {
   serializeCalculatorState,
 } from './lib/url-state'
 import { parseHuggingFaceModelPath } from './lib/huggingface'
+import { serializeCompareState } from './lib/compare-state'
 
 const contextPresets = contextLevels
 
@@ -103,6 +105,16 @@ function modelDetailPath(sourceUrl: string) {
   return new URL(sourceUrl).pathname
 }
 
+function comparePath(modelId: string) {
+  return `/compare?${serializeCompareState({
+    items: [{
+      modelId,
+      quantization: 'q4_k_m', context: 8192, kvPrecision: 'fp16', mlaCacheMode: 'expanded', vramGiB: 32,
+      source: 'estimated', variantId: null,
+    }],
+  })}`
+}
+
 const fitLabels: Record<Fit, string> = {
   comfortable: 'COMFORTABLE',
   tight: 'TIGHT FIT',
@@ -110,6 +122,7 @@ const fitLabels: Record<Fit, string> = {
 }
 
 export default function App() {
+  if (window.location.pathname === '/compare') return <ComparePage />
   const modelRoute = parseHuggingFaceModelPath(window.location.pathname)
   return modelRoute ? <ModelDetailPage route={modelRoute} /> : <HomePage />
 }
@@ -360,6 +373,7 @@ function HomePage() {
                   <div><small>TASK</small><strong>{item.task?.replaceAll('-', ' ') ?? 'UNSPECIFIED'}</strong></div>
                   <div className="catalog-actions">
                     <a className="catalog-open-model" href={`/${item.owner}/${item.name}`} aria-label={`Open ${item.id}`}>OPEN</a>
+                    <a href={comparePath(item.id)} aria-label={`Compare ${item.id}`}>COMPARE</a>
                     <a href={`https://huggingface.co/${item.id}`} target="_blank" rel="noreferrer" aria-label={`${item.id} on Hugging Face`}><ArrowUpRight size={17} /></a>
                   </div>
                 </article>
@@ -421,6 +435,7 @@ function HomePage() {
                 <div><small>ARCHITECTURE</small><strong>{item.layers}L / {item.kvHeads} KVH</strong></div>
                 <div className="catalog-actions">
                   <a className="catalog-open-model" href={modelDetailPath(item.sourceUrl)} target="_blank" rel="noreferrer" aria-label={`Size ${item.name} (opens in new tab)`}>SIZE IT</a>
+                  <a href={comparePath(new URL(item.sourceUrl).pathname.slice(1))} aria-label={`Compare ${item.name}`}>COMPARE</a>
                   <a href={item.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${item.name} source`}><ArrowUpRight size={17} /></a>
                 </div>
               </article>

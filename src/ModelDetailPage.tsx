@@ -18,6 +18,7 @@ import { vramPresets } from './lib/vram-presets'
 import type { HuggingFaceModel, HuggingFaceRoute } from './lib/huggingface'
 import type { HuggingFaceVariant } from './lib/huggingface-variants'
 import { parseDetailState, serializeDetailState } from './lib/detail-state'
+import { serializeCompareState } from './lib/compare-state'
 import { parseHardwareProfile, serializeHardwareProfile, usableMemoryGiB, type HardwareProfile } from './lib/hardware-profile'
 import { buildModelEvidence } from './lib/evidence'
 import type { FitAdjustment } from './lib/planner'
@@ -140,6 +141,16 @@ function formatBytes(value: number | null | undefined) {
   const gib = value / 1024 ** 3
   if (gib >= 0.1) return `${gib.toFixed(2)} GiB`
   return `${(value / 1024 ** 2).toFixed(1)} MiB`
+}
+
+function comparePath(modelId: string) {
+  return `/compare?${serializeCompareState({
+    items: [{
+      modelId,
+      quantization: 'q4_k_m', context: 8192, kvPrecision: 'fp16', mlaCacheMode: 'expanded', vramGiB: 32,
+      source: 'estimated', variantId: null,
+    }],
+  })}`
 }
 
 function Brand() {
@@ -508,6 +519,7 @@ export default function ModelDetailPage({ route }: Props) {
             <button type="button" onClick={() => void copyUrl()}>
               {copied ? <Check size={16} /> : <Copy size={16} />}{copied ? 'COPIED' : 'COPY SIZEOF URL'}
             </button>
+            <a className="compare-entry" href={comparePath(model.id)} aria-label={`Compare ${model.id}`}>COMPARE</a>
           </div>
           <div className="detail-tags">
             {model.license && <span>LICENSE / {model.license}</span>}
