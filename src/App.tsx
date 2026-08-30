@@ -25,6 +25,7 @@ import {
 import { estimateVram, rankModelsForVram, type Fit } from './lib/estimator'
 import { contextLevels, stepContext } from './lib/context-stepper'
 import { getMemoryBarPartPercents, getMemoryBarUsage } from './lib/memory-bar'
+import { vramPresets } from './lib/vram-presets'
 import {
   defaultCalculatorState,
   parseCalculatorState,
@@ -33,7 +34,6 @@ import {
 import { parseHuggingFaceModelPath } from './lib/huggingface'
 
 const contextPresets = contextLevels
-const vramPresets = [8, 12, 16, 24, 32, 48, 64, 80]
 
 interface HuggingFaceSearchModel {
   id: string
@@ -97,6 +97,10 @@ function formatContext(value: number) {
 
 function formatCompactNumber(value: number) {
   return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
+}
+
+function modelDetailPath(sourceUrl: string) {
+  return new URL(sourceUrl).pathname
 }
 
 const fitLabels: Record<Fit, string> = {
@@ -265,36 +269,16 @@ function HomePage() {
         </a>
       </header>
 
-      <main id="top">
-        <section className="hero">
-          <div className="hero-kicker reveal">
-            <span className="pulse-dot" /> LLM MEMORY REFERENCE / V0.1
-          </div>
-          <h1 className="reveal delay-1">
-            KNOW WHAT FITS
-            <span>BEFORE YOU LOAD.</span>
-          </h1>
-          <div className="hero-bottom reveal delay-2">
-            <p>
-              Model weights are only half the story. Calculate the real memory footprint across
-              quantization, context, and KV cache precision.
-            </p>
-            <a href="#calculator" className="jump-link">
-              RUN A CALCULATION <ArrowDownRight size={20} />
-            </a>
-          </div>
-          <div className="hero-search reveal delay-2" role="region" aria-label="Hugging Face model search">
-            <div className="hero-search-heading">
-              <span>LIVE HUGGING FACE INDEX</span>
-              <p>Find any public model, then open its memory profile.</p>
-            </div>
+      <main id="top" className="home-main">
+        <section className="home-search-explorer" aria-label="Model search explorer">
+          <div className="hero-search home-search-bar" role="region" aria-label="Hugging Face model search">
             <form onSubmit={searchHuggingFace}>
               <div className="hero-search-main">
                 <Search size={22} />
                 <input
                   type="search"
                   aria-label="Search Hugging Face models"
-                  placeholder="SEARCH QWEN, LLAMA, DEEPSEEK…"
+                  placeholder="Search any Hugging Face model"
                   value={catalogQuery}
                   onChange={(event) => setCatalogQuery(event.target.value)}
                   maxLength={80}
@@ -331,16 +315,9 @@ function HomePage() {
                     maxLength={96}
                   />
                 </label>
-                <p>Press Enter / Return or Search to submit.</p>
+                <p>Search runs on Enter or Search.</p>
               </div>
             </form>
-          </div>
-          <div className="hero-rule" />
-          <div className="signal-row">
-            <span>09 TEXT-OUTPUT MODELS</span>
-            <span>08 QUANTIZATIONS</span>
-            <span>NO SIGN-UP</span>
-            <span>UPDATED 22 AUG 2026</span>
           </div>
         </section>
 
@@ -408,17 +385,46 @@ function HomePage() {
           </section>
         )}
 
-        <section className="hf-shortcut" aria-label="Hugging Face URL shortcut">
-          <div className="hf-shortcut-copy">
-            <span>HF URL SHORTCUT / ANY PUBLIC MODEL</span>
-            <h2>Replace one word.<br />See what fits.</h2>
-            <p>Keep the owner and model path. Replace only the Hugging Face domain with sizeof.ai.</p>
+        <section id="catalog" className="catalog-section" aria-label="Model catalog">
+          <div className="section-heading">
+            <div>
+              <span className="section-index">03</span>
+              <p>MODEL INDEX</p>
+            </div>
+            <h2>Curated model index</h2>
           </div>
-          <div className="hf-url-swap">
-            <code>huggingface.co/Qwen/Qwen3.8-27B</code>
-            <ArrowDownRight size={24} />
-            <code><strong>sizeof.ai</strong>/Qwen/Qwen3.8-27B</code>
-            <a href="/Qwen/Qwen3.8-27B" aria-label="Try the model detail page">TRY IT <ArrowUpRight size={17} /></a>
+          <div className="catalog-toolbar">
+            <span>{String(models.length).padStart(2, '0')} TEXT-OUTPUT MODELS</span>
+            <span>{String(quantizations.length).padStart(2, '0')} QUANTIZATIONS</span>
+            <span>UPDATED 22 AUG 2026</span>
+          </div>
+          <div className="catalog-table">
+            <div className="catalog-header">
+              <span>MODEL</span><span>PARAMETERS</span><span>MAX CONTEXT</span><span>ARCHITECTURE</span><span />
+            </div>
+            {models.map((item) => (
+              <article key={item.id} className={`catalog-row${modelId === item.id ? ' selected' : ''}`}>
+                <button
+                  type="button"
+                  className="catalog-row-select"
+                  aria-label={`Select ${item.name}`}
+                  aria-pressed={modelId === item.id}
+                  onClick={() => setModelId(item.id)}
+                />
+                <div className="catalog-name">
+                  <span>{item.maker}</span>
+                  <strong>{item.name}</strong>
+                  <div>{item.strengths.map((tag) => <i key={tag}>{tag}</i>)}</div>
+                </div>
+                <div><small>PARAMETERS</small><strong>{item.parametersB}B</strong></div>
+                <div><small>MAX CONTEXT</small><strong>{formatContext(item.maxContext)}</strong></div>
+                <div><small>ARCHITECTURE</small><strong>{item.layers}L / {item.kvHeads} KVH</strong></div>
+                <div className="catalog-actions">
+                  <a className="catalog-open-model" href={modelDetailPath(item.sourceUrl)} target="_blank" rel="noreferrer" aria-label={`Size ${item.name} (opens in new tab)`}>SIZE IT</a>
+                  <a href={item.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${item.name} source`}><ArrowUpRight size={17} /></a>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
@@ -426,9 +432,9 @@ function HomePage() {
           <div className="section-heading">
             <div>
               <span className="section-index">01</span>
-              <p>MEMORY CALCULATOR</p>
+              <p>SELECTED MODEL</p>
             </div>
-            <h2>Size the model,<br />not the guess.</h2>
+            <h2>VRAM calculator</h2>
           </div>
 
           <div className="calculator-grid">
@@ -560,6 +566,7 @@ function HomePage() {
               <div
                 className="memory-bar"
                 role="img"
+                data-motion="memory-usage"
                 aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vramBudget} GiB VRAM${offloadLabel ? `, ${offloadLabel}` : ''}`}
               >
                 <div
@@ -589,20 +596,6 @@ function HomePage() {
                 />
                 {offloadLabel && <span className="memory-bar-offload">{offloadLabel}</span>}
               </div>
-              <div
-                className="breakdown-list"
-                style={{
-                  '--memory-risk-opacity': memoryBarUsage.riskOpacity,
-                  '--memory-weights-offload-opacity': memoryBarUsage.weightsOffloadOpacity,
-                } as CSSProperties}
-              >
-                {memoryParts.map((part) => (
-                  <div key={part.label}>
-                    <span><i className={part.className} />{part.label}</span>
-                    <strong>{formatGiB(part.value)}</strong>
-                  </div>
-                ))}
-              </div>
               <div className="result-model">
                 <div>
                   <span>CONFIGURATION</span>
@@ -615,7 +608,7 @@ function HomePage() {
                 </button>
               </div>
               <p className="estimate-note">
-                <Info size={15} /> Estimate includes weights, KV cache, 10% workspace, and a 0.5 GiB base runtime allowance. Actual use varies by engine and GPU offload.
+                <Info size={15} /> Includes weights, KV cache, and runtime allowance. Actual use varies by engine and GPU offload.
               </p>
             </div>
           </div>
@@ -627,7 +620,7 @@ function HomePage() {
               <span className="section-index">02</span>
               <p>VRAM FIT</p>
             </div>
-            <h2>Use every gigabyte<br />with intent.</h2>
+            <h2>Models for {vramBudget} GB</h2>
           </div>
           <div className="vram-strip" aria-label="VRAM capacity">
             {vramPresets.map((value) => (
@@ -677,45 +670,24 @@ function HomePage() {
           </div>
         </section>
 
-        <section id="catalog" className="catalog-section" aria-label="Model catalog">
-          <div className="section-heading">
-            <div>
-              <span className="section-index">03</span>
-              <p>MODEL INDEX</p>
-            </div>
-            <h2>Specs you can<br />inspect.</h2>
+        <section className="hf-shortcut home-url-tool" aria-label="Hugging Face URL shortcut">
+          <div className="hf-shortcut-copy">
+            <span>HUGGING FACE URL SHORTCUT</span>
+            <h2>Open a model by URL</h2>
+            <p>Keep the owner and model path. Replace only the Hugging Face domain with sizeof.ai.</p>
           </div>
-          <div className="catalog-toolbar">
-            <span>BUILT-IN REFERENCE SET</span>
-            <span>{String(models.length).padStart(2, '0')} CURATED MODELS</span>
-          </div>
-          <div className="catalog-table">
-            <div className="catalog-header">
-              <span>MODEL</span><span>PARAMETERS</span><span>MAX CONTEXT</span><span>ARCHITECTURE</span><span />
-            </div>
-            {models.map((item) => (
-              <article key={item.id} className="catalog-row">
-                <div className="catalog-name">
-                  <span>{item.maker}</span>
-                  <strong>{item.name}</strong>
-                  <div>{item.strengths.map((tag) => <i key={tag}>{tag}</i>)}</div>
-                </div>
-                <div><small>PARAMETERS</small><strong>{item.parametersB}B</strong></div>
-                <div><small>MAX CONTEXT</small><strong>{formatContext(item.maxContext)}</strong></div>
-                <div><small>ARCHITECTURE</small><strong>{item.layers}L / {item.kvHeads} KVH</strong></div>
-                <div className="catalog-actions">
-                  <button type="button" onClick={() => { setModelId(item.id); document.querySelector('#calculator')?.scrollIntoView({ behavior: 'smooth' }) }}>SIZE IT</button>
-                  <a href={item.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${item.name} source`}><ArrowUpRight size={17} /></a>
-                </div>
-              </article>
-            ))}
+          <div className="hf-url-swap">
+            <code>huggingface.co/Qwen/Qwen3.8-27B</code>
+            <ArrowDownRight size={24} />
+            <code><strong>sizeof.ai</strong>/Qwen/Qwen3.8-27B</code>
+            <a href="/Qwen/Qwen3.8-27B" aria-label="Try the model detail page">TRY IT <ArrowUpRight size={17} /></a>
           </div>
         </section>
 
         <section id="method" className="method-section">
           <div className="method-title">
             <span>HOW IT WORKS</span>
-            <h2>Transparent by default.</h2>
+            <h2>Methodology</h2>
             <p>No mystery score. Every estimate is built from the model architecture and a small set of visible assumptions.</p>
           </div>
           <div className="method-grid">
@@ -729,7 +701,6 @@ function HomePage() {
 
       <footer>
         <div className="brand"><span className="brand-bracket">[</span> sizeof<span>.ai</span> <span className="brand-bracket">]</span></div>
-        <p>LLM MEMORY, MEASURED.</p>
         <div><a href="#calculator">Calculator</a><a href="#catalog">Model data</a><a href="#method">Method</a></div>
         <span>ESTIMATES, NOT GUARANTEES · 2026</span>
       </footer>

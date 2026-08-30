@@ -71,12 +71,40 @@ describe('Hugging Face-style model detail route', () => {
     expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=13')
   })
 
+  it('organizes the model as a true three-panel tool with compact architecture rows', async () => {
+    render(<App />)
+
+    const navigation = await screen.findByRole('region', { name: 'Model navigation' })
+    expect(within(navigation).getByRole('region', { name: 'Model facts' })).toBeInTheDocument()
+    expect(within(navigation).getByRole('region', { name: 'Resource profile' })).toBeInTheDocument()
+
+    const configuration = screen.getByRole('region', { name: 'Model configuration' })
+    const architecture = within(configuration).getByRole('region', { name: 'Architecture assumptions' })
+    expect(within(architecture).getByText('Architecture')).toBeInTheDocument()
+    expect(within(architecture).getByText('Qwen3_5ForConditionalGeneration')).toBeInTheDocument()
+    expect(architecture.querySelector('dl')).toBeInTheDocument()
+    expect(architecture.querySelector('.architecture-grid')).not.toBeInTheDocument()
+
+    expect(screen.getByRole('region', { name: 'Memory summary' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Model details' })).not.toBeInTheDocument()
+  })
+
   it('defaults every model calculator to 32 GiB VRAM', async () => {
     render(<App />)
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(within(calculator).getByRole('combobox', { name: 'Your VRAM' })).toHaveValue('32')
     expect(within(calculator).getByText('COMFORTABLE ON 32 GB')).toBeInTheDocument()
+  })
+
+  it('offers workstation and multi-GPU VRAM capacities', async () => {
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    const vram = within(calculator).getByRole('combobox', { name: 'Your VRAM' })
+    expect(Array.from(vram.querySelectorAll('option'), (option) => option.value)).toEqual([
+      '8', '12', '16', '24', '32', '36', '48', '64', '80', '96', '128', '192', '256', '384', '512',
+    ])
   })
 
   it('keeps the detail context spinner aligned and charts usage against selected VRAM', async () => {
@@ -258,7 +286,8 @@ describe('Hugging Face-style model detail route', () => {
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(within(calculator).getByText('ESTIMATED LOWER BOUND')).toBeInTheDocument()
-    expect(within(calculator).getByText('RUNTIME-SPECIFIC')).toBeInTheDocument()
+    expect(within(calculator).getByText('TOO LARGE ON 32 GB')).toHaveClass('too-large')
+    expect(within(calculator).queryByText('RUNTIME-SPECIFIC')).not.toBeInTheDocument()
     expect(within(calculator).getByRole('img', { name: /modeled lower bound/i })).not.toHaveTextContent('OFFLOAD')
     expect(within(calculator).queryByText(/OFFLOAD/)).not.toBeInTheDocument()
     expect(screen.getByText('KDA / 48 STATE LAYERS')).toBeInTheDocument()
@@ -523,10 +552,16 @@ describe('Hugging Face-style model detail route', () => {
     ])
     expect(within(calculator).queryByRole('region', { name: 'Available community quantizations' })).not.toBeInTheDocument()
     expect(within(calculator).getByText('15.69 GiB', { selector: 'strong' })).toBeInTheDocument()
+    const estimatedPanel = calculator.querySelector('[data-motion="quantization-panel"]')
+    expect(estimatedPanel).toHaveAttribute('data-motion-source', 'estimated')
+    expect(within(calculator).getByRole('img', { name: /memory usage/i })).toHaveAttribute('data-motion', 'memory-usage')
 
     await user.click(within(sources).getByRole('tab', { name: 'Unsloth' }))
 
     const quantizations = within(calculator).getByRole('region', { name: 'Available community quantizations' })
+    expect(quantizations).toHaveAttribute('data-motion', 'quantization-panel')
+    expect(quantizations).toHaveAttribute('data-motion-source', 'unsloth')
+    expect(quantizations).not.toBe(estimatedPanel)
     expect(within(quantizations).getByText('1-bit')).toBeInTheDocument()
     expect(within(quantizations).getByText('2-bit')).toBeInTheDocument()
     expect(within(quantizations).getByText('4-bit')).toBeInTheDocument()

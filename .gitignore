@@ -8,3 +8,5 @@ coverage/
 *.log
 .playwright-cli/
 output/playwright/
+output/favicon-previews/
+.superpowers/

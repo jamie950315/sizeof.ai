@@ -50,6 +50,32 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-08-22: Hugging Face search and model-detail requests now authenticate with the `HF_TOKEN` Cloudflare secret. Public endpoints explicitly reject private top-level repositories and exclude private community, VAE-base, speculative-target, and quantized/adapter-base metadata from public estimates and caches.
 - 2026-08-22: Homepage and Hugging Face model-detail calculators now default to 32 GiB VRAM while preserving all selectable VRAM capacities.
 - Cloudflare production version: `39c0e2ac-1a85-4cc4-8978-7cd0b741382b` (deployed 2026-08-22).
+- 2026-08-30: Frontend redesigned around a slogan-free search-first model explorer and a three-panel model workspace. The shared palette now uses graphite, steel, cool white, and cobalt; fit status remains green, while memory weights, KV cache, and runtime use cobalt, violet, and teal. Desktop, tablet, and mobile layouts preserve DOM reading order and avoid horizontal overflow.
+- Cloudflare production version: `25edd26f-8409-42ad-9afc-ea300a21d669` (deployed 2026-08-30).
+- 2026-08-30: Homepage model rows now update the selected calculator in place, while `SIZE IT` opens the matching model detail page in a new tab. Model detail facts, resource profile, artifacts, and architecture now share the redesigned panel system without legacy full-width sections.
+- Cloudflare production version: `e91a536b-c318-432d-98dc-8484b52e19be` (deployed 2026-08-30).
+- 2026-08-30: Model detail pages now use the selected three-panel tool layout: identity and published facts on the left, configuration with compact architecture key/value rows in the center, and the memory result on the right. The legacy lower-page architecture tile grid was removed, and short desktop viewports keep each panel independently scrollable.
+- Cloudflare production version: `abf5f10c-b797-4971-a400-b597209fbca4` (deployed 2026-08-30).
+- 2026-08-30: The model-detail configuration column now removes spacer-driven gaps and uses compact desktop controls so the full default Qwen3.8-27B configuration and architecture fit without scrolling at 1280x800. Detail-page VRAM choices now include 8, 12, 36, 96, 128, 192, 256, 384, and 512 GiB alongside the existing presets.
+- Cloudflare production version: `f70d2b73-1661-4c3b-a83f-a33b082c47d8` (deployed 2026-08-30).
+- 2026-08-30: Model-detail configuration spacing was relaxed to a middle-density rhythm after visual review: controls, section gaps, and architecture rows use more vertical space while the default Qwen3.8-27B view still fits without center-column scrolling at 1280x800.
+- Cloudflare production version: `de0a98ce-49b3-4047-8dce-5fe0d93fc845` (deployed 2026-08-30).
+- 2026-08-30: Community quantization source tabs and artifact buttons now use the redesigned graphite, steel, cool-white, and cobalt palette for idle, hover, selected, and size-label states; the legacy olive button colors were removed.
+- Cloudflare production version: `7e7535b5-bc9f-4cc8-bfa4-f994fd7d03f9` (deployed 2026-08-30).
+- 2026-08-30: Quantization source changes now animate the Estimated grid and community artifact tiers with a short staggered reveal. Memory-bar used, remaining, weight, KV, runtime, warning, and offload visuals transition smoothly when quantization or capacity changes, while `prefers-reduced-motion` disables all motion.
+- Cloudflare production version: `3ee16a8b-47ce-496e-ba40-7c2166ef4749` (deployed 2026-08-30).
+- 2026-08-30: Lower-bound model detail estimates now show the same device-fit status as ordinary estimates while retaining the lower-bound warning. The homepage selected-model result now includes the animated memory bar directly below total GiB without the detailed breakdown rows.
+- Cloudflare production version: `fd5491ea-0fe7-4f32-9f35-a4fdb6e9f567` (deployed 2026-08-30).
+- 2026-08-30: Short desktop and narrow mobile homepage layouts now compact only the calculator's vertical spacing so the animated memory bar remains visible directly below the total GiB without scrolling the sticky result column.
+- Cloudflare production version: `eee51d69-eed7-48e8-9705-6dbbd89a11da` (deployed 2026-08-30).
+- 2026-08-30: The homepage calculator now stretches to the exact height of the adjacent Model Index on desktop. Compact control and result spacing keeps the memory bar, configuration preset, Copy Link action, and estimate note visible without an inner scroll area at 1024–1505px desktop widths.
+- Cloudflare production version: `6d8d533b-fa70-4f5e-8b9a-19ab6f294f79` (deployed 2026-08-30).
+- 2026-08-30: Homepage calculator spacing was relaxed without breaking exact Model Index alignment. The shorter estimate disclaimer now sits at the bottom of the result panel with preserved padding, while all controls, the memory bar, configuration, and Copy Link remain visible without internal scrolling.
+- Cloudflare production version: `a1d8b665-1115-4f4a-be20-fc154344c2e2` (deployed 2026-08-30).
+- 2026-08-30: Homepage and model-detail calculators now share one VRAM capacity list. The homepage calculator and VRAM fit strip include workstation and multi-GPU capacities through 512 GiB, while the 32 GiB default remains unchanged.
+- Cloudflare production version: `f92be8ce-1399-4318-b912-230a7ac1aa5b` (deployed 2026-08-30).
+- 2026-08-30: The obsolete lime bracketed-S favicon was replaced with the selected cobalt VRAM-frame mark. Browser-tab assets now include dedicated 16px and 32px PNGs plus a 180px Apple touch icon, and the old SVG is no longer referenced by the page.
+- Cloudflare production version: `3d4e767d-bdaa-4402-842b-f687ac5b4cfa` (deployed 2026-08-30).
 
 ## Commands
 

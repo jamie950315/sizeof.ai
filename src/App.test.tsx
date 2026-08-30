@@ -15,15 +15,18 @@ afterAll(() => testStyles.remove())
 describe('sizeof.ai app', () => {
   beforeEach(() => window.history.replaceState(null, '', '/'))
 
-  it('opens with the current top sub-40B Hugging Face text-output model', () => {
+  it('opens directly into the model explorer without a marketing hero', () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: /know what fits/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Model search explorer' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /know what fits/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'VRAM calculator' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Model catalog' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('qwen3.8-27b')
     expect(screen.getAllByText('Qwen3.8 27B').length).toBeGreaterThan(0)
-    expect(screen.getByText('Model weights')).toBeInTheDocument()
-    expect(screen.getAllByText('KV cache').length).toBeGreaterThan(0)
-    expect(screen.getByText('Runtime buffer')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /memory usage/i })).toBeInTheDocument()
+    expect(screen.queryByText('Model weights')).not.toBeInTheDocument()
+    expect(screen.queryByText('Runtime buffer')).not.toBeInTheDocument()
   })
 
   it('defaults the homepage calculator to 32 GiB VRAM', () => {
@@ -31,6 +34,15 @@ describe('sizeof.ai app', () => {
 
     expect(screen.getByRole('combobox', { name: 'Your VRAM' })).toHaveValue('32')
     expect(screen.getByText('COMFORTABLE ON 32 GB')).toBeInTheDocument()
+  })
+
+  it('offers the same workstation and multi-GPU VRAM capacities as model pages', () => {
+    render(<App />)
+
+    const vram = screen.getByRole('combobox', { name: 'Your VRAM' })
+    expect(Array.from(vram.querySelectorAll('option'), (option) => option.value)).toEqual([
+      '8', '12', '16', '24', '32', '36', '48', '64', '80', '96', '128', '192', '256', '384', '512',
+    ])
   })
 
   it('shows a current Hugging Face text-output example catalog', () => {
@@ -102,14 +114,63 @@ describe('sizeof.ai app', () => {
   it('shows used memory against the full VRAM capacity', () => {
     render(<App />)
 
-    const chart = screen.getByRole('img', { name: /memory usage/i })
+    const calculator = screen.getByRole('region', { name: 'VRAM calculator' })
+    const chart = within(calculator).getByRole('img', { name: /memory usage/i })
     const used = chart.querySelector('.memory-bar-used') as HTMLElement
     const remaining = chart.querySelector('.memory-bar-remaining') as HTMLElement
 
+    expect(chart).toHaveAttribute('data-motion', 'memory-usage')
+    expect(calculator.querySelector('.total-number')?.nextElementSibling).toBe(chart)
+    expect(calculator.querySelector('.breakdown-list')).not.toBeInTheDocument()
     expect(used).toBeInTheDocument()
     expect(remaining).toBeInTheDocument()
     expect(used.style.width).toMatch(/%$/)
     expect(remaining.style.width).toMatch(/%$/)
+  })
+
+  it('aligns the complete homepage calculator with the model index on desktop viewports', () => {
+    const rules = Array.from(testStyles.sheet?.cssRules ?? [])
+      .filter((rule) => 'conditionText' in rule && (rule as CSSMediaRule).conditionText === '(min-width: 951px)')
+      .flatMap((rule) => Array.from((rule as CSSMediaRule).cssRules))
+    const findRule = (selector: string) => rules.find((rule) =>
+      'selectorText' in rule && (rule as CSSStyleRule).selectorText === selector,
+    ) as CSSStyleRule | undefined
+
+    const sectionRule = findRule('.home-main > .calculator-section')
+
+    expect(sectionRule?.style.maxHeight).toBe('none')
+    expect(sectionRule?.style.overflow).toBe('hidden')
+    expect(sectionRule?.style.alignSelf).toBe('stretch')
+    expect(findRule('.home-main > .calculator-section .calculator-grid')?.style.overflow).toBe('hidden')
+    expect(findRule('.home-main > .calculator-section .controls-panel')?.style.paddingTop).toBe('15px')
+    expect(findRule('.home-main > .calculator-section .control-block')?.style.marginBottom).toBe('11px')
+    expect(findRule('.home-main > .calculator-section .total-number')?.style.marginTop).toBe('13px')
+    expect(findRule('.home-main > .calculator-section .total-number')?.style.marginBottom).toBe('10px')
+    expect(findRule('.home-main > .calculator-section .result-model')?.style.marginTop).toBe('18px')
+    expect(findRule('.home-main > .calculator-section .estimate-note')?.style.marginTop).toBe('auto')
+    expect(findRule('.home-main > .calculator-section .estimate-note')?.style.paddingTop).toBe('14px')
+  })
+
+  it('keeps the homepage disclaimer concise', () => {
+    render(<App />)
+
+    const calculator = screen.getByRole('region', { name: 'VRAM calculator' })
+    expect(within(calculator).getByText('Includes weights, KV cache, and runtime allowance. Actual use varies by engine and GPU offload.')).toBeInTheDocument()
+    expect(calculator).not.toHaveTextContent('10% workspace')
+    expect(calculator).not.toHaveTextContent('0.5 GiB base runtime allowance')
+  })
+
+  it('keeps the homepage memory bar close to the total on narrow viewports', () => {
+    const rules = Array.from(testStyles.sheet?.cssRules ?? [])
+      .filter((rule) => 'conditionText' in rule && (rule as CSSMediaRule).conditionText === '(max-width: 620px)')
+      .flatMap((rule) => Array.from((rule as CSSMediaRule).cssRules))
+    const totalRule = rules.find((rule) =>
+      'selectorText' in rule
+      && (rule as CSSStyleRule).selectorText === '.home-main > .calculator-section .total-number',
+    ) as CSSStyleRule | undefined
+
+    expect(totalRule?.style.marginTop).toBe('22px')
+    expect(totalRule?.style.marginBottom).toBe('12px')
   })
 
   it('keeps model weights green before the risk overlay activates', () => {
@@ -159,7 +220,7 @@ describe('sizeof.ai app', () => {
     expect(screen.getByRole('img', { name: /memory usage/i })).toHaveTextContent(/OFFLOAD\s+\d+\.\d+ GiB/)
   })
 
-  it('applies the bar risk tint to the matching breakdown color swatches', async () => {
+  it('applies the risk and offload tints directly to the compact memory bar', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -167,12 +228,11 @@ describe('sizeof.ai app', () => {
     await user.click(screen.getByRole('button', { name: '256K' }))
     const chart = screen.getByRole('img', { name: /memory usage/i })
     const used = chart.querySelector('.memory-bar-used') as HTMLElement
-    const breakdown = chart.closest('.result-panel')?.querySelector('.breakdown-list') as HTMLElement
+    const risk = chart.querySelector('.memory-bar-risk') as HTMLElement
 
-    expect(breakdown.style.getPropertyValue('--memory-risk-opacity')).toBe('0.9')
+    expect(risk.style.opacity).toBe('0.9')
     expect(used.style.getPropertyValue('--memory-weights-offload-opacity')).toBe('0.9')
-    expect(breakdown.style.getPropertyValue('--memory-weights-offload-opacity')).toBe('0.9')
-    expect(breakdown.querySelectorAll('i')).toHaveLength(3)
+    expect(chart.closest('.result-panel')?.querySelector('.breakdown-list')).not.toBeInTheDocument()
   })
 
   it('recalculates and writes a shareable URL when the selected model changes', async () => {
@@ -183,6 +243,26 @@ describe('sizeof.ai app', () => {
 
     expect(screen.getAllByText('MiniCPM5 1B').length).toBeGreaterThan(0)
     expect(window.location.search).toContain('model=minicpm5-1b')
+  })
+
+  it('updates the calculator when a curated model rectangle is selected', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Select MiniCPM5 1B' }))
+
+    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('minicpm5-1b')
+    expect(within(screen.getByRole('region', { name: 'VRAM calculator' }))
+      .getByText('MiniCPM5 1B', { selector: '.result-model strong' })).toBeInTheDocument()
+  })
+
+  it('opens SIZE IT in a new tab on the selected model page', () => {
+    render(<App />)
+
+    expect(screen.getByRole('link', { name: 'Size MiniCPM5 1B (opens in new tab)' }))
+      .toHaveAttribute('href', '/openbmb/MiniCPM5-1B')
+    expect(screen.getByRole('link', { name: 'Size MiniCPM5 1B (opens in new tab)' }))
+      .toHaveAttribute('target', '_blank')
   })
 
   it('does not search while the user is still typing', async () => {
@@ -197,12 +277,13 @@ describe('sizeof.ai app', () => {
     fetcher.mockRestore()
   })
 
-  it('places model search prominently in the hero and keeps the curated index separate', () => {
+  it('places model search at the top of the explorer and keeps the curated index separate', () => {
     render(<App />)
 
     const searchRegion = screen.getByRole('region', { name: 'Hugging Face model search' })
     expect(searchRegion).toContainElement(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }))
-    expect(searchRegion.closest('.hero')).not.toBeNull()
+    expect(searchRegion.closest('[aria-label="Model search explorer"]')).not.toBeNull()
+    expect(searchRegion.closest('.hero')).toBeNull()
     expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B')).toBeInTheDocument()
   })
 

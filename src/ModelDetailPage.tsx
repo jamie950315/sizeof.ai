@@ -14,6 +14,7 @@ import { kvPrecisions, quantizations, type KvPrecisionId, type QuantizationId } 
 import { classifyFit, estimateVram, type Fit } from './lib/estimator'
 import { contextLevels, stepContext } from './lib/context-stepper'
 import { getMemoryBarPartPercents, getMemoryBarUsage } from './lib/memory-bar'
+import { vramPresets } from './lib/vram-presets'
 import type { HuggingFaceModel, HuggingFaceRoute } from './lib/huggingface'
 import type { HuggingFaceVariant } from './lib/huggingface-variants'
 
@@ -22,7 +23,6 @@ interface Props {
 }
 
 const contexts = contextLevels
-const vramPresets = [16, 24, 32, 48, 64, 80]
 const fitLabels: Record<Fit, string> = {
   comfortable: 'COMFORTABLE',
   tight: 'TIGHT FIT',
@@ -322,6 +322,76 @@ export default function ModelDetailPage({ route }: Props) {
     : 'The repository does not publish enough architecture data for a safe estimate.'
   const needsIdentification = !resourceEstimate && modelKind === 'workflow'
 
+  const architecturePanel = (
+    <section className="detail-architecture-list" role="region" aria-label="Architecture assumptions">
+      <div className="detail-list-heading">
+        <span>ARCHITECTURE</span>
+        <small>Published configuration</small>
+      </div>
+      <dl>
+        <div><dt>Architecture</dt><dd>{model.architecture ?? 'Not published'}</dd></div>
+        <div><dt>Model type</dt><dd>{model.modelType ?? 'Not published'}</dd></div>
+        {model.spec && <div><dt>Native context</dt><dd>{maxContext ? formatContext(maxContext) : '—'}</dd></div>}
+        {model.moe && <div><dt>MoE routing</dt><dd>{model.moe.routedExperts
+          ? `${model.moe.routedExperts} ROUTED${model.moe.sharedExperts ? ` + ${model.moe.sharedExperts} SHARED` : ''} / ${model.moe.expertsPerToken ?? '—'} ACTIVE`
+          : `${model.moe.totalExperts ?? '—'} TOTAL / ${model.moe.expertsPerToken ?? '—'} ACTIVE`}</dd></div>}
+        {model.attentionProfile?.stateKind && <div><dt>Stateful layers</dt><dd>{model.attentionProfile.stateKind.toUpperCase()} / {model.attentionProfile.kdaLayers + model.attentionProfile.linearLayers + model.attentionProfile.recurrentLayers + model.attentionProfile.ssmLayers} STATE LAYERS</dd></div>}
+        {model.attentionProfile?.slidingLayers > 0 && <div><dt>Sliding attention</dt><dd>{model.attentionProfile.slidingLayers} layers / {model.attentionProfile.slidingWindow ? formatContext(model.attentionProfile.slidingWindow) : 'runtime window'}</dd></div>}
+        {model.speculative?.targetModelId && <div><dt>Speculative target</dt><dd>{model.speculative.targetModelId}</dd></div>}
+        {model.spec && <>
+          <div><dt>Full attention layers</dt><dd>{fullAttentionLayers !== null && layers ? `${fullAttentionLayers} / ${layers}` : '—'}</dd></div>
+          <div><dt>{model.spec.kvCache?.kind === 'mla' ? 'Attention cache' : 'KV heads / head dim'}</dt><dd>{model.spec.kvCache?.kind === 'mla' ? 'MLA / engine-dependent' : `${model.spec.kvHeads} / ${model.spec.headDim}`}</dd></div>
+        </>}
+      </dl>
+      <div className="detail-list-source">
+        <span>Hugging Face public API + config.json{model.configSourceId ? ` / ARCHITECTURE FROM ${model.configSourceId}` : ''}</span>
+        <a href={model.sourceUrl} target="_blank" rel="noreferrer">VIEW ORIGINAL <ArrowUpRight size={14} /></a>
+      </div>
+    </section>
+  )
+
+  const artifactPanel = model.addon && modelVariants.length > 0 ? (
+    <section className="detail-inline-artifacts" aria-label="Detected model variants">
+      <div className="detail-list-heading">
+        <span>{modelVariants.some((variant) => variant.provenance === 'community') ? 'COMMUNITY QUANTIZATION' : 'ARTIFACTS'}</span>
+        <small>Published sizes</small>
+      </div>
+      {selectableVariants.length > 0 && (
+        <div className="variant-selector-row">
+          <label htmlFor="repository-variant">Repository variant</label>
+          <select id="repository-variant" value={selectedVariant?.id ?? ''} onChange={(event) => setSelectedVariantId(event.target.value)}>
+            {selectableVariants.map((variant) => <option value={variant.id} key={variant.id}>{variant.label}</option>)}
+          </select>
+          {selectedVariant && (
+            <>
+              <div className="variant-facts">
+                <div><span>WEIGHT FILES</span><strong>{formatBytes(selectedVariant.weightSizeBytes)}</strong></div>
+                <div><span>DOWNLOAD</span><strong>{formatBytes(selectedVariant.totalSizeBytes)}</strong></div>
+                <div><span>FORMAT</span><strong>{selectedVariant.format.toUpperCase()}</strong></div>
+                <div><span>SOURCE</span><strong>{selectedVariant.provenance === 'community' ? selectedVariant.publisher : selectedVariant.source.toUpperCase()}</strong></div>
+              </div>
+              {selectedVariant.provenance === 'community' && selectedVariant.sourceUrl && (
+                <div className="community-source">
+                  <span>{selectedVariant.repositoryId}</span>
+                  <a href={selectedVariant.sourceUrl} target="_blank" rel="noreferrer">VIEW COMMUNITY REPOSITORY <ArrowUpRight size={14} /></a>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      <div className="variant-base-line">BASE MODEL / {model.addon.baseModelId}</div>
+      {supportArtifacts.length > 0 && (
+        <div className="support-artifacts">
+          <span>SUPPORT ARTIFACTS</span>
+          {supportArtifacts.map((variant) => (
+            <div key={variant.id}><strong>{variant.label}</strong><small>{variant.role.toUpperCase()} / {formatBytes(variant.weightSizeBytes)}</small></div>
+          ))}
+        </div>
+      )}
+    </section>
+  ) : null
+
   return (
     <div className="detail-shell">
       <header className="site-header detail-header">
@@ -332,12 +402,11 @@ export default function ModelDetailPage({ route }: Props) {
         </a>
       </header>
 
-      <main>
-        <section className="detail-hero">
+      <main className="detail-workspace">
+        <section className="detail-hero" aria-label="Model navigation">
           <div className="detail-breadcrumb"><span className="pulse-dot" /> LIVE HUGGING FACE MODEL / {model.owner}</div>
           <h1>{model.name}</h1>
           <div className="detail-hero-bottom">
-            <p>Architecture-aware model sizing, fetched directly from the public Hugging Face repository.</p>
             <button type="button" onClick={() => void copyUrl()}>
               {copied ? <Check size={16} /> : <Copy size={16} />}{copied ? 'COPIED' : 'COPY SIZEOF URL'}
             </button>
@@ -350,73 +419,27 @@ export default function ModelDetailPage({ route }: Props) {
             {model.speculative && <span>SPECULATIVE / {model.speculative.family.toUpperCase()} {model.speculative.relation.toUpperCase()}</span>}
             <span>UPDATED / {model.lastModified ? new Date(model.lastModified).toLocaleDateString('en-CA') : 'UNKNOWN'}</span>
           </div>
-        </section>
-
-        <section className={`detail-metrics${model.moe?.activeParametersB ? ' moe-metrics' : ''}`} aria-label="Model facts">
-          <div><span>{model.parameterCountKind === 'tensor-elements' ? 'PUBLISHED TENSOR ELEMENTS' : model.moe ? 'TOTAL PARAMETERS' : 'PARAMETERS'}</span><strong>{formatParameters(model.parametersB)}</strong></div>
-          {model.moe?.activeParametersB && <div><span>ACTIVE PARAMETERS / TOKEN</span><strong>{formatParameters(model.moe.activeParametersB)}</strong></div>}
-          {model.spec && <div><span>NATIVE CONTEXT</span><strong>{maxContext ? formatContext(maxContext) : '—'}</strong></div>}
-          <div><span>DOWNLOADS / MONTH</span><strong>{formatCompact(model.downloads)}</strong></div>
-          <div><span>LIKES</span><strong>{formatCompact(model.likes)}</strong></div>
-        </section>
-
-        <section className="resource-profile" aria-label="Resource profile">
-          <div className="resource-profile-label">
-            <span>RESOURCE PROFILE</span>
-            <small>Published facts, not runtime guesses.</small>
+          <div className="detail-sidebar-data">
+            <section className="detail-sidebar-section" aria-label="Model facts">
+              <span>MODEL FACTS</span>
+              <dl>
+                <div><dt>{model.parameterCountKind === 'tensor-elements' ? 'TENSOR ELEMENTS' : model.moe ? 'TOTAL PARAMETERS' : 'PARAMETERS'}</dt><dd>{formatParameters(model.parametersB)}</dd></div>
+                {model.moe?.activeParametersB && <div><dt>ACTIVE PARAMETERS / TOKEN</dt><dd>{formatParameters(model.moe.activeParametersB)}</dd></div>}
+                {model.spec && <div><dt>Native context</dt><dd>{maxContext ? formatContext(maxContext) : '—'}</dd></div>}
+                <div><dt>Downloads / month</dt><dd>{formatCompact(model.downloads)}</dd></div>
+                <div><dt>Likes</dt><dd>{formatCompact(model.likes)}</dd></div>
+              </dl>
+            </section>
+            <section className="detail-sidebar-section" aria-label="Resource profile">
+              <span>RESOURCE PROFILE</span>
+              <dl>
+                <div><dt>Category</dt><dd>{modelKindLabels[modelKind]}</dd></div>
+                <div><dt>Published tensors</dt><dd>{formatBytes(model.tensorSizeBytes)}</dd></div>
+                <div><dt>Repository storage</dt><dd>{formatBytes(model.repositorySizeBytes)}</dd></div>
+              </dl>
+            </section>
           </div>
-          <div><span>MODEL CATEGORY</span><strong>{modelKindLabels[modelKind]}</strong></div>
-          <div><span>PUBLISHED TENSORS</span><strong>{formatBytes(model.tensorSizeBytes)}</strong></div>
-          <div><span>REPOSITORY STORAGE</span><strong>{formatBytes(model.repositorySizeBytes)}</strong></div>
         </section>
-
-        {model.addon && modelVariants.length > 0 && (
-          <section className="variant-profile" aria-label="Detected model variants">
-            <div className="variant-profile-heading">
-              <div><span>{modelVariants.some((variant) => variant.provenance === 'community') ? 'COMMUNITY QUANTIZATION' : 'DETECTED REPOSITORY VARIANTS'}</span><h2>Choose the artifact.</h2></div>
-              <small>Published artifact sizes take priority over hypothetical bit-per-weight estimates. Context memory still follows the base model architecture.</small>
-            </div>
-            {selectableVariants.length > 0 && (
-              <div className="variant-selector-row">
-                <label htmlFor="repository-variant">Repository variant</label>
-                <select
-                  id="repository-variant"
-                  value={selectedVariant?.id ?? ''}
-                  onChange={(event) => setSelectedVariantId(event.target.value)}
-                >
-                  {selectableVariants.map((variant) => (
-                    <option value={variant.id} key={variant.id}>{variant.label}</option>
-                  ))}
-                </select>
-                {selectedVariant && (
-                  <>
-                    <div className="variant-facts">
-                      <div><span>WEIGHT FILES</span><strong>{formatBytes(selectedVariant.weightSizeBytes)}</strong></div>
-                      <div><span>DOWNLOAD</span><strong>{formatBytes(selectedVariant.totalSizeBytes)}</strong></div>
-                      <div><span>FORMAT</span><strong>{selectedVariant.format.toUpperCase()}</strong></div>
-                      <div><span>SOURCE</span><strong>{selectedVariant.provenance === 'community' ? selectedVariant.publisher : selectedVariant.source.toUpperCase()}</strong></div>
-                    </div>
-                    {selectedVariant.provenance === 'community' && selectedVariant.sourceUrl && (
-                      <div className="community-source">
-                        <span>{selectedVariant.repositoryId}</span>
-                        <a href={selectedVariant.sourceUrl} target="_blank" rel="noreferrer">VIEW COMMUNITY REPOSITORY <ArrowUpRight size={14} /></a>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-            {model.addon && <div className="variant-base-line">BASE MODEL / {model.addon.baseModelId}</div>}
-            {supportArtifacts.length > 0 && (
-              <div className="support-artifacts">
-                <span>SUPPORT ARTIFACTS</span>
-                {supportArtifacts.map((variant) => (
-                  <div key={variant.id}><strong>{variant.label}</strong><small>{variant.role.toUpperCase()} / {formatBytes(variant.weightSizeBytes)}</small></div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
 
         {model.spec && estimate && fit ? (
           <section className="detail-calculator" aria-label="Model VRAM calculator">
@@ -425,7 +448,7 @@ export default function ModelDetailPage({ route }: Props) {
               <h2>Memory profile.</h2>
             </div>
             <div className="calculator-grid detail-calc-grid">
-              <div className="controls-panel">
+              <div className="controls-panel" role="region" aria-label="Model configuration">
                 <div className="control-block">
                   <div className="label-row"><label>Weight quantization</label><span>{selectedVariant?.role === 'model' ? `${selectedCommunityVariant ? 'COMMUNITY' : 'REPOSITORY'} ARTIFACT / ${selectedVariant.publisher ?? model.owner}` : 'HYPOTHETICAL BIT/WEIGHT ESTIMATE'}</span></div>
                   {sourcePublishers.length > 0 && !model.addon && (
@@ -437,9 +460,20 @@ export default function ModelDetailPage({ route }: Props) {
                     </div>
                   )}
                   {sourceArtifactVariants.length > 0 ? (
-                    <div className="quant-browser" role="region" aria-label="Available community quantizations">
-                      {quantizationGroups.map((group) => (
-                        <div className="quant-tier" key={group.bits}>
+                    <div
+                      className="quant-browser"
+                      role="region"
+                      aria-label="Available community quantizations"
+                      data-motion="quantization-panel"
+                      data-motion-source={selectedSource}
+                      key={`community-${selectedSource}`}
+                    >
+                      {quantizationGroups.map((group, groupIndex) => (
+                        <div
+                          className="quant-tier"
+                          key={group.bits}
+                          style={{ '--quant-tier-delay': `${35 + groupIndex * 24}ms` } as CSSProperties}
+                        >
                           <span>{group.bits}-bit</span>
                           <div>
                             {group.variants.map((variant) => (
@@ -458,7 +492,12 @@ export default function ModelDetailPage({ route }: Props) {
                       ))}
                     </div>
                   ) : (
-                    <div className="quant-grid">
+                    <div
+                      className="quant-grid"
+                      data-motion="quantization-panel"
+                      data-motion-source="estimated"
+                      key="estimated"
+                    >
                       {quantizations.map((item) => (
                         <button type="button" className={quantization === item.id ? 'active' : ''} key={item.id} onClick={() => chooseQuantization(item.id)}>{item.label}</button>
                       ))}
@@ -527,17 +566,20 @@ export default function ModelDetailPage({ route }: Props) {
                     </select>
                   </div>
                 </div>
+                {artifactPanel}
+                {architecturePanel}
               </div>
 
-              <div className="result-panel detail-result">
+              <div className="result-panel detail-result" role="region" aria-label="Memory summary">
                 <div className="result-topline">
                   <span>{estimate.isLowerBound ? 'ESTIMATED LOWER BOUND' : 'ESTIMATED VRAM'}</span>
-                  <span className={`fit-pill ${estimate.isLowerBound ? 'runtime-specific' : fit}`}>{estimate.isLowerBound ? 'RUNTIME-SPECIFIC' : `${fitLabels[fit]} ON ${vram} GB`}</span>
+                  <span className={`fit-pill ${fit}`}>{fitLabels[fit]} ON {vram} GB</span>
                 </div>
                 <div className="total-number"><span>{estimate.totalGiB.toFixed(2)}</span><small>GiB</small></div>
                 <div
                   className="memory-bar"
                   role="img"
+                  data-motion="memory-usage"
                   aria-label={estimate.isLowerBound
                     ? `Modeled lower bound: ${estimate.totalGiB.toFixed(2)} GiB before unmodeled runtime state`
                     : `Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vram} GiB VRAM${offloadLabel ? `, ${offloadLabel}` : ''}`}
@@ -601,6 +643,8 @@ export default function ModelDetailPage({ route }: Props) {
                   <p>{resourceEstimate.description}</p>
                 </div>
                 {resourceEstimate.baseModelId && <div className="resource-base">DECLARED {resourceEstimate.kind === 'speculative-draft' ? 'TARGET' : 'BASE'} / {resourceEstimate.baseModelId}</div>}
+                {artifactPanel}
+                {architecturePanel}
               </div>
               <div className="result-panel detail-result resource-result">
                 <div className="result-topline"><span>{resourceEstimate.kind === 'speculative-draft' ? 'TARGET + DRAFT WEIGHTS' : 'ESTIMATED STATIC VRAM'}</span><span>{resourceEstimate.kind === 'speculative-draft' ? 'CACHE + RUNTIME EXCLUDED' : 'NO KV CACHE'}</span></div>
@@ -623,32 +667,11 @@ export default function ModelDetailPage({ route }: Props) {
             <span>INPUT NEEDED</span>
             <h2>What is this artifact?</h2>
             <p>Its public files do not establish whether it is a standalone model, VAE, adapter, or workflow component. To size it safely, identify the component type, the model or workflow that loads it, and whether it is required or optional.</p>
+            {architecturePanel}
           </section>
         ) : (
-          <section className="detail-unavailable"><Info /><h2>VRAM estimate unavailable.</h2><p>{unavailableReason}</p></section>
+          <section className="detail-unavailable"><Info /><h2>VRAM estimate unavailable.</h2><p>{unavailableReason}</p>{architecturePanel}</section>
         )}
-
-        <section className="architecture-section">
-          <div className="detail-section-title"><span>02 / ARCHITECTURE</span><h2>Under the hood.</h2></div>
-          <div className="architecture-grid">
-            <div><span>ARCHITECTURE</span><strong>{model.architecture ?? 'Not published'}</strong></div>
-            <div><span>MODEL TYPE</span><strong>{model.modelType ?? 'Not published'}</strong></div>
-            {model.moe && <div><span>MOE ROUTING</span><strong>{model.moe.routedExperts
-              ? `${model.moe.routedExperts} ROUTED${model.moe.sharedExperts ? ` + ${model.moe.sharedExperts} SHARED` : ''} / ${model.moe.expertsPerToken ?? '—'} ACTIVE`
-              : `${model.moe.totalExperts ?? '—'} TOTAL / ${model.moe.expertsPerToken ?? '—'} ACTIVE`}</strong></div>}
-            {model.attentionProfile?.stateKind && <div><span>STATEFUL LAYERS</span><strong>{model.attentionProfile.stateKind.toUpperCase()} / {model.attentionProfile.kdaLayers + model.attentionProfile.linearLayers + model.attentionProfile.recurrentLayers + model.attentionProfile.ssmLayers} STATE LAYERS</strong></div>}
-            {model.attentionProfile?.slidingLayers > 0 && <div><span>SLIDING ATTENTION</span><strong>{model.attentionProfile.slidingLayers} LAYERS / {model.attentionProfile.slidingWindow ? formatContext(model.attentionProfile.slidingWindow) : 'RUNTIME WINDOW'}</strong></div>}
-            {model.speculative?.targetModelId && <div><span>SPECULATIVE TARGET</span><strong>{model.speculative.targetModelId}</strong></div>}
-            {model.spec && <>
-              <div><span>Full attention layers</span><strong>{fullAttentionLayers !== null && layers ? `${fullAttentionLayers} / ${layers}` : '—'}</strong></div>
-              <div><span>{model.spec.kvCache?.kind === 'mla' ? 'ATTENTION CACHE' : 'KV HEADS / HEAD DIM'}</span><strong>{model.spec.kvCache?.kind === 'mla' ? 'MLA / ENGINE-DEPENDENT' : `${model.spec.kvHeads} / ${model.spec.headDim}`}</strong></div>
-            </>}
-          </div>
-          <div className="hf-source-row">
-            <span>DATA SOURCE / HUGGING FACE PUBLIC API + CONFIG.JSON{model.configSourceId ? ` / ARCHITECTURE FROM ${model.configSourceId}` : ''}</span>
-            <a href={model.sourceUrl} target="_blank" rel="noreferrer">VIEW ORIGINAL <ArrowUpRight size={16} /></a>
-          </div>
-        </section>
       </main>
     </div>
   )
