@@ -213,7 +213,7 @@ describe('model comparison workspace', () => {
     const user = userEvent.setup()
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => Promise.resolve(Response.json({
       ...safeModel(String(input).includes('/Meta/Two?') ? 'Meta/Two' : 'Qwen/One'),
-      variants: [{ id: 'artifact-1', label: 'Q4', format: 'gguf', revision: 'a'.repeat(40), path: 'q4.gguf', source: 'file', role: 'model', bitsPerWeight: 4, weightSizeBytes: 4 * 1024 ** 3, totalSizeBytes: 4 * 1024 ** 3, publisher: 'unsloth' }],
+      variants: [{ id: 'artifact-1', label: 'Q4', format: 'gguf', revision: 'a'.repeat(40), path: 'q4.gguf', source: 'file', role: 'model', bitsPerWeight: 4, weightSizeBytes: 4 * 1024 ** 3, totalSizeBytes: 4 * 1024 ** 3, publisher: 'unsloth', sourceUrl: 'https://huggingface.co/unsloth/Qwen-One-GGUF' }],
     }))))
     const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
     render(<ComparePage />)
@@ -226,6 +226,13 @@ describe('model comparison workspace', () => {
     expect(copy.mock.calls[0][0]).toContain('artifact-1')
     expect(copy.mock.calls[0][0]).toContain('~96~unsloth~artifact-1')
     expect(within(cards[1]).getByRole('combobox', { name: 'Artifact source for Meta/Two' })).toHaveValue('estimated')
+    await user.click(screen.getByRole('button', { name: 'Export comparison' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+    await vi.waitFor(() => expect(copy).toHaveBeenCalledTimes(2))
+    const markdown = copy.mock.calls.at(-1)?.[0] as string
+    expect(markdown).toContain('Selected artifact: artifact-1 (4 GiB)')
+    expect(markdown).toContain('Evidence: variant:artifact-1 [verified] Verified selected artifact')
+    expect(markdown).toContain('https://huggingface.co/unsloth/Qwen-One-GGUF; revision aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
   })
 
   it('provides one compact mobile model selector with anchors and no per-card loading live regions', async () => {

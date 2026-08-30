@@ -310,6 +310,15 @@ export default function ModelDetailPage({ route }: Props) {
     () => model?.spec ? buildModelEvidence(model.spec, selectedVariant, model.lastModified ?? undefined) : [],
     [model, selectedVariant],
   )
+  const exportHardwareProfile = savedHardwareProfile ? {
+    kind: savedHardwareProfile.kind,
+    label: savedHardwareProfile.label,
+    capacityGiB: savedHardwareProfile.capacityGiB,
+    reservedGiB: savedHardwareProfile.reservedGiB,
+    systemRamGiB: savedHardwareProfile.systemRamGiB,
+    usableCapacityGiB: usableMemoryGiB(savedHardwareProfile),
+    applied: isHardwareProfileApplied,
+  } : null
   const exportInput: SizingExportInput | null = model ? {
     generatedAt: new Date().toISOString(),
     records: [{
@@ -320,10 +329,24 @@ export default function ModelDetailPage({ route }: Props) {
         source: selectedVariant?.publisher ?? (selectedSource === 'estimated' ? 'estimated' : selectedSource), variantId: selectedVariant?.id ?? null,
         artifactWeightGiB: selectedVariant?.weightSizeBytes ? selectedVariant.weightSizeBytes / 1024 ** 3 : null,
       },
-      hardware: { capacityGiB: vram },
+      hardware: { capacityGiB: vram, profile: exportHardwareProfile },
       estimate: estimate ? { kind: estimate.isLowerBound ? 'lower-bound' : 'estimate', totalGiB: estimate.totalGiB, weightsGiB: estimate.weightsGiB, kvCacheGiB: estimate.kvCacheGiB, runtimeGiB: estimate.runtimeGiB } : null,
-      resourceProfile: !estimate && selectedResourceOption ? { kind: resourceEstimate?.kind ?? model.modelKind, title: selectedResourceOption.label, totalGiB: resourceTotalBytes / 1024 ** 3 } : null,
-      evidence: estimate ? evidence : [{ id: 'resource-profile', label: 'Published resource profile', kind: 'verified', detail: 'Published static resource components selected on this page.', sourceUrl: model.sourceUrl }],
+      resourceProfile: !estimate && selectedResourceOption ? {
+        kind: resourceEstimate?.kind ?? model.modelKind,
+        title: selectedResourceOption.label,
+        totalGiB: resourceTotalBytes / 1024 ** 3,
+        components: selectedResourceOption.components.map((component) => {
+          const repositoryId = component.repositoryId ?? model.id
+          return {
+            ...component,
+            repositoryId,
+            provenance: 'Published static resource component selected on this page.',
+            sourceUrl: repositoryId === model.id ? model.sourceUrl : `https://huggingface.co/${repositoryId.split('/').map(encodeURIComponent).join('/')}`,
+            repositoryUpdatedAt: model.lastModified,
+          }
+        }),
+      } : null,
+      evidence: estimate ? evidence : [{ id: 'resource-profile', label: 'Published resource profile', kind: 'verified', detail: 'Published static resource components selected on this page.', sourceUrl: model.sourceUrl, repositoryUpdatedAt: model.lastModified ?? undefined }],
     }],
   } : null
 

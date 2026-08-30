@@ -5,6 +5,7 @@ import { classifyFit, estimateVram } from './lib/estimator'
 import type { HuggingFaceModel } from './lib/huggingface'
 import { parseCompareState, serializeCompareState, validateCompareModelId, type CompareItemState } from './lib/compare-state'
 import { vramPresets } from './lib/vram-presets'
+import { buildModelEvidence } from './lib/evidence'
 import ExportMenu from './components/ExportMenu'
 import type { SizingExportInput } from './lib/export'
 
@@ -95,7 +96,9 @@ export default function ComparePage() {
         hardware: { capacityGiB: item.vramGiB },
         estimate: estimate ? { kind: estimate.isLowerBound ? 'lower-bound' : 'estimate', totalGiB: estimate.totalGiB, weightsGiB: estimate.weightsGiB, kvCacheGiB: estimate.kvCacheGiB, runtimeGiB: estimate.runtimeGiB } : null,
         resourceProfile: !estimate && model.resourceEstimate ? { kind: model.resourceEstimate.kind, title: model.resourceEstimate.title, totalGiB: model.resourceEstimate.options[0]?.components.reduce((sum, component) => sum + component.sizeBytes, 0) / 1024 ** 3 } : null,
-        evidence: [{ id: `comparison:${model.id}`, label: `Public model: ${model.id}`, kind: 'verified', detail: 'Public model metadata included in this comparison.', sourceUrl: model.sourceUrl }],
+        evidence: model.spec
+          ? buildModelEvidence(model.spec, selectedVariant, model.lastModified ?? undefined)
+          : [{ id: `comparison:${model.id}`, label: `Public model: ${model.id}`, kind: 'verified', detail: 'Public model metadata included in this comparison.', sourceUrl: model.sourceUrl, repositoryUpdatedAt: model.lastModified ?? undefined }],
       })),
     }
   }, [activeItems, models])

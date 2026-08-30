@@ -122,6 +122,26 @@ describe('Hugging Face model API', () => {
     await expect(missing.text()).resolves.not.toContain('<svg')
   })
 
+  it('rejects blank or control-only required share-card text after sanitizing simple and summary inputs', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache }
+    const invalidUrls = [
+      'model=%20%20&config=4bit&capacity=32&total=18.5&date=2026-08-30',
+      'model=Qwen%2FExample&config=%00%20&capacity=32&total=18.5&date=2026-08-30',
+      'model=Qwen%2FExample&config=4bit&capacity=32&total=18.5&date=%07%20',
+      `summary=${encodeURIComponent(JSON.stringify({ models: [{ id: 'Qwen/Example', configuration: '\u0000 ', capacityGiB: 32, totalGiB: 18.5 }], generatedAt: '\u0007 ' }))}`,
+      `summary=${encodeURIComponent(JSON.stringify({ models: [{ id: 'Qwen/Example', configuration: '4bit', capacityGiB: 32, totalGiB: 18.5 }], generatedAt: '\u0007 ' }))}`,
+    ]
+
+    for (const query of invalidUrls) {
+      const response = await handleWorkerRequest(new Request(`https://sizeof.ai/share/card.svg?${query}`), env, ctx)
+      expect(response.status).toBe(400)
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+      await expect(response.text()).resolves.not.toContain('<svg')
+    }
+  })
+
   it('serves bounded robots and curated sitemap routes without dynamic discovery', async () => {
     const cache = new MemoryModelCache()
     const { ctx } = modelCacheContext()

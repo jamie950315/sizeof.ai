@@ -1,5 +1,6 @@
 import type { AttentionProfile, EstimateConfidence, ModelSpec } from '../data/models'
 import type { HuggingFaceVariant } from './huggingface-variants'
+import { classifyKnownModelTask } from './model-task'
 
 export interface HuggingFaceRoute {
   owner: string
@@ -389,30 +390,8 @@ function classifyModel(metadata: UnknownRecord, config: UnknownRecord): HuggingF
   if (isSeparateSpeculativeDraft(metadata, config)) return 'speculative-draft'
   if (contains(['base_model:adapter:', 'lora', 'peft', 'adapter'])) return 'adapter'
   if (contains(['comfyui', 'workflow', 'chat-template', 'chat_template'])) return 'workflow'
-  if (contains(['image-text-to-text', 'visual-question-answering', 'document-question-answering'])) {
-    return 'vision-language'
-  }
-  if (contains(['text-to-video', 'image-to-video', 'video-generation', 'video-classification'])) {
-    return 'video'
-  }
-  if (contains([
-    'text-to-speech', 'text-to-audio', 'automatic-speech-recognition', 'audio-to-audio',
-    'audio-classification', 'voice-cloning', 'voice-activity-detection',
-    'speaker-diarization', 'speaker-segmentation', 'music-transcription', 'audio-to-midi', 'tts',
-  ])) return 'audio'
-  if (contains([
-    'text-to-image', 'image-to-image', 'image-generation', 'unconditional-image-generation',
-    'image-classification', 'mask-generation', 'image-segmentation', 'object-detection',
-    'depth-estimation', 'diffusers',
-  ])) return 'image'
-  if (contains([
-    'visual-document-retrieval', 'sentence-similarity', 'feature-extraction',
-    'fill-mask', 'masked-lm', 'bidirectional', 'document-retrieval', 'embedding',
-  ])) return 'embedding'
-  if (contains([
-    'text-generation', 'text2text-generation', 'conversational',
-    'question-answering', 'summarization', 'translation',
-  ])) return 'language'
+  const knownTaskKind = classifyKnownModelTask(markers)
+  if (knownTaskKind) return knownTaskKind
 
   if (/(?:clip.*vision|vision.*(?:model|encoder)|image.*encoder|vit(?:model)?)/.test(architectureText)) {
     return 'image'

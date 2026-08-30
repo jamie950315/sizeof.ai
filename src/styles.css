@@ -459,6 +459,8 @@ footer > span { grid-column: 1/-1; align-self: end; }
   .catalog-search-note p { text-align: left; }
   .catalog-row { grid-template-columns: 1fr auto; gap: 20px; min-height: 0; }
   .catalog-row > div:nth-child(2), .catalog-row > div:nth-child(3), .catalog-row > div:nth-child(4) { display: none; }
+  .search-results-table .catalog-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .search-results-table .catalog-row > div:nth-child(2), .search-results-table .catalog-row > div:nth-child(3), .search-results-table .catalog-row > div:nth-child(4), .search-results-table .catalog-row > div:nth-child(5) { display: none; }
   .catalog-name > span { display: block; color: #777970; font: 8px/1 'JetBrains Mono Variable', monospace; margin-bottom: 8px; text-transform: uppercase; }
   .catalog-name strong { font-size: 25px; }
   .method-section { margin: 0 20px 80px; }

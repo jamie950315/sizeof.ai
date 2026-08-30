@@ -28,4 +28,10 @@ describe('mobile sticky result CSS', () => {
     expect(stylesheet).toMatch(/@media \(max-width: 900px\) \{[\s\S]*?\.search-results-table \.catalog-row \{ grid-template-columns: minmax\(0, 1fr\) auto auto auto; \}/)
     expect(stylesheet).toMatch(/\.search-results-table \.catalog-row > div:nth-child\(2\), \.search-results-table \.catalog-row > div:nth-child\(3\) \{ display: none; \}/)
   })
+
+  it.each([390, 320])('uses exactly two populated search-row tracks at %ipx', (width) => {
+    expect(width).toBeLessThanOrEqual(620)
+    expect(stylesheet).toMatch(/@media \(max-width: 620px\) \{[\s\S]*?\.search-results-table \.catalog-row \{ grid-template-columns: minmax\(0, 1fr\) auto; \}/)
+    expect(stylesheet).toMatch(/@media \(max-width: 620px\) \{[\s\S]*?\.search-results-table \.catalog-row > div:nth-child\(2\), \.search-results-table \.catalog-row > div:nth-child\(3\), \.search-results-table \.catalog-row > div:nth-child\(4\), \.search-results-table \.catalog-row > div:nth-child\(5\) \{ display: none; \}/)
+  })
 })

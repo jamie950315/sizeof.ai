@@ -91,6 +91,27 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.getByRole('button', { name: 'Copy Markdown export' })).toBeInTheDocument()
   })
 
+  it('exports an applied hardware profile with its usable-capacity derivation without placing it in the URL', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    window.localStorage.setItem('sizeof:hardware-profile:v1', JSON.stringify({
+      version: 1,
+      profile: { kind: 'discrete-gpu', label: 'Export GPU', capacityGiB: 80, reservedGiB: 8, systemRamGiB: 128 },
+    }))
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Qwen3.8-27B' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalled())
+    expect(writeText.mock.calls[0]?.[0]).toContain('Hardware profile: Export GPU (applied, discrete-gpu)')
+    expect(writeText.mock.calls[0]?.[0]).toContain('Usable capacity: 72 GiB (80 GiB − 8 GiB reserved)')
+    expect(writeText.mock.calls[0]?.[0]).toContain('System RAM: 128 GiB')
+    expect(window.location.search).not.toMatch(/Export|reservedGiB|hardware=/)
+  })
+
   it('organizes the model as a true three-panel tool with compact architecture rows', async () => {
     render(<App />)
 
@@ -427,6 +448,32 @@ describe('Hugging Face-style model detail route', () => {
 
     expect(within(estimate).getByText(/wan_animate_2_bf16_distillation\.safetensors/)).toBeInTheDocument()
     expect(screen.queryByLabelText('Context window')).not.toBeInTheDocument()
+  })
+
+  it('exports the currently selected resource components with their repository paths and provenance', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'Wan-AI/Wan2.2-Animate-2-14B', owner: 'Wan-AI', name: 'Wan2.2-Animate-2-14B',
+      pipelineTag: 'text-to-video', modelKind: 'video', estimateReason: 'modality-specific', spec: null,
+      sourceUrl: 'https://huggingface.co/Wan-AI/Wan2.2-Animate-2-14B',
+      resourceEstimate: curatedHuggingFaceResourceProfiles['Wan-AI/Wan2.2-Animate-2-14B']?.resourceEstimate,
+    })))
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<App />)
+
+    const estimate = await screen.findByRole('region', { name: 'Model load estimate' })
+    await user.selectOptions(within(estimate).getByLabelText('Published weight set'), 'distillation-bf16')
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalled())
+    const markdown = writeText.mock.calls[0]?.[0] as string
+    expect(markdown).toContain('Resource component: wan-transformer-distillation')
+    expect(markdown).toContain('path wan_animate_2/wan_animate_2_bf16_distillation.safetensors')
+    expect(markdown).toContain('repository Wan-AI/Wan2.2-Animate-2-14B')
+    expect(markdown).toContain('Published static resource component selected on this page.')
   })
 
   it('asks for an unknown workflow artifact classification instead of inventing a VRAM figure', async () => {

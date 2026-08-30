@@ -59,4 +59,42 @@ describe('sizing export document', () => {
     const document = createSizingExport({ ...input, records: [{ ...input.records[0], model: { id: 'Qwen/Example', sourceUrl: 'https://user:password@huggingface.co/Qwen/Example' } }] })
     expect(document.records[0]?.model.sourceUrl).toBeUndefined()
   })
+
+  it('renders every sizing fact, resource component, and evidence field in escaped Markdown', () => {
+    const markdown = exportSizingMarkdown({
+      generatedAt: '<generated>|\u0007',
+      records: [{
+        model: { id: 'Org/<model>|\u0002', sourceUrl: 'https://huggingface.co/Org/Model?token=secret' },
+        configuration: { quantization: '<Q4>|', contextTokens: 8192, kvPrecision: 'FP16', mlaCacheMode: 'latent', source: 'publisher', variantId: '<artifact>|', artifactWeightGiB: 12.5 },
+        hardware: {
+          capacityGiB: 72,
+          profile: { kind: 'discrete-gpu', label: '<GPU>|', capacityGiB: 80, reservedGiB: 8, systemRamGiB: 128, usableCapacityGiB: 72 },
+        },
+        estimate: { kind: 'estimate', totalGiB: 20, weightsGiB: 12.5, kvCacheGiB: 3.5, runtimeGiB: 4 },
+        resourceProfile: {
+          kind: 'video', title: '<pipeline>|', totalGiB: 20,
+          components: [{ id: '<transformer>|', label: '<Transformer>|', repositoryId: 'Org/Assets', path: '<model>.safetensors|', sizeBytes: 13_421_772_800, provenance: 'Published <manifest>|', sourceUrl: 'https://huggingface.co/Org/Assets', revision: 'abc123', repositoryUpdatedAt: '2026-08-30' }],
+        },
+        evidence: [{ id: '<variant>|', label: '<Verified>|', kind: 'verified', detail: '<artifact evidence>|\u0000', sourceUrl: 'https://huggingface.co/Org/Assets?revision=secret', revision: '<abc>|', fetchedAt: '<now>|', repositoryUpdatedAt: '<updated>|' }],
+      }],
+    })
+
+    expect(markdown).toContain('Generated: &lt;generated&gt;\\|')
+    expect(markdown).toContain('Source URL: https://huggingface.co/Org/Model')
+    expect(markdown).toContain('Selected source: publisher')
+    expect(markdown).toContain('Selected artifact: &lt;artifact&gt;\\| (12.5 GiB)')
+    expect(markdown).toContain('Hardware profile: &lt;GPU&gt;\\| (discrete-gpu)')
+    expect(markdown).toContain('Usable capacity: 72 GiB (80 GiB − 8 GiB reserved)')
+    expect(markdown).toContain('System RAM: 128 GiB')
+    expect(markdown).toContain('Weights: 12.5 GiB')
+    expect(markdown).toContain('KV cache: 3.5 GiB')
+    expect(markdown).toContain('Runtime: 4 GiB')
+    expect(markdown).toContain('Resource component: &lt;transformer&gt;\\| — &lt;Transformer&gt;\\|')
+    expect(markdown).toContain('repository Org/Assets; path &lt;model&gt;.safetensors\\|; 12.5 GiB; Published &lt;manifest&gt;\\|; https://huggingface.co/Org/Assets; revision abc123; updated 2026-08-30')
+    expect(markdown).toContain('Evidence: &lt;variant&gt;\\| [verified] &lt;Verified&gt;\\| — &lt;artifact evidence&gt;\\|')
+    expect(markdown).toContain('https://huggingface.co/Org/Assets; revision &lt;abc&gt;\\|; fetched &lt;now&gt;\\|; updated &lt;updated&gt;\\|')
+    expect(markdown).toContain('Status: ESTIMATE')
+    expect(markdown).toContain('Estimate, not a benchmark or guarantee.')
+    expect(markdown).not.toMatch(/token=secret|\u0000|\u0002|\u0007/)
+  })
 })

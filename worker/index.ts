@@ -449,7 +449,7 @@ function staticResponse(body: string, type: string, cacheControl: string, status
 }
 
 function svgCardInput(url: URL): ShareCardInput | null {
-  const boundedText = (value: string | null, limit: number, fallback: string) => (value ?? fallback).replace(/[\u0000-\u001F\u007F]/g, ' ').slice(0, limit)
+  const boundedText = (value: string | null, limit: number, fallback: string) => (value ?? fallback).replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, limit)
   const boundedNumber = (value: string | null) => {
     const number = Number(value)
     return Number.isFinite(number) && number > 0 && number <= 4096 ? number : null
@@ -470,7 +470,8 @@ function svgCardInput(url: URL): ShareCardInput | null {
           const totalGiB = boundedNumber(typeof value.totalGiB === 'number' ? String(value.totalGiB) : null)
           return configuration && capacityGiB !== null && totalGiB !== null ? [{ id, configuration, capacityGiB, totalGiB, lowerBound: value.lowerBound === true }] : []
         }).slice(0, 4)
-        if (models.length === parsed.models.length && models.length && typeof parsed.generatedAt === 'string') return { models, generatedAt: boundedText(parsed.generatedAt, 40, '') }
+        const generatedAt = typeof parsed.generatedAt === 'string' ? boundedText(parsed.generatedAt, 40, '') : ''
+        if (models.length === parsed.models.length && models.length && generatedAt) return { models, generatedAt }
       }
     } catch { /* reject malformed comparison summaries */ }
     return null
