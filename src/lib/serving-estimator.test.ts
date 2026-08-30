@@ -4,7 +4,7 @@ import { estimateServingScenario } from './serving-estimator'
 import type { ModelSpec } from '../data/models'
 
 const model: ModelSpec = {
-  id: 'serving-test', name: 'Serving test', family: 'Qwen3.8', maker: 'test', parametersB: 8,
+  id: 'serving-test', name: 'Serving test', family: 'Qwen3_5', maker: 'test', parametersB: 8,
   layers: 32, attentionLayers: 32, kvHeads: 8, headDim: 128, maxContext: 8192,
   releaseYear: 2026, strengths: [], sourceUrl: 'https://example.test/model', estimateConfidence: 'safe',
 }

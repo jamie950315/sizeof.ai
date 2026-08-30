@@ -4,6 +4,13 @@ import type { ModelSpec } from './models'
 export type EngineProfileId = 'llama.cpp' | 'mlx' | 'vllm'
 export type ServingHardwareKind = 'discrete-gpu' | 'unified-memory' | null
 
+export interface DocumentedEngineFamily {
+  familyId: string
+  documentedAs: string
+  sourceUrl: string
+  reviewedAt: string
+}
+
 export interface EngineProfile {
   id: EngineProfileId
   label: string
@@ -12,6 +19,7 @@ export interface EngineProfile {
   supportedPlatformsAndFormats: string
   cacheBehavior: string
   unknownFactors: readonly string[]
+  documentedFamilies: readonly DocumentedEngineFamily[]
 }
 
 export interface EngineApplicability {
@@ -19,21 +27,15 @@ export interface EngineApplicability {
   reason: string
 }
 
-const verifiedEngineFamilyIds: Record<EngineProfileId, readonly string[]> = {
-  // These are the normalized family/model-type facts used by the repository's safe language-model catalog and detail fixtures.
-  'llama.cpp': ['qwen38', 'qwen36', 'qwen3', 'qwen35', 'ornith15', 'museglimmer', 'katcoder', 'gptoss', 'minicpm5'],
-  mlx: ['qwen38', 'qwen36', 'qwen3', 'qwen35', 'ornith15', 'museglimmer', 'katcoder', 'gptoss', 'minicpm5'],
-  vllm: ['qwen38', 'qwen36', 'qwen3', 'qwen35', 'ornith15', 'museglimmer', 'katcoder', 'gptoss', 'minicpm5'],
-}
-
 function normalizedFamily(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
 function getEngineArchitectureEvidence(profile: EngineProfile, model: ModelSpec): EngineApplicability {
-  return verifiedEngineFamilyIds[profile.id].includes(normalizedFamily(model.family))
-    ? { applicable: true, reason: `${profile.label} support is verified for this model family.` }
-    : { applicable: false, reason: `${profile.label} serving support has not been verified for the ${model.family || 'unknown'} architecture.` }
+  const support = profile.documentedFamilies.find((candidate) => candidate.familyId === normalizedFamily(model.family))
+  return support
+    ? { applicable: true, reason: `${profile.label} documents support for ${support.documentedAs}.` }
+    : { applicable: false, reason: `${profile.label} serving support is not documented for the ${model.family || 'unknown'} architecture.` }
 }
 
 export function getVerifiedServingArchitecture(model: ModelSpec): EngineApplicability {
@@ -63,6 +65,12 @@ export const engineProfiles: readonly EngineProfile[] = [
     supportedPlatformsAndFormats: 'Local CPU/GPU serving with a selected GGUF model artifact.',
     cacheBehavior: 'Server slots and unified KV settings can change cache allocation.',
     unknownFactors: ['Device placement and offload choices', 'Server-slot and batching configuration', 'Prefill allocation'],
+    documentedFamilies: [{
+      familyId: 'qwen35',
+      documentedAs: 'Qwen3.5 GGUF models',
+      sourceUrl: 'https://github.com/ggml-org/llama.cpp',
+      reviewedAt: '2026-08-30',
+    }],
   },
   {
     id: 'mlx',
@@ -72,6 +80,12 @@ export const engineProfiles: readonly EngineProfile[] = [
     supportedPlatformsAndFormats: 'Apple silicon unified-memory serving with a selected MLX model artifact.',
     cacheBehavior: 'Model and cache residency share unified memory; runtime allocation remains implementation-dependent.',
     unknownFactors: ['Apple silicon memory pressure', 'MLX runtime allocation', 'Prefill allocation'],
+    documentedFamilies: [{
+      familyId: 'qwen3',
+      documentedAs: 'Qwen3 models',
+      sourceUrl: 'https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LEARNED_QUANTS.md',
+      reviewedAt: '2026-08-30',
+    }],
   },
   {
     id: 'vllm',
@@ -81,6 +95,20 @@ export const engineProfiles: readonly EngineProfile[] = [
     supportedPlatformsAndFormats: 'Serving a base Transformers/Safetensors model; deployment support remains model-dependent.',
     cacheBehavior: 'Scheduling, parallelism, and cache configuration can change resident allocation.',
     unknownFactors: ['Parallelism and scheduler configuration', 'Prefix-cache sharing', 'Prefill allocation'],
+    documentedFamilies: [
+      {
+        familyId: 'qwen35',
+        documentedAs: 'Qwen3.5 models',
+        sourceUrl: 'https://docs.vllm.ai/projects/recipes/en/stable/Qwen/Qwen3.5.html',
+        reviewedAt: '2026-08-30',
+      },
+      {
+        familyId: 'qwen36',
+        documentedAs: 'Qwen3.6 models',
+        sourceUrl: 'https://docs.vllm.ai/projects/recipes/en/stable/Qwen/Qwen3.5.html',
+        reviewedAt: '2026-08-30',
+      },
+    ],
   },
 ]
 
