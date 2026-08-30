@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Plus, X } from 'lucide-react'
 import { kvPrecisions, quantizations, type KvPrecisionId, type QuantizationId } from './data/quantizations'
 import { classifyFit, estimateVram } from './lib/estimator'
@@ -40,22 +40,29 @@ function validationMessage(reason: 'empty' | 'malformed' | 'reserved' | 'duplica
 }
 
 function cardId(modelId: string) {
-  return `compare-card-${modelId.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+  return `compare-card-${encodeURIComponent(modelId.toLowerCase()).replace(/%/g, '_')}`
+}
+
+function canonicalModelKey(modelId: string) {
+  return modelId.toLowerCase()
 }
 
 export default function ComparePage() {
   const [items, setItems] = useState<CompareItemState[]>(initialItems)
   const [submitted, setSubmitted] = useState(() => currentItems().length >= 2)
   const [models, setModels] = useState<Record<string, ModelStatus>>({})
+  const modelsRef = useRef<Record<string, ModelStatus>>({})
+  const requestControllers = useRef(new Map<string, AbortController>())
   const [copied, setCopied] = useState(false)
   const [builderDrafts, setBuilderDrafts] = useState(() => [...currentItems().map((item) => item.modelId), '', ''].slice(0, 2))
   const [builderErrors, setBuilderErrors] = useState<Record<number, string>>({})
   const [pendingDrafts, setPendingDrafts] = useState<string[]>([])
   const [pendingErrors, setPendingErrors] = useState<Record<number, string>>({})
   const [focusModelId, setFocusModelId] = useState<string | null>(null)
+  const [focusPendingInput, setFocusPendingInput] = useState<number | null>(null)
   const activeItems = items
   const canCompare = submitted && activeItems.length >= 2
-  const modelIdsKey = activeItems.map((item) => item.modelId.toLowerCase()).join('|')
+  const modelIdsKey = activeItems.map((item) => canonicalModelKey(item.modelId)).sort().join('|')
   const fetchIds = useMemo(() => activeItems.map((item) => item.modelId), [modelIdsKey])
   const sharedVram = activeItems.every((item) => item.vramGiB === activeItems[0]?.vramGiB)
     ? String(activeItems[0]?.vramGiB ?? '')
@@ -74,35 +81,65 @@ export default function ComparePage() {
   }, [])
 
   useEffect(() => {
-    if (!canCompare) return
+    if (!submitted) return
     window.history.replaceState(null, '', `/compare?${serializeCompareState({ items: activeItems })}`)
-  }, [activeItems, canCompare])
+  }, [activeItems, submitted])
 
   useEffect(() => {
-    if (!canCompare) {
-      setModels({})
-      return
+    const idsByKey = new Map(fetchIds.map((modelId) => [canonicalModelKey(modelId), modelId]))
+    const desiredKeys = new Set(idsByKey.keys())
+    for (const [key, controller] of requestControllers.current) {
+      if (!desiredKeys.has(key)) {
+        controller.abort()
+        requestControllers.current.delete(key)
+      }
     }
-    const controller = new AbortController()
-    const nextStatuses: Record<string, ModelStatus> = Object.fromEntries(fetchIds.map((modelId) => [modelId, { kind: 'loading' }]))
-    setModels(nextStatuses)
+    const retained = Object.fromEntries(Object.entries(modelsRef.current).filter(([key]) => desiredKeys.has(key)))
+    modelsRef.current = retained
+    setModels(retained)
+    if (!canCompare) return
+    const missingIds = fetchIds.filter((modelId) => {
+      const key = canonicalModelKey(modelId)
+      return !modelsRef.current[key] && !requestControllers.current.has(key)
+    })
+    if (missingIds.length === 0) return
+    const loading = { ...modelsRef.current }
+    for (const modelId of missingIds) loading[canonicalModelKey(modelId)] = { kind: 'loading' }
+    modelsRef.current = loading
+    setModels(loading)
     let cursor = 0
     const request = async () => {
-      while (cursor < fetchIds.length && !controller.signal.aborted) {
-        const modelId = fetchIds[cursor++]
+      while (cursor < missingIds.length) {
+        const modelId = missingIds[cursor++]
+        const key = canonicalModelKey(modelId)
+        const controller = new AbortController()
+        requestControllers.current.set(key, controller)
         try {
           const response = await fetch(`/api/models/${encodeURIComponent(modelId.split('/')[0])}/${encodeURIComponent(modelId.split('/')[1])}?schema=13`, { signal: controller.signal })
           const payload = await response.json() as HuggingFaceModel
           if (!response.ok) throw new Error('unavailable')
-          if (!controller.signal.aborted) setModels((current) => ({ ...current, [modelId]: { kind: 'ready', model: payload } }))
+          if (!controller.signal.aborted) setModels((current) => {
+            const next = { ...current, [key]: { kind: 'ready', model: payload } as ModelStatus }
+            modelsRef.current = next
+            return next
+          })
         } catch {
-          if (!controller.signal.aborted) setModels((current) => ({ ...current, [modelId]: { kind: 'error' } }))
+          if (!controller.signal.aborted) setModels((current) => {
+            const next: Record<string, ModelStatus> = { ...current, [key]: { kind: 'error' } }
+            modelsRef.current = next
+            return next
+          })
+        } finally {
+          if (requestControllers.current.get(key) === controller) requestControllers.current.delete(key)
         }
       }
     }
-    void Promise.all(Array.from({ length: Math.min(2, fetchIds.length) }, request))
-    return () => controller.abort()
+    void Promise.all(Array.from({ length: Math.min(2, missingIds.length) }, request))
   }, [canCompare, fetchIds, modelIdsKey])
+
+  useEffect(() => () => {
+    for (const controller of requestControllers.current.values()) controller.abort()
+  }, [])
 
   useEffect(() => {
     if (!focusModelId) return
@@ -110,6 +147,12 @@ export default function ComparePage() {
     target?.focus()
     setFocusModelId(null)
   }, [focusModelId, items])
+
+  useEffect(() => {
+    if (focusPendingInput === null) return
+    document.getElementById(`compare-pending-${focusPendingInput}`)?.focus()
+    setFocusPendingInput(null)
+  }, [focusPendingInput, pendingDrafts, items.length])
 
   const updateItem = (index: number, update: Partial<CompareItemState>) => {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...update } : item))
@@ -223,10 +266,12 @@ export default function ComparePage() {
             key={`${item.modelId}-${index}`}
             item={item}
             index={index}
-            status={models[item.modelId] ?? { kind: 'loading' }}
+            status={models[canonicalModelKey(item.modelId)] ?? { kind: 'loading' }}
             onChange={(update) => updateItem(index, update)}
             onRemove={() => setItems((current) => {
               const next = current.filter((_, itemIndex) => itemIndex !== index)
+              setBuilderDrafts([...next.map((nextItem) => nextItem.modelId), '', ''].slice(0, 2))
+              setPendingDrafts([])
               setFocusModelId(next[index]?.modelId ?? next[index - 1]?.modelId ?? null)
               return next
             })}
@@ -248,6 +293,7 @@ export default function ComparePage() {
           {pendingDrafts.map((draft, index) => (
             <label key={index}>Model {items.length + index + 1} ID
               <input
+                id={`compare-pending-${items.length + index + 1}`}
                 aria-label={`Model ${items.length + index + 1} ID`}
                 aria-invalid={Boolean(pendingErrors[index])}
                 aria-describedby={pendingErrors[index] ? `pending-error-${index}` : undefined}
@@ -263,7 +309,11 @@ export default function ComparePage() {
         </section>
       )}
       {items.length + pendingDrafts.length < 4
-        ? <button id="compare-add" type="button" className="compare-add" onClick={() => setPendingDrafts((current) => [...current, ''])}><Plus size={16} /> Add model</button>
+        ? <button id="compare-add" type="button" className="compare-add" onClick={() => setPendingDrafts((current) => {
+          const next = [...current, '']
+          setFocusPendingInput(items.length + next.length)
+          return next
+        })}><Plus size={16} /> Add model</button>
         : <p className="compare-cap">Maximum of four models may be compared.</p>}
     </main>
   )

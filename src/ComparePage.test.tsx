@@ -205,4 +205,77 @@ describe('model comparison workspace', () => {
     expect(screen.getByRole('navigation', { name: 'Comparison model selector' })).toHaveTextContent('Qwen/One')
     expect(screen.getAllByText('Loading public model…').every((node) => !node.hasAttribute('role'))).toBe(true)
   })
+
+  it('keeps only the remaining model in the builder and URL after comparison drops below two', async () => {
+    const user = userEvent.setup()
+    const view = render(<ComparePage />)
+    await screen.findAllByText('TOTAL')
+
+    await user.click(screen.getByRole('button', { name: 'Remove Meta/Two' }))
+
+    const [first, second] = screen.getAllByRole('textbox', { name: /Model [12] ID/ })
+    expect(first).toHaveValue('Qwen/One')
+    expect(second).toHaveValue('')
+    expect(window.location.search).toContain('Qwen%2FOne')
+    expect(window.location.search).not.toContain('Meta%2FTwo')
+
+    view.unmount()
+    render(<ComparePage />)
+    const [restoredFirst, restoredSecond] = screen.getAllByRole('textbox', { name: /Model [12] ID/ })
+    expect(restoredFirst).toHaveValue('Qwen/One')
+    expect(restoredSecond).toHaveValue('')
+  })
+
+  it('preserves cached cards and fetches only a newly added model across add, reorder, and remove', async () => {
+    const user = userEvent.setup()
+    let offline = false
+    const requests: string[] = []
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const match = String(input).match(/\/api\/models\/([^/]+)\/([^?]+)/)
+      const id = `${decodeURIComponent(match![1])}/${decodeURIComponent(match![2])}`
+      requests.push(id)
+      return offline
+        ? Promise.resolve(Response.json({ error: 'offline' }, { status: 503 }))
+        : Promise.resolve(Response.json(safeModel(id)))
+    }))
+    render(<ComparePage />)
+    await screen.findAllByText('TOTAL')
+    expect(requests).toEqual(['Qwen/One', 'Meta/Two'])
+
+    offline = true
+    await user.click(screen.getByRole('button', { name: 'Add model' }))
+    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID' }), 'Org/Three')
+    await user.click(screen.getByRole('button', { name: 'Add Org/Three' }))
+    expect(await screen.findByRole('region', { name: 'Comparison for Org/Three' })).toHaveTextContent('This public model is unavailable.')
+    expect(screen.getByRole('region', { name: 'Comparison for Qwen/One' })).toHaveTextContent('TOTAL')
+    expect(screen.getByRole('region', { name: 'Comparison for Meta/Two' })).toHaveTextContent('TOTAL')
+    expect(requests).toEqual(['Qwen/One', 'Meta/Two', 'Org/Three'])
+
+    await user.click(screen.getByRole('button', { name: 'Move Org/Three left' }))
+    await user.click(screen.getByRole('button', { name: 'Remove Org/Three' }))
+    expect(requests).toEqual(['Qwen/One', 'Meta/Two', 'Org/Three'])
+  })
+
+  it('focuses the fourth pending model input when its add control reaches the cap', async () => {
+    const user = userEvent.setup()
+    render(<ComparePage />)
+    await screen.findAllByText('TOTAL')
+    await user.click(screen.getByRole('button', { name: 'Add model' }))
+    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID' }), 'Org/Three')
+    await user.click(screen.getByRole('button', { name: 'Add Org/Three' }))
+
+    await user.click(screen.getByRole('button', { name: 'Add model' }))
+
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Model 4 ID' }))
+  })
+
+  it('creates collision-free selector anchors for distinct valid canonical IDs', async () => {
+    window.history.replaceState(null, '', compareUrl('A-B/C', 'A_B/C', 'A.B/C'))
+    render(<ComparePage />)
+    const links = within(screen.getByRole('navigation', { name: 'Comparison model selector' })).getAllByRole('link')
+    const targets = links.map((link) => document.getElementById(link.getAttribute('href')!.slice(1)))
+
+    expect(new Set(links.map((link) => link.getAttribute('href'))).size).toBe(3)
+    expect(targets.map((target) => target?.textContent)).toEqual(['A-B/C', 'A_B/C', 'A.B/C'])
+  })
 })
