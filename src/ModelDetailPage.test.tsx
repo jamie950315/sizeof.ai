@@ -86,9 +86,9 @@ describe('Hugging Face-style model detail route', () => {
 
     expect(await screen.findByRole('heading', { name: 'Qwen3.8-27B' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Export sizing' }))
-    expect(screen.getByRole('menuitem', { name: 'Download JSON export' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Download CSV export' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Copy Markdown export' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Download JSON export' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Download CSV export' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy Markdown export' })).toBeInTheDocument()
   })
 
   it('organizes the model as a true three-panel tool with compact architecture rows', async () => {
@@ -905,6 +905,9 @@ describe('Hugging Face-style model detail route', () => {
   })
 
   it('keeps a stable fit-planner refusal on resource-only pages without LLM controls', async () => {
+    const user = userEvent.setup()
+    const copiedMarkdown = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copiedMarkdown } })
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({
       ...apiModel,
       id: 'Example/Encoder', owner: 'Example', name: 'Encoder', modelKind: 'embedding', spec: null,
@@ -920,6 +923,9 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(load).getByRole('region', { name: 'Fit planner' })).toHaveTextContent(/resource-only model/i)
     expect(screen.queryByLabelText('Context window')).not.toBeInTheDocument()
     expect(screen.queryByText('ESTIMATED VRAM')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+    expect(copiedMarkdown).toHaveBeenCalledWith(expect.stringContaining('Resource profile: encoder / Weights'))
   })
 
   it('keeps storage errors session-local and preserves the selected capacity when cleared', async () => {

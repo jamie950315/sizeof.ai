@@ -26,6 +26,7 @@ import EvidenceDrawer from './components/EvidenceDrawer'
 import HardwareProfileControls from './components/HardwareProfileControls'
 import FitPlanner from './components/FitPlanner'
 import ExportMenu from './components/ExportMenu'
+import type { SizingExportInput } from './lib/export'
 
 interface Props {
   route: HuggingFaceRoute
@@ -309,13 +310,21 @@ export default function ModelDetailPage({ route }: Props) {
     () => model?.spec ? buildModelEvidence(model.spec, selectedVariant, model.lastModified ?? undefined) : [],
     [model, selectedVariant],
   )
-  const exportInput = model?.spec && estimate ? {
-    model: { id: model.id, sourceUrl: model.sourceUrl },
-    configuration: { quantization: quantizations.find((item) => item.id === quantization)?.label ?? quantization, contextTokens: context, kvPrecision, mlaCacheMode },
-    hardware: { capacityGiB: vram },
-    estimate: { kind: estimate.isLowerBound ? 'lower-bound' as const : 'estimate' as const, totalGiB: estimate.totalGiB, weightsGiB: estimate.weightsGiB, kvCacheGiB: estimate.kvCacheGiB, runtimeGiB: estimate.runtimeGiB },
-    evidence,
+  const exportInput: SizingExportInput | null = model ? {
     generatedAt: new Date().toISOString(),
+    records: [{
+      model: { id: model.id, sourceUrl: model.sourceUrl },
+      configuration: {
+        quantization: estimate ? (quantizations.find((item) => item.id === quantization)?.label ?? quantization) : null,
+        contextTokens: estimate ? context : null, kvPrecision: estimate ? kvPrecision : null, mlaCacheMode: estimate ? mlaCacheMode : null,
+        source: selectedVariant?.publisher ?? (selectedSource === 'estimated' ? 'estimated' : selectedSource), variantId: selectedVariant?.id ?? null,
+        artifactWeightGiB: selectedVariant?.weightSizeBytes ? selectedVariant.weightSizeBytes / 1024 ** 3 : null,
+      },
+      hardware: { capacityGiB: vram },
+      estimate: estimate ? { kind: estimate.isLowerBound ? 'lower-bound' : 'estimate', totalGiB: estimate.totalGiB, weightsGiB: estimate.weightsGiB, kvCacheGiB: estimate.kvCacheGiB, runtimeGiB: estimate.runtimeGiB } : null,
+      resourceProfile: !estimate && selectedResourceOption ? { kind: resourceEstimate?.kind ?? model.modelKind, title: selectedResourceOption.label, totalGiB: resourceTotalBytes / 1024 ** 3 } : null,
+      evidence: estimate ? evidence : [{ id: 'resource-profile', label: 'Published resource profile', kind: 'verified', detail: 'Published static resource components selected on this page.', sourceUrl: model.sourceUrl }],
+    }],
   } : null
 
   async function copyUrl() {

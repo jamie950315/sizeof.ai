@@ -56,8 +56,8 @@ interface HuggingFaceSearchResponse {
 
 function searchSizingStatus(model: HuggingFaceSearchModel) {
   if (model.gated) return 'GATED'
-  if (model.task === 'text-generation' || model.task === 'image-text-to-text') return 'CHECK ON OPEN'
-  if (model.task && ['text-to-image', 'text-to-video', 'automatic-speech-recognition', 'text-to-audio', 'feature-extraction', 'sentence-similarity'].includes(model.task)) return 'RESOURCE PROFILE'
+  if (model.task && ['text-generation', 'text2text-generation', 'conversational', 'question-answering', 'summarization', 'translation', 'image-text-to-text', 'visual-question-answering', 'document-question-answering'].includes(model.task)) return 'CHECK ON OPEN'
+  if (model.task && ['text-to-image', 'image-to-image', 'text-to-video', 'automatic-speech-recognition', 'text-to-audio', 'audio-classification', 'feature-extraction', 'sentence-similarity'].includes(model.task)) return 'RESOURCE PROFILE'
   return 'UNSPECIFIED'
 }
 

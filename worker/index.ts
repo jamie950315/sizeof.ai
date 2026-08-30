@@ -444,15 +444,15 @@ function injectMetadata(html: string, metadata: NonNullable<ReturnType<typeof pa
     .replace(/<\/head>/i, `${tags}</head>`)
 }
 
-function staticResponse(body: string, type: string, cacheControl: string) {
-  return new Response(body, { headers: { 'Content-Type': type, 'Cache-Control': cacheControl, 'X-Content-Type-Options': 'nosniff' } })
+function staticResponse(body: string, type: string, cacheControl: string, status = 200) {
+  return new Response(body, { status, headers: { 'Content-Type': type, 'Cache-Control': cacheControl, 'X-Content-Type-Options': 'nosniff' } })
 }
 
-function svgCardInput(url: URL): ShareCardInput {
+function svgCardInput(url: URL): ShareCardInput | null {
   const boundedText = (value: string | null, limit: number, fallback: string) => (value ?? fallback).replace(/[\u0000-\u001F\u007F]/g, ' ').slice(0, limit)
   const boundedNumber = (value: string | null) => {
     const number = Number(value)
-    return Number.isFinite(number) && number >= 0 && number <= 4096 ? number : 0
+    return Number.isFinite(number) && number > 0 && number <= 4096 ? number : null
   }
   const summary = url.searchParams.get('summary')
   if (summary && summary.length <= 2048) {
@@ -465,15 +465,25 @@ function svgCardInput(url: URL): ShareCardInput {
           const id = typeof value.id === 'string' ? value.id : ''
           const route = parseHuggingFaceModelPath(`/${id}`)
           if (!route || `${route.owner}/${route.repo}` !== id) return []
-          return [{ id, configuration: boundedText(typeof value.configuration === 'string' ? value.configuration : null, 120, 'Configuration unavailable'), capacityGiB: boundedNumber(String(value.capacityGiB ?? '')), totalGiB: boundedNumber(String(value.totalGiB ?? '')), lowerBound: value.lowerBound === true }]
+          const configuration = typeof value.configuration === 'string' ? boundedText(value.configuration, 120, '') : ''
+          const capacityGiB = boundedNumber(typeof value.capacityGiB === 'number' ? String(value.capacityGiB) : null)
+          const totalGiB = boundedNumber(typeof value.totalGiB === 'number' ? String(value.totalGiB) : null)
+          return configuration && capacityGiB !== null && totalGiB !== null ? [{ id, configuration, capacityGiB, totalGiB, lowerBound: value.lowerBound === true }] : []
         }).slice(0, 4)
-        if (models.length) return { models, generatedAt: boundedText(typeof parsed.generatedAt === 'string' ? parsed.generatedAt : null, 40, 'Date unavailable') }
+        if (models.length === parsed.models.length && models.length && typeof parsed.generatedAt === 'string') return { models, generatedAt: boundedText(parsed.generatedAt, 40, '') }
       }
-    } catch { /* fall through to bounded display parameters */ }
+    } catch { /* reject malformed comparison summaries */ }
+    return null
   }
+  const model = boundedText(url.searchParams.get('model'), 120, '')
+  const configuration = boundedText(url.searchParams.get('config'), 120, '')
+  const capacityGiB = boundedNumber(url.searchParams.get('capacity'))
+  const totalGiB = boundedNumber(url.searchParams.get('total'))
+  const generatedAt = boundedText(url.searchParams.get('date'), 40, '')
+  if (!model || !configuration || capacityGiB === null || totalGiB === null || !generatedAt) return null
   return {
-    models: [{ id: boundedText(url.searchParams.get('model'), 120, 'Model estimate'), configuration: boundedText(url.searchParams.get('config'), 120, 'Configuration unavailable'), capacityGiB: boundedNumber(url.searchParams.get('capacity')), totalGiB: boundedNumber(url.searchParams.get('total')), lowerBound: url.searchParams.get('lowerBound') === '1' }],
-    generatedAt: boundedText(url.searchParams.get('date'), 40, 'Date unavailable'),
+    models: [{ id: model, configuration, capacityGiB, totalGiB, lowerBound: url.searchParams.get('lowerBound') === '1' }],
+    generatedAt,
   }
 }
 
@@ -1161,7 +1171,10 @@ export async function handleWorkerRequest(
   const url = new URL(request.url)
   const host = publicHost(env.ENVIRONMENT)
   if (url.pathname === '/share/card.svg') {
-    return staticResponse(renderShareCard(svgCardInput(url)), 'image/svg+xml; charset=utf-8', 'public, max-age=300, stale-while-revalidate=600')
+    const card = svgCardInput(url)
+    return card
+      ? staticResponse(renderShareCard(card), 'image/svg+xml; charset=utf-8', 'public, max-age=300, stale-while-revalidate=600')
+      : staticResponse('Invalid share-card parameters', 'text/plain; charset=utf-8', 'no-store', 400)
   }
   if (url.pathname === '/robots.txt') {
     return staticResponse(`User-agent: *\nAllow: /\nSitemap: ${host}/sitemap.xml\n`, 'text/plain; charset=utf-8', 'public, max-age=3600')

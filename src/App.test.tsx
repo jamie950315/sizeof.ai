@@ -344,6 +344,25 @@ describe('sizeof.ai app', () => {
     expect(within(results).getAllByRole('link', { name: /^Compare / })).toHaveLength(3)
   })
 
+  it('maps all existing language, vision, image, and audio task families without extra fetches', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ query: 'TASK', nextCursor: null, models: [
+      { id: 'Org/Text2Text', owner: 'Org', name: 'Text2Text', downloads: 1, likes: 1, task: 'text2text-generation', trendingScore: 1, gated: false },
+      { id: 'Org/Chat', owner: 'Org', name: 'Chat', downloads: 1, likes: 1, task: 'conversational', trendingScore: 1, gated: false },
+      { id: 'Org/QA', owner: 'Org', name: 'QA', downloads: 1, likes: 1, task: 'question-answering', trendingScore: 1, gated: false },
+      { id: 'Org/VQA', owner: 'Org', name: 'VQA', downloads: 1, likes: 1, task: 'visual-question-answering', trendingScore: 1, gated: false },
+      { id: 'Org/Image', owner: 'Org', name: 'Image', downloads: 1, likes: 1, task: 'image-to-image', trendingScore: 1, gated: false },
+      { id: 'Org/Audio', owner: 'Org', name: 'Audio', downloads: 1, likes: 1, task: 'audio-classification', trendingScore: 1, gated: false },
+    ] }))
+    render(<App />)
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'TASK{enter}')
+    const results = await screen.findByRole('region', { name: 'Hugging Face search results' })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    fetcher.mockRestore()
+    expect(within(results).getAllByText('CHECK ON OPEN')).toHaveLength(4)
+    expect(within(results).getAllByText('RESOURCE PROFILE')).toHaveLength(2)
+  })
+
   it('submits model type and author filters only after Search is pressed', async () => {
     const user = userEvent.setup()
     const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({

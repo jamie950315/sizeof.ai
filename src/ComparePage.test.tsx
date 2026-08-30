@@ -64,8 +64,15 @@ describe('model comparison workspace', () => {
 
     await screen.findAllByRole('region', { name: /Comparison for / })
     await user.click(screen.getByRole('button', { name: 'Export comparison' }))
-    expect(screen.getByRole('menuitem', { name: 'Download JSON export' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Copy Markdown export' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Download JSON export' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy Markdown export' })).toBeInTheDocument()
+  })
+
+  it('does not expose comparison export until every visible model record is ready', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => undefined)))
+    render(<ComparePage />)
+    await vi.waitFor(() => expect(screen.getAllByRole('region', { name: /Comparison for / })).toHaveLength(2))
+    expect(screen.queryByRole('button', { name: 'Export comparison' })).not.toBeInTheDocument()
   })
 
   it('keeps a successful card visible beside a normalized public failure', async () => {

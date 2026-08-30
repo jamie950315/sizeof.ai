@@ -109,6 +109,19 @@ describe('Hugging Face model API', () => {
     await expect(response.text()).resolves.toContain('LOWER BOUND')
   })
 
+  it('rejects incomplete or non-finite share-card parameters without rendering a zero fallback', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache }
+    const missing = await handleWorkerRequest(new Request('https://sizeof.ai/share/card.svg?model=Qwen%2FExample&capacity=32'), env, ctx)
+    const partial = await handleWorkerRequest(new Request(`https://sizeof.ai/share/card.svg?summary=${encodeURIComponent(JSON.stringify({ models: [{ id: 'Qwen/Example', capacityGiB: 32 }] }))}`), env, ctx)
+
+    expect(missing.status).toBe(400)
+    expect(partial.status).toBe(400)
+    expect(missing.headers.get('Cache-Control')).toBe('no-store')
+    await expect(missing.text()).resolves.not.toContain('<svg')
+  })
+
   it('serves bounded robots and curated sitemap routes without dynamic discovery', async () => {
     const cache = new MemoryModelCache()
     const { ctx } = modelCacheContext()
