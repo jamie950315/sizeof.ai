@@ -14,7 +14,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "cf:check": "wrangler deploy --dry-run",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "cf:check:testnet": "wrangler deploy --dry-run --env testnet",
+    "deploy:testnet": "npm run build && wrangler deploy --env testnet"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "latest",

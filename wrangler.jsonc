@@ -24,5 +24,25 @@
   "routes": [
     { "pattern": "sizeof.ai", "custom_domain": true },
     { "pattern": "www.sizeof.ai", "custom_domain": true }
-  ]
+  ],
+  "env": {
+    "testnet": {
+      "name": "sizeof-ai-testnet",
+      "vars": {
+        "ENVIRONMENT": "testnet"
+      },
+      "kv_namespaces": [
+        { "binding": "MODEL_CACHE", "id": "0a07ede1f0744dd696857d5bea6d2441" }
+      ],
+      "assets": {
+        "directory": "./dist",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application",
+        "run_worker_first": true
+      },
+      "routes": [
+        { "pattern": "testnet.sizeof.ai", "custom_domain": true }
+      ]
+    }
+  }
 }
