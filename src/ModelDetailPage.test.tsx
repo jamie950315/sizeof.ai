@@ -726,7 +726,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(window.location.search).toContain('variant=none')
   })
 
-  it('copies only a custom usable capacity URL that wins over local profile metadata in a fresh browser', async () => {
+  it('copies only a custom usable capacity URL that wins over but retains local profile metadata in a fresh browser', async () => {
     const user = userEvent.setup()
     const writeText = vi.fn()
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
@@ -751,7 +751,9 @@ describe('Hugging Face-style model detail route', () => {
 
     const freshCalculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(within(freshCalculator).getByLabelText('Your VRAM')).toHaveValue('40')
-    expect(within(freshCalculator).queryByText(/Shared memory|Different local GPU/)).not.toBeInTheDocument()
+    expect(within(freshCalculator).getByText(/Different local GPU: 64 GiB total, 0 GiB reserved/)).toBeInTheDocument()
+    expect(within(freshCalculator).getByText(/Saved, not applied/)).toBeInTheDocument()
+    expect(within(freshCalculator).getByRole('button', { name: 'Clear profile' })).toBeInTheDocument()
     expect(new URL(copiedUrl).search).not.toMatch(/Shared%20memory|reservedGiB|hardware=/)
   })
 
@@ -770,6 +772,9 @@ describe('Hugging Face-style model detail route', () => {
     await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
     expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('40')
     await user.selectOptions(within(calculator).getByLabelText('Your VRAM'), '64')
+    expect(within(calculator).getByText(/Private profile: 48 GiB total, 8 GiB reserved/)).toBeInTheDocument()
+    expect(within(calculator).getByText(/Saved, not applied/)).toBeInTheDocument()
+    expect(within(calculator).getByRole('button', { name: 'Clear profile' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /copy sizeof url/i }))
     const copiedUrl = window.location.href
     expect(new URL(copiedUrl).search).toContain('vram=64')
@@ -780,6 +785,32 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
     const freshCalculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(within(freshCalculator).getByLabelText('Your VRAM')).toHaveValue('64')
+    expect(within(freshCalculator).getByText(/Private profile: 48 GiB total, 8 GiB reserved/)).toBeInTheDocument()
+    await user.click(within(freshCalculator).getByRole('button', { name: 'Clear profile' }))
+    expect(within(freshCalculator).getByLabelText('Your VRAM')).toHaveValue('64')
+    expect(within(freshCalculator).queryByText(/Private profile/)).not.toBeInTheDocument()
+  })
+
+  it('refreshes a bare URL with a saved profile applied, while an explicit URL keeps its capacity until Apply', async () => {
+    window.localStorage.setItem('sizeof:hardware-profile:v1', JSON.stringify({
+      version: 1,
+      profile: { kind: 'discrete-gpu', label: 'Saved GPU', capacityGiB: 48, reservedGiB: 8 },
+    }))
+    const first = render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('40')
+    expect(within(calculator).getByText(/Applied/)).toBeInTheDocument()
+
+    first.unmount()
+    window.history.replaceState(null, '', '/Qwen/Qwen3.8-27B?state=1&quant=q4_k_m&ctx=8192&kv=fp16&mla=expanded&vram=64&source=estimated&variant=none')
+    render(<App />)
+    const explicitCalculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(explicitCalculator).getByLabelText('Your VRAM')).toHaveValue('64')
+    expect(within(explicitCalculator).getByText(/Saved GPU: 48 GiB total, 8 GiB reserved/)).toBeInTheDocument()
+    expect(within(explicitCalculator).getByText(/Saved, not applied/)).toBeInTheDocument()
+    await userEvent.setup().click(within(explicitCalculator).getByRole('button', { name: 'Apply local profile' }))
+    expect(within(explicitCalculator).getByLabelText('Your VRAM')).toHaveValue('40')
+    expect(within(explicitCalculator).getByText(/Applied/)).toBeInTheDocument()
   })
 
   it('atomically falls back to estimated sizing when a valid publisher has an invalid variant', async () => {
@@ -872,7 +903,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(screen.queryByText('ESTIMATED VRAM')).not.toBeInTheDocument()
   })
 
-  it('keeps storage errors session-local and restores the default capacity when cleared', async () => {
+  it('keeps storage errors session-local and preserves the selected capacity when cleared', async () => {
     const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
     const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
     const user = userEvent.setup()
@@ -885,7 +916,7 @@ describe('Hugging Face-style model detail route', () => {
     await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
     expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('24')
     await user.click(within(calculator).getByRole('button', { name: 'Clear profile' }))
-    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('32')
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('24')
     setItem.mockRestore()
     removeItem.mockRestore()
   })

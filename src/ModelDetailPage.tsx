@@ -163,8 +163,8 @@ export default function ModelDetailPage({ route }: Props) {
   const [selectedSource, setSelectedSource] = useState('estimated')
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
   const [selectedResourceOptionId, setSelectedResourceOptionId] = useState<string | null>(null)
-  const [hardwareProfile, setHardwareProfile] = useState<HardwareProfile | null>(loadLocalHardwareProfile)
-  const [fallbackVram, setFallbackVram] = useState(32)
+  const [savedHardwareProfile, setSavedHardwareProfile] = useState<HardwareProfile | null>(loadLocalHardwareProfile)
+  const [isHardwareProfileApplied, setIsHardwareProfileApplied] = useState(false)
   const restoredRouteState = useRef(false)
 
   useEffect(() => {
@@ -210,10 +210,11 @@ export default function ModelDetailPage({ route }: Props) {
           setKvPrecision(parsed.kvPrecision)
           setMlaCacheMode(parsed.mlaCacheMode)
           const urlControlsCapacity = /(?:^|[?&])state=1(?:&|$)/.test(window.location.search)
-          const savedProfile = urlControlsCapacity ? null : loadLocalHardwareProfile()
-          setHardwareProfile(savedProfile)
-          setFallbackVram(parsed.vramGiB)
-          setVram(savedProfile ? usableMemoryGiB(savedProfile) : parsed.vramGiB)
+          const savedProfile = loadLocalHardwareProfile()
+          const appliesSavedProfile = !urlControlsCapacity && savedProfile !== null
+          setSavedHardwareProfile(savedProfile)
+          setIsHardwareProfileApplied(appliesSavedProfile)
+          setVram(appliesSavedProfile ? usableMemoryGiB(savedProfile) : parsed.vramGiB)
           setSelectedSource(selectedSource)
           setSelectedVariantId(selectedVariantId)
           setSelectedResourceOptionId(nextModel.resourceEstimate?.options[0]?.id ?? null)
@@ -309,7 +310,8 @@ export default function ModelDetailPage({ route }: Props) {
     } catch {
       // Browser storage may be unavailable; retain this explicit session configuration.
     }
-    setHardwareProfile(profile)
+    setSavedHardwareProfile(profile)
+    setIsHardwareProfileApplied(true)
     setVram(usableMemoryGiB(profile))
   }
 
@@ -319,13 +321,12 @@ export default function ModelDetailPage({ route }: Props) {
     } catch {
       // Clearing the in-memory profile must still restore the normal calculator capacity.
     }
-    setHardwareProfile(null)
-    setVram(fallbackVram)
+    setSavedHardwareProfile(null)
+    setIsHardwareProfileApplied(false)
   }
 
   function chooseVram(value: number) {
-    setHardwareProfile(null)
-    setFallbackVram(value)
+    setIsHardwareProfileApplied(false)
     setVram(value)
   }
 
@@ -665,7 +666,8 @@ export default function ModelDetailPage({ route }: Props) {
                   </div>
                 </div>
                 <HardwareProfileControls
-                  profile={hardwareProfile}
+                  profile={savedHardwareProfile}
+                  isApplied={isHardwareProfileApplied}
                   onApply={applyHardwareProfile}
                   onClear={clearHardwareProfile}
                 />

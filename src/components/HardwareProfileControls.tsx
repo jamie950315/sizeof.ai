@@ -3,11 +3,12 @@ import { validateHardwareProfile, type HardwareKind, type HardwareProfile } from
 
 interface Props {
   profile: HardwareProfile | null
+  isApplied: boolean
   onApply: (profile: HardwareProfile) => void
   onClear: () => void
 }
 
-export default function HardwareProfileControls({ profile, onApply, onClear }: Props) {
+export default function HardwareProfileControls({ profile, isApplied, onApply, onClear }: Props) {
   const [kind, setKind] = useState<HardwareKind>(profile?.kind ?? 'discrete-gpu')
   const [label, setLabel] = useState(profile?.label ?? '')
   const [capacityGiB, setCapacityGiB] = useState(String(profile?.capacityGiB ?? 32))
@@ -49,6 +50,7 @@ export default function HardwareProfileControls({ profile, onApply, onClear }: P
       </div>
       {validationError && <p role="alert">{validationError}</p>}
       {profile && <p className="hardware-profile-summary">{profile.label}: {profile.capacityGiB} GiB total, {profile.reservedGiB} GiB reserved.</p>}
+      {profile && <p className="hardware-profile-state">{isApplied ? 'Applied' : 'Saved, not applied'}</p>}
     </fieldset>
   )
 }
