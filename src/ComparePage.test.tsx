@@ -126,4 +126,83 @@ describe('model comparison workspace', () => {
     await screen.findAllByRole('region', { name: /Comparison for / })
     await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
   })
+
+  it('rejects reserved and duplicate builder IDs accessibly without adding them to comparison state or copied URLs', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, '', '/compare')
+    render(<ComparePage />)
+    const [first, second] = screen.getAllByRole('textbox', { name: /Model [12] ID/ })
+    await user.type(first, 'compare/workspace')
+    await user.type(second, 'Qwen/One')
+    expect(screen.getByText(/reserved route/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Compare models' }))
+    expect(screen.getByText(/choose two unique public model IDs/i)).toBeInTheDocument()
+    expect(window.location.search).not.toContain('compare%2Fworkspace')
+  })
+
+  it('does not refetch or erase results when one card setting changes while offline', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.fn((input: RequestInfo | URL) => {
+      const match = String(input).match(/\/api\/models\/([^/]+)\/([^?]+)/)
+      return Promise.resolve(Response.json(safeModel(`${decodeURIComponent(match![1])}/${decodeURIComponent(match![2])}`)))
+    })
+    vi.stubGlobal('fetch', fetcher)
+    render(<ComparePage />)
+    const cards = await screen.findAllByRole('region', { name: /Comparison for / })
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))))
+
+    await user.selectOptions(within(cards[0]).getByRole('combobox', { name: 'Weight precision for Qwen/One' }), 'fp16')
+
+    expect(within(cards[0]).getByText('TOTAL')).toBeInTheDocument()
+    expect(within(cards[1]).getByText('TOTAL')).toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('adds, removes, reorders, and focuses two additional cards within the four-model cap', async () => {
+    const user = userEvent.setup()
+    render(<ComparePage />)
+    await screen.findAllByRole('region', { name: /Comparison for / })
+    await user.click(screen.getByRole('button', { name: 'Add model' }))
+    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID' }), 'Org/Three')
+    await user.click(screen.getByRole('button', { name: 'Add Org/Three' }))
+    expect(document.activeElement).toBe(await screen.findByRole('heading', { name: 'Org/Three' }))
+    await user.click(screen.getByRole('button', { name: 'Add model' }))
+    await user.type(screen.getByRole('textbox', { name: 'Model 4 ID' }), 'Org/Four')
+    await user.click(screen.getByRole('button', { name: 'Add Org/Four' }))
+    expect(screen.getAllByRole('region', { name: /Comparison for / })).toHaveLength(4)
+    expect(screen.queryByRole('button', { name: 'Add model' })).not.toBeInTheDocument()
+    expect(screen.getByText('Maximum of four models may be compared.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Move Org/Four left' }))
+    expect(screen.getAllByRole('region', { name: /Comparison for / }).map((card) => card.getAttribute('aria-label'))).toEqual([
+      'Comparison for Qwen/One', 'Comparison for Meta/Two', 'Comparison for Org/Four', 'Comparison for Org/Three',
+    ])
+    await user.click(screen.getByRole('button', { name: 'Remove Org/Four' }))
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Org/Three' }))
+  })
+
+  it('keeps artifact selection and every item setting in the copied URL independent', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => Promise.resolve(Response.json({
+      ...safeModel(String(input).includes('/Meta/Two?') ? 'Meta/Two' : 'Qwen/One'),
+      variants: [{ id: 'artifact-1', label: 'Q4', format: 'gguf', revision: 'a'.repeat(40), path: 'q4.gguf', source: 'file', role: 'model', bitsPerWeight: 4, weightSizeBytes: 4 * 1024 ** 3, totalSizeBytes: 4 * 1024 ** 3, publisher: 'unsloth' }],
+    }))))
+    const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    render(<ComparePage />)
+    const cards = await screen.findAllByRole('region', { name: /Comparison for / })
+    await user.selectOptions(within(cards[0]).getByRole('combobox', { name: 'Artifact source for Qwen/One' }), 'unsloth')
+    await user.selectOptions(within(cards[0]).getByRole('combobox', { name: 'Artifact for Qwen/One' }), 'artifact-1')
+    await user.selectOptions(within(cards[0]).getByRole('combobox', { name: 'VRAM for Qwen/One' }), '96')
+    await user.click(screen.getByRole('button', { name: 'Copy comparison link' }))
+    await vi.waitFor(() => expect(copy).toHaveBeenCalled())
+    expect(copy.mock.calls[0][0]).toContain('artifact-1')
+    expect(copy.mock.calls[0][0]).toContain('~96~unsloth~artifact-1')
+    expect(within(cards[1]).getByRole('combobox', { name: 'Artifact source for Meta/Two' })).toHaveValue('estimated')
+  })
+
+  it('provides one compact mobile model selector with anchors and no per-card loading live regions', async () => {
+    render(<ComparePage />)
+    expect(screen.getByRole('navigation', { name: 'Comparison model selector' })).toHaveTextContent('Qwen/One')
+    expect(screen.getAllByText('Loading public model…').every((node) => !node.hasAttribute('role'))).toBe(true)
+  })
 })

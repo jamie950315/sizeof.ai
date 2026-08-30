@@ -18,4 +18,9 @@ describe('mobile sticky result CSS', () => {
     expect(stylesheet).toMatch(/@media \(max-width: 620px\) \{[\s\S]*?\.compare-cards \{[\s\S]*?grid-template-columns: 1fr;[\s\S]*?overflow-x: hidden;/)
     expect(stylesheet).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.compare-card[\s\S]*?transition: none;/)
   })
+
+  it('makes the compact comparison model selector sticky and motion-safe on mobile', () => {
+    expect(stylesheet).toMatch(/@media \(max-width: 620px\) \{[\s\S]*?\.compare-mobile-selector \{[\s\S]*?position: sticky;[\s\S]*?overflow-x: auto;/)
+    expect(stylesheet).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.compare-mobile-selector[\s\S]*?transition: none;/)
+  })
 })

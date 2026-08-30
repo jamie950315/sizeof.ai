@@ -3,7 +3,7 @@ import { Check, Copy, Plus, X } from 'lucide-react'
 import { kvPrecisions, quantizations, type KvPrecisionId, type QuantizationId } from './data/quantizations'
 import { classifyFit, estimateVram } from './lib/estimator'
 import type { HuggingFaceModel } from './lib/huggingface'
-import { parseCompareState, serializeCompareState, type CompareItemState } from './lib/compare-state'
+import { parseCompareState, serializeCompareState, validateCompareModelId, type CompareItemState } from './lib/compare-state'
 import { vramPresets } from './lib/vram-presets'
 
 const defaults: Omit<CompareItemState, 'modelId'> = {
@@ -17,8 +17,7 @@ function currentItems() {
 }
 
 function initialItems() {
-  const restored = currentItems()
-  return [...restored, ...Array.from({ length: Math.max(0, 2 - restored.length) }, () => ({ modelId: '', ...defaults }))]
+  return currentItems()
 }
 
 function displayModelId(item: CompareItemState, index: number) {
@@ -33,8 +32,15 @@ function formatBytes(bytes: number | null) {
   return bytes === null || !Number.isFinite(bytes) || bytes <= 0 ? 'Not comparable' : `${(bytes / 1024 ** 3).toFixed(2)} GiB`
 }
 
-function validId(value: string) {
-  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}\/[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/.test(value)
+function validationMessage(reason: 'empty' | 'malformed' | 'reserved' | 'duplicate') {
+  if (reason === 'reserved') return 'This is a reserved route, not a public model ID.'
+  if (reason === 'duplicate') return 'Each comparison model must be unique.'
+  if (reason === 'empty') return 'Enter an owner/repository model ID.'
+  return 'Use a public owner/repository model ID.'
+}
+
+function cardId(modelId: string) {
+  return `compare-card-${modelId.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
 }
 
 export default function ComparePage() {
@@ -42,22 +48,25 @@ export default function ComparePage() {
   const [submitted, setSubmitted] = useState(() => currentItems().length >= 2)
   const [models, setModels] = useState<Record<string, ModelStatus>>({})
   const [copied, setCopied] = useState(false)
-  const activeEntries = useMemo(() => {
-    const seen = new Set<string>()
-    return items.flatMap((item, index) => {
-      const normalized = item.modelId.toLowerCase()
-      if (!validId(item.modelId) || seen.has(normalized)) return []
-      seen.add(normalized)
-      return [{ item, index }]
-    }).slice(0, 4)
-  }, [items])
-  const activeItems = useMemo(() => activeEntries.map((entry) => entry.item), [activeEntries])
+  const [builderDrafts, setBuilderDrafts] = useState(() => [...currentItems().map((item) => item.modelId), '', ''].slice(0, 2))
+  const [builderErrors, setBuilderErrors] = useState<Record<number, string>>({})
+  const [pendingDrafts, setPendingDrafts] = useState<string[]>([])
+  const [pendingErrors, setPendingErrors] = useState<Record<number, string>>({})
+  const [focusModelId, setFocusModelId] = useState<string | null>(null)
+  const activeItems = items
   const canCompare = submitted && activeItems.length >= 2
+  const modelIdsKey = activeItems.map((item) => item.modelId.toLowerCase()).join('|')
+  const fetchIds = useMemo(() => activeItems.map((item) => item.modelId), [modelIdsKey])
+  const sharedVram = activeItems.every((item) => item.vramGiB === activeItems[0]?.vramGiB)
+    ? String(activeItems[0]?.vramGiB ?? '')
+    : 'mixed'
 
   useEffect(() => {
     const restore = () => {
       const restored = currentItems()
-      setItems([...restored, ...Array.from({ length: Math.max(0, 2 - restored.length) }, () => ({ modelId: '', ...defaults }))])
+      setItems(restored)
+      setBuilderDrafts([...restored.map((item) => item.modelId), '', ''].slice(0, 2))
+      setPendingDrafts([])
       setSubmitted(restored.length >= 2)
     }
     window.addEventListener('popstate', restore)
@@ -75,25 +84,32 @@ export default function ComparePage() {
       return
     }
     const controller = new AbortController()
-    const nextStatuses: Record<string, ModelStatus> = Object.fromEntries(activeItems.map((item) => [item.modelId, { kind: 'loading' }]))
+    const nextStatuses: Record<string, ModelStatus> = Object.fromEntries(fetchIds.map((modelId) => [modelId, { kind: 'loading' }]))
     setModels(nextStatuses)
     let cursor = 0
     const request = async () => {
-      while (cursor < activeItems.length && !controller.signal.aborted) {
-        const item = activeItems[cursor++]
+      while (cursor < fetchIds.length && !controller.signal.aborted) {
+        const modelId = fetchIds[cursor++]
         try {
-          const response = await fetch(`/api/models/${encodeURIComponent(item.modelId.split('/')[0])}/${encodeURIComponent(item.modelId.split('/')[1])}?schema=13`, { signal: controller.signal })
+          const response = await fetch(`/api/models/${encodeURIComponent(modelId.split('/')[0])}/${encodeURIComponent(modelId.split('/')[1])}?schema=13`, { signal: controller.signal })
           const payload = await response.json() as HuggingFaceModel
           if (!response.ok) throw new Error('unavailable')
-          if (!controller.signal.aborted) setModels((current) => ({ ...current, [item.modelId]: { kind: 'ready', model: payload } }))
+          if (!controller.signal.aborted) setModels((current) => ({ ...current, [modelId]: { kind: 'ready', model: payload } }))
         } catch {
-          if (!controller.signal.aborted) setModels((current) => ({ ...current, [item.modelId]: { kind: 'error' } }))
+          if (!controller.signal.aborted) setModels((current) => ({ ...current, [modelId]: { kind: 'error' } }))
         }
       }
     }
-    void Promise.all(Array.from({ length: Math.min(2, activeItems.length) }, request))
+    void Promise.all(Array.from({ length: Math.min(2, fetchIds.length) }, request))
     return () => controller.abort()
-  }, [canCompare, activeItems])
+  }, [canCompare, fetchIds, modelIdsKey])
+
+  useEffect(() => {
+    if (!focusModelId) return
+    const target = document.getElementById(cardId(focusModelId)) ?? document.getElementById('compare-add')
+    target?.focus()
+    setFocusModelId(null)
+  }, [focusModelId, items])
 
   const updateItem = (index: number, update: Partial<CompareItemState>) => {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...update } : item))
@@ -101,14 +117,43 @@ export default function ComparePage() {
 
   const applyBuilder = () => {
     const unique = new Set<string>()
-    const valid = items.filter((item) => {
-      const key = item.modelId.toLowerCase()
-      if (!validId(item.modelId) || unique.has(key)) return false
+    const errors: Record<number, string> = {}
+    const valid = builderDrafts.flatMap((draft, index) => {
+      const result = validateCompareModelId(draft)
+      if (!result.valid) { errors[index] = validationMessage(result.reason); return [] }
+      const key = result.canonicalId.toLowerCase()
+      if (unique.has(key)) { errors[index] = validationMessage('duplicate'); return [] }
       unique.add(key)
-      return true
-    }).slice(0, 4)
+      return [{ modelId: result.canonicalId, ...defaults }]
+    })
+    setBuilderErrors(errors)
+    if (valid.length < 2) return
     setItems(valid)
-    setSubmitted(valid.length >= 2)
+    setSubmitted(true)
+  }
+
+  const updateBuilderDraft = (index: number, value: string) => {
+    setBuilderDrafts((current) => current.map((draft, draftIndex) => draftIndex === index ? value : draft))
+    const result = validateCompareModelId(value)
+    setBuilderErrors((current) => {
+      const next = { ...current }
+      if (result.valid) delete next[index]
+      else next[index] = validationMessage(result.reason)
+      return next
+    })
+  }
+
+  const addPendingModel = (index: number) => {
+    const result = validateCompareModelId(pendingDrafts[index] ?? '')
+    const used = new Set(items.map((item) => item.modelId.toLowerCase()))
+    if (!result.valid || used.has(result.valid ? result.canonicalId.toLowerCase() : '')) {
+      setPendingErrors((current) => ({ ...current, [index]: validationMessage(!result.valid ? result.reason : 'duplicate') }))
+      return
+    }
+    setItems((current) => [...current, { modelId: result.canonicalId, ...defaults }])
+    setPendingDrafts((current) => current.filter((_, draftIndex) => draftIndex !== index))
+    setPendingErrors({})
+    setFocusModelId(result.canonicalId)
   }
 
   const copyLink = async () => {
@@ -118,28 +163,37 @@ export default function ComparePage() {
   }
 
   if (!canCompare) {
-    const builderItems = [...items]
-    while (builderItems.length < 2) builderItems.push({ modelId: '', ...defaults })
     return (
       <main className="compare-page compare-builder" aria-labelledby="compare-title">
         <span>MODEL WORKSPACE</span>
         <h1 id="compare-title">Compare models</h1>
         <p>Compare two to four public Hugging Face model profiles with independent memory settings.</p>
         <div className="compare-builder-inputs">
-          {builderItems.map((item, index) => (
+          {builderDrafts.map((draft, index) => (
             <label key={index}>
               <span>MODEL {index + 1} ID</span>
               <input
+                id={index === 0 ? 'compare-add' : undefined}
                 aria-label={`Model ${index + 1} ID`}
-                value={item.modelId}
+                aria-invalid={Boolean(builderErrors[index])}
+                aria-describedby={builderErrors[index] ? `builder-error-${index}` : undefined}
+                value={draft}
                 placeholder="owner/repository"
                 maxLength={193}
-                onChange={(event) => updateItem(index, { modelId: event.target.value.trim() })}
+                onChange={(event) => updateBuilderDraft(index, event.target.value)}
               />
+              {builderErrors[index] && <small id={`builder-error-${index}`} role="alert">{builderErrors[index]}</small>}
             </label>
           ))}
         </div>
-        <p className="compare-examples">Examples: <button type="button" onClick={() => setItems([{ modelId: 'Qwen/Qwen3.8-27B', ...defaults }, { modelId: 'meta-llama/Llama-3.3-70B-Instruct', ...defaults }])}>Qwen/Qwen3.8-27B + Llama-3.3-70B-Instruct</button></p>
+        <p className="compare-examples">Examples: <button type="button" onClick={() => {
+          const examples = [{ modelId: 'Qwen/Qwen3.8-27B', ...defaults }, { modelId: 'meta-llama/Llama-3.3-70B-Instruct', ...defaults }]
+          setBuilderDrafts(examples.map((item) => item.modelId))
+          setBuilderErrors({})
+          setItems(examples)
+          setSubmitted(true)
+        }}>Qwen/Qwen3.8-27B + Llama-3.3-70B-Instruct</button></p>
+        {Object.keys(builderErrors).length > 0 && <p className="compare-error" role="alert">Choose two unique public model IDs to compare.</p>}
         <button type="button" className="compare-primary" onClick={applyBuilder}>Compare models</button>
       </main>
     )
@@ -151,52 +205,66 @@ export default function ComparePage() {
         <div><span>MODEL WORKSPACE</span><h1 id="compare-title">Compare models</h1></div>
         <div className="compare-header-actions">
           <label>Shared capacity
-            <select aria-label="Shared VRAM capacity" defaultValue="" onChange={(event) => {
+            <select aria-label="Shared VRAM capacity" value={sharedVram} onChange={(event) => {
               const value = Number(event.target.value)
               if (value) setItems((current) => current.map((item) => ({ ...item, vramGiB: value })))
-            }}><option value="">Independent</option>{vramPresets.map((value) => <option value={value} key={value}>{value} GiB for all</option>)}</select>
+            }}><option value="mixed">Mixed</option><option value="">Independent</option>{vramPresets.map((value) => <option value={value} key={value}>{value} GiB for all</option>)}</select>
           </label>
           <button type="button" onClick={() => void copyLink()} aria-label="Copy comparison link">{copied ? <Check size={16} /> : <Copy size={16} />} {copied ? 'COPIED' : 'COPY LINK'}</button>
         </div>
       </header>
       <p className="visually-hidden" role="status" aria-live="polite">{Object.values(models).some((status) => status.kind === 'loading') ? 'Loading comparison models' : ''}</p>
+      <nav className="compare-mobile-selector" aria-label="Comparison model selector">
+        {activeItems.map((item) => <a key={item.modelId} href={`#${cardId(item.modelId)}`} onClick={() => setFocusModelId(item.modelId)}>{item.modelId}</a>)}
+      </nav>
       <section className="compare-cards" aria-label="Model comparisons">
-        {activeEntries.map(({ item, index }, visibleIndex) => (
+        {activeItems.map((item, index) => (
           <CompareCard
             key={`${item.modelId}-${index}`}
             item={item}
-            index={visibleIndex}
+            index={index}
             status={models[item.modelId] ?? { kind: 'loading' }}
             onChange={(update) => updateItem(index, update)}
-            onRemove={() => setItems((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-            canMoveLeft={visibleIndex > 0}
-            canMoveRight={visibleIndex < activeEntries.length - 1}
+            onRemove={() => setItems((current) => {
+              const next = current.filter((_, itemIndex) => itemIndex !== index)
+              setFocusModelId(next[index]?.modelId ?? next[index - 1]?.modelId ?? null)
+              return next
+            })}
+            canMoveLeft={index > 0}
+            canMoveRight={index < activeItems.length - 1}
             onMove={(direction) => setItems((current) => {
-              const destination = activeEntries[visibleIndex + direction]?.index
-              if (destination === undefined) return current
+              const destination = index + direction
+              if (destination < 0 || destination >= current.length) return current
               const next = [...current]
               ;[next[index], next[destination]] = [next[destination], next[index]]
+              setFocusModelId(item.modelId)
               return next
             })}
           />
         ))}
       </section>
-      {items.some((_, index) => !activeEntries.some((entry) => entry.index === index)) && (
+      {pendingDrafts.length > 0 && (
         <section className="compare-pending" aria-label="Additional comparison models">
-          {items.map((item, index) => !activeEntries.some((entry) => entry.index === index) && (
-            <label key={index}>Model {index + 1} ID
+          {pendingDrafts.map((draft, index) => (
+            <label key={index}>Model {items.length + index + 1} ID
               <input
-                aria-label={`Model ${index + 1} ID`}
-                value={item.modelId}
+                aria-label={`Model ${items.length + index + 1} ID`}
+                aria-invalid={Boolean(pendingErrors[index])}
+                aria-describedby={pendingErrors[index] ? `pending-error-${index}` : undefined}
+                value={draft}
                 placeholder="owner/repository"
                 maxLength={193}
-                onChange={(event) => updateItem(index, { modelId: event.target.value.trim() })}
+                onChange={(event) => setPendingDrafts((current) => current.map((value, draftIndex) => draftIndex === index ? event.target.value : value))}
               />
+              {pendingErrors[index] && <small id={`pending-error-${index}`} role="alert">{pendingErrors[index]}</small>}
+              <button type="button" onClick={() => addPendingModel(index)}>{draft ? `Add ${draft}` : 'Confirm model'}</button>
             </label>
           ))}
         </section>
       )}
-      {items.length < 4 && <button type="button" className="compare-add" onClick={() => setItems((current) => [...current, { modelId: '', ...defaults }])}><Plus size={16} /> Add model</button>}
+      {items.length + pendingDrafts.length < 4
+        ? <button id="compare-add" type="button" className="compare-add" onClick={() => setPendingDrafts((current) => [...current, ''])}><Plus size={16} /> Add model</button>
+        : <p className="compare-cap">Maximum of four models may be compared.</p>}
     </main>
   )
 }
@@ -230,8 +298,8 @@ function CompareCard({ item, index, status, onChange, onRemove, canMoveLeft, can
 
   return (
     <article className="compare-card" role="region" aria-label={`Comparison for ${label}`}>
-      <header><div><span>MODEL {index + 1}</span><h2>{label}</h2></div><div className="compare-card-actions"><button type="button" onClick={() => onMove(-1)} disabled={!canMoveLeft} aria-label={`Move ${label} left`}>←</button><button type="button" onClick={() => onMove(1)} disabled={!canMoveRight} aria-label={`Move ${label} right`}>→</button><button type="button" onClick={onRemove} aria-label={`Remove ${label}`}><X size={15} /></button></div></header>
-      {status.kind === 'loading' && <p role="status">Loading public model…</p>}
+      <header><div><span>MODEL {index + 1}</span><h2 id={cardId(item.modelId)} tabIndex={-1}>{label}</h2></div><div className="compare-card-actions"><button type="button" onClick={() => onMove(-1)} disabled={!canMoveLeft} aria-label={`Move ${label} left`}>←</button><button type="button" onClick={() => onMove(1)} disabled={!canMoveRight} aria-label={`Move ${label} right`}>→</button><button type="button" onClick={onRemove} aria-label={`Remove ${label}`}><X size={15} /></button></div></header>
+      {status.kind === 'loading' && <p>Loading public model…</p>}
       {status.kind === 'error' && <p className="compare-error" role="alert">This public model is unavailable.</p>}
       {model && (
         <>

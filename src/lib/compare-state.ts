@@ -27,12 +27,23 @@ const SOURCE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const VARIANT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const RESERVED_IDS = new Set(['api', 'compare', 'assets', 'favicon.ico', 'robots.txt'])
 
+export type CompareModelIdValidation =
+  | { valid: true; canonicalId: string }
+  | { valid: false; reason: 'empty' | 'malformed' | 'reserved' }
+
+export function validateCompareModelId(value: string): CompareModelIdValidation {
+  const canonicalId = value.trim()
+  if (!canonicalId) return { valid: false, reason: 'empty' }
+  const parts = canonicalId.split('/')
+  if (parts.length !== 2 || !parts.every((part) => part.length > 0 && part.length <= MAX_ID_SEGMENT_LENGTH && MODEL_SEGMENT.test(part))) {
+    return { valid: false, reason: 'malformed' }
+  }
+  if (RESERVED_IDS.has(canonicalId.toLowerCase()) || RESERVED_IDS.has(parts[0].toLowerCase())) return { valid: false, reason: 'reserved' }
+  return { valid: true, canonicalId }
+}
+
 function validModelId(value: string) {
-  const parts = value.split('/')
-  return parts.length === 2
-    && parts.every((part) => part.length > 0 && part.length <= MAX_ID_SEGMENT_LENGTH && MODEL_SEGMENT.test(part))
-    && !RESERVED_IDS.has(value.toLowerCase())
-    && !RESERVED_IDS.has(parts[0].toLowerCase())
+  return validateCompareModelId(value).valid
 }
 
 function validContext(value: number) {

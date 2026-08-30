@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseCompareState, serializeCompareState, type CompareItemState } from './compare-state'
+import { parseCompareState, serializeCompareState, validateCompareModelId, type CompareItemState } from './compare-state'
 
 const defaults: Omit<CompareItemState, 'modelId'> = {
   quantization: 'q4_k_m',
@@ -61,5 +61,11 @@ describe('comparison URL state', () => {
 
   it('requires the current version marker before accepting URL models', () => {
     expect(parseCompareState('model=Qwen%2FOne', defaults)).toEqual({ items: [] })
+  })
+
+  it('exports the canonical validator for malformed and reserved public IDs', () => {
+    expect(validateCompareModelId('Qwen/Model')).toEqual({ valid: true, canonicalId: 'Qwen/Model' })
+    expect(validateCompareModelId('compare/workspace')).toEqual({ valid: false, reason: 'reserved' })
+    expect(validateCompareModelId('bad/..')).toEqual({ valid: false, reason: 'malformed' })
   })
 })
