@@ -631,4 +631,97 @@ describe('Hugging Face-style model detail route', () => {
     const addonLabel = within(calculator).getByText('MTP addon')
     expect(addonLabel.parentElement).toHaveTextContent('0.50 GiB')
   })
+
+  it('restores safe calculator settings from the permanent detail URL after metadata loads', async () => {
+    window.history.replaceState(null, '', '/Qwen/Qwen3.8-27B?state=1&quant=q8_0&ctx=16384&kv=q8_0&mla=latent&vram=64&source=untrusted&variant=unknown')
+
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByRole('button', { name: '8bit' })).toHaveClass('active')
+    expect(within(calculator).getByLabelText('Context window')).toHaveValue(16384)
+    expect(within(calculator).getByLabelText('KV cache precision')).toHaveValue('q8_0')
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('64')
+    expect(within(calculator).queryByRole('tab', { name: 'untrusted' })).not.toBeInTheDocument()
+  })
+
+  it('loads a valid browser-only profile and applies its usable capacity', async () => {
+    window.localStorage.setItem('sizeof:hardware-profile:v1', JSON.stringify({
+      version: 1,
+      profile: { kind: 'unified-memory', label: 'Local workstation', capacityGiB: 48, reservedGiB: 8 },
+    }))
+
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByText('Local workstation: 48 GiB total, 8 GiB reserved.')).toBeInTheDocument()
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('40')
+  })
+
+  it('ignores malformed saved profiles and clears a saved profile on request', async () => {
+    window.localStorage.setItem('sizeof:hardware-profile:v1', '{bad json')
+    const user = userEvent.setup()
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('32')
+    await user.clear(within(calculator).getByLabelText('Label'))
+    await user.type(within(calculator).getByLabelText('Label'), 'Laptop')
+    await user.clear(within(calculator).getByLabelText('Total memory (GiB)'))
+    await user.type(within(calculator).getByLabelText('Total memory (GiB)'), '24')
+    await user.clear(within(calculator).getByLabelText('Reserved memory (GiB)'))
+    await user.type(within(calculator).getByLabelText('Reserved memory (GiB)'), '4')
+    await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
+    expect(window.localStorage.getItem('sizeof:hardware-profile:v1')).toContain('Laptop')
+    await user.click(within(calculator).getByRole('button', { name: 'Clear profile' }))
+    expect(window.localStorage.getItem('sizeof:hardware-profile:v1')).toBeNull()
+  })
+
+  it('discloses evidence and applies a deterministic fit suggestion', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    const evidence = within(calculator).getByText(/Evidence: 1 verified, 2 derived, 0 unknown/i)
+    await user.click(evidence)
+    const evidenceList = within(calculator).getByRole('list', { name: 'Estimate evidence' })
+    expect(within(evidenceList).getByText(/VERIFIED \/ Published model specification/)).toBeInTheDocument()
+    expect(within(evidenceList).getAllByRole('link', { name: 'View source' })[0]).toHaveAttribute('rel', 'noreferrer')
+
+    await user.selectOptions(within(calculator).getByLabelText('Your VRAM'), '16')
+    const planner = within(calculator).getByRole('region', { name: 'Fit planner' })
+    const suggestion = await within(planner).findByRole('button', { name: 'Apply' })
+    await user.click(suggestion)
+    expect(within(calculator).getByRole('button', { name: '3bit' })).toHaveClass('active')
+  })
+
+  it('refuses precise fit guidance for lower-bound runtime-specific models', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      estimateConfidence: 'runtime-specific',
+      spec: { ...apiModel.spec, estimateConfidence: 'runtime-specific' },
+    })))
+    render(<App />)
+
+    const planner = await screen.findByRole('region', { name: 'Fit planner' })
+    expect(within(planner).getByText('This runtime-specific model cannot guarantee a precise fit.')).toBeInTheDocument()
+  })
+
+  it('replaces the permanent URL when each visible calculator setting changes', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    await user.click(within(calculator).getByRole('button', { name: '8bit' }))
+    await user.click(within(calculator).getByRole('button', { name: '4K' }))
+    await user.selectOptions(within(calculator).getByLabelText('KV cache precision'), 'q8_0')
+    await user.selectOptions(within(calculator).getByLabelText('Your VRAM'), '64')
+
+    expect(window.location.search).toContain('quant=q8_0')
+    expect(window.location.search).toContain('ctx=4096')
+    expect(window.location.search).toContain('kv=q8_0')
+    expect(window.location.search).toContain('vram=64')
+    expect(window.location.search).toContain('source=estimated')
+    expect(window.location.search).toContain('variant=none')
+  })
 })

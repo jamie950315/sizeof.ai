@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -17,6 +17,13 @@ import { getMemoryBarPartPercents, getMemoryBarUsage } from './lib/memory-bar'
 import { vramPresets } from './lib/vram-presets'
 import type { HuggingFaceModel, HuggingFaceRoute } from './lib/huggingface'
 import type { HuggingFaceVariant } from './lib/huggingface-variants'
+import { parseDetailState, serializeDetailState } from './lib/detail-state'
+import { parseHardwareProfile, serializeHardwareProfile, usableMemoryGiB, type HardwareProfile } from './lib/hardware-profile'
+import { buildModelEvidence } from './lib/evidence'
+import type { FitAdjustment } from './lib/planner'
+import EvidenceDrawer from './components/EvidenceDrawer'
+import HardwareProfileControls from './components/HardwareProfileControls'
+import FitPlanner from './components/FitPlanner'
 
 interface Props {
   route: HuggingFaceRoute
@@ -59,6 +66,7 @@ const estimateReasonLabels: Record<NonNullable<HuggingFaceModel['estimateReason'
 
 const quantizationBits = [1, 2, 3, 4, 5, 6, 8, 16] as const
 const preferredSourcePublishers = ['unsloth', 'lmstudio-community', 'mlx-community', 'bartowski'] as const
+const hardwareStorageKey = 'sizeof:hardware-profile:v1'
 
 function variantBits(variant: HuggingFaceVariant) {
   const searchable = [variant.label, variant.repositoryId, variant.path].filter(Boolean).join(' ')
@@ -147,6 +155,10 @@ export default function ModelDetailPage({ route }: Props) {
   const [selectedSource, setSelectedSource] = useState('estimated')
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
   const [selectedResourceOptionId, setSelectedResourceOptionId] = useState<string | null>(null)
+  const [hardwareProfile, setHardwareProfile] = useState<HardwareProfile | null>(() => (
+    parseHardwareProfile(window.localStorage.getItem(hardwareStorageKey))
+  ))
+  const restoredRouteState = useRef(false)
 
   useEffect(() => {
     let active = true
@@ -163,9 +175,36 @@ export default function ModelDetailPage({ route }: Props) {
           const defaultVariant = nextModel.addon
             ? variants.find((variant) => variant.role === 'addon')
             : null
-          setSelectedSource(nextModel.addon ? 'repository' : 'estimated')
-          setSelectedVariantId(defaultVariant?.id ?? null)
+          const defaultSource = nextModel.addon ? 'repository' : 'estimated'
+          const parsed = parseDetailState(window.location.search, {
+            quantization: 'q4_k_m', context: 8192, kvPrecision: 'fp16', mlaCacheMode: 'expanded', vramGiB: 32,
+            selectedSource: defaultSource, selectedVariantId: defaultVariant?.id ?? null,
+          })
+          const modelVariants = nextModel.addon
+            ? variants.filter((variant) => variant.role === 'addon')
+            : variants.filter((variant) => variant.role === 'model')
+          const allowedSources = new Set([
+            defaultSource,
+            ...modelVariants.map((variant) => (variant.publisher ?? nextModel.owner ?? 'repository').toLowerCase()),
+          ])
+          const selectedSource = allowedSources.has(parsed.selectedSource) ? parsed.selectedSource : defaultSource
+          const selectedVariantId = selectedSource === 'estimated'
+            ? null
+            : modelVariants.some((variant) => variant.id === parsed.selectedVariantId
+              && (nextModel.addon || (variant.publisher ?? nextModel.owner ?? 'repository').toLowerCase() === selectedSource))
+              ? parsed.selectedVariantId
+              : selectedSource === defaultSource ? defaultVariant?.id ?? null : null
+          setQuantization(parsed.quantization)
+          setContext(parsed.context)
+          setKvPrecision(parsed.kvPrecision)
+          setMlaCacheMode(parsed.mlaCacheMode)
+          const savedProfile = parseHardwareProfile(window.localStorage.getItem(hardwareStorageKey))
+          setHardwareProfile(savedProfile)
+          setVram(savedProfile ? usableMemoryGiB(savedProfile) : parsed.vramGiB)
+          setSelectedSource(selectedSource)
+          setSelectedVariantId(selectedVariantId)
           setSelectedResourceOptionId(nextModel.resourceEstimate?.options[0]?.id ?? null)
+          restoredRouteState.current = true
         }
       })
       .catch((reason: unknown) => {
@@ -173,6 +212,18 @@ export default function ModelDetailPage({ route }: Props) {
       })
     return () => { active = false }
   }, [route.owner, route.repo])
+
+  useEffect(() => {
+    if (!model || !restoredRouteState.current) return
+    const query = serializeDetailState({
+      quantization, context, kvPrecision, mlaCacheMode, vramGiB: vram, selectedSource, selectedVariantId,
+    })
+    window.history.replaceState(null, '', `${window.location.pathname}?${query}`)
+  }, [context, kvPrecision, mlaCacheMode, model, quantization, selectedSource, selectedVariantId, vram])
+
+  useEffect(() => {
+    if (model && hardwareProfile) setVram(usableMemoryGiB(hardwareProfile))
+  }, [hardwareProfile, model])
 
   useEffect(() => {
     if (model) document.title = `${model.name} VRAM & specs — sizeof.ai`
@@ -232,10 +283,38 @@ export default function ModelDetailPage({ route }: Props) {
   )
   const fit = estimate ? classifyFit(estimate.totalGiB, vram) : null
 
+  const evidence = useMemo(
+    () => model?.spec ? buildModelEvidence(model.spec, selectedVariant) : [],
+    [model, selectedVariant],
+  )
+
   async function copyUrl() {
     await navigator.clipboard.writeText(window.location.href)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1600)
+  }
+
+  function applyHardwareProfile(profile: HardwareProfile) {
+    try {
+      window.localStorage.setItem(hardwareStorageKey, serializeHardwareProfile(profile))
+      setHardwareProfile(profile)
+      setVram(usableMemoryGiB(profile))
+    } catch {
+      // Local storage may be disabled; the visible state remains usable for this session.
+      setHardwareProfile(profile)
+      setVram(usableMemoryGiB(profile))
+    }
+  }
+
+  function clearHardwareProfile() {
+    window.localStorage.removeItem(hardwareStorageKey)
+    setHardwareProfile(null)
+  }
+
+  function applyFitAdjustment(adjustment: FitAdjustment) {
+    if (adjustment.field === 'context') setContext(adjustment.value as number)
+    if (adjustment.field === 'kvPrecision') setKvPrecision(adjustment.value as KvPrecisionId)
+    if (adjustment.field === 'quantization') setQuantization(adjustment.value as QuantizationId)
   }
 
   function chooseQuantization(id: QuantizationId) {
@@ -562,10 +641,16 @@ export default function ModelDetailPage({ route }: Props) {
                   <div className="control-block compact">
                     <label htmlFor="detail-vram">Your VRAM</label>
                     <select id="detail-vram" value={vram} onChange={(event) => setVram(Number(event.target.value))}>
+                      {!vramPresets.some((value) => value === vram) && <option value={vram}>{vram} GiB usable</option>}
                       {vramPresets.map((value) => <option value={value} key={value}>{value} GiB</option>)}
                     </select>
                   </div>
                 </div>
+                <HardwareProfileControls
+                  profile={hardwareProfile}
+                  onApply={applyHardwareProfile}
+                  onClear={clearHardwareProfile}
+                />
                 {artifactPanel}
                 {architecturePanel}
               </div>
@@ -613,6 +698,23 @@ export default function ModelDetailPage({ route }: Props) {
                   : model.spec.kvCache?.kind === 'mla'
                     ? `${mlaCacheMode === 'expanded' ? 'Expanded K/V follows the repository reference cache.' : 'Compressed latent assumes an optimized MLA engine.'} Only full-attention layers scale with context.`
                     : 'KV cache follows the published full-attention geometry.'}</p>
+                <EvidenceDrawer entries={evidence} />
+                <FitPlanner
+                  model={model.spec}
+                  capacityGiB={vram}
+                  context={context}
+                  quantization={quantization}
+                  kvPrecision={kvPrecision}
+                  mlaCacheMode={mlaCacheMode}
+                  weightBytesOverride={selectedVariant?.role === 'model' ? selectedVariant.weightSizeBytes : undefined}
+                  additionalWeightBytes={model.addon ? selectedVariant?.weightSizeBytes ?? model.addon.sizeBytes ?? undefined : undefined}
+                  totalGiB={estimate.totalGiB}
+                  onApply={applyFitAdjustment}
+                />
+                <div className="detail-sticky-result" role="status" aria-label="Current memory result">
+                  <strong>{estimate.isLowerBound ? 'Lower bound' : `${estimate.totalGiB.toFixed(2)} GiB`}</strong>
+                  <span>{fitLabels[fit]} · {vram} GiB capacity</span>
+                </div>
               </div>
             </div>
           </section>
