@@ -11,6 +11,7 @@ const defaults: Omit<CompareItemState, 'modelId'> = {
 }
 
 type ModelStatus = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; model: HuggingFaceModel }
+type QueuedModel = { key: string; modelId: string; generation: number }
 
 function currentItems() {
   return parseCompareState(window.location.search, defaults).items
@@ -52,7 +53,11 @@ export default function ComparePage() {
   const [submitted, setSubmitted] = useState(() => currentItems().length >= 2)
   const [models, setModels] = useState<Record<string, ModelStatus>>({})
   const modelsRef = useRef<Record<string, ModelStatus>>({})
-  const requestControllers = useRef(new Map<string, AbortController>())
+  const activeRequests = useRef(new Map<string, AbortController>())
+  const selectedIds = useRef(new Map<string, string>())
+  const requestQueue = useRef<QueuedModel[]>([])
+  const requestGeneration = useRef(0)
+  const isMounted = useRef(false)
   const [copied, setCopied] = useState(false)
   const [builderDrafts, setBuilderDrafts] = useState(() => [...currentItems().map((item) => item.modelId), '', ''].slice(0, 2))
   const [builderErrors, setBuilderErrors] = useState<Record<number, string>>({})
@@ -86,60 +91,81 @@ export default function ComparePage() {
   }, [activeItems, submitted])
 
   useEffect(() => {
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+      requestGeneration.current++
+      requestQueue.current = []
+      selectedIds.current.clear()
+      for (const controller of activeRequests.current.values()) controller.abort()
+      activeRequests.current.clear()
+      modelsRef.current = Object.fromEntries(Object.entries(modelsRef.current).filter(([, status]) => status.kind !== 'loading'))
+    }
+  }, [])
+
+  useEffect(() => {
+    const generation = ++requestGeneration.current
     const idsByKey = new Map(fetchIds.map((modelId) => [canonicalModelKey(modelId), modelId]))
+    selectedIds.current = idsByKey
     const desiredKeys = new Set(idsByKey.keys())
-    for (const [key, controller] of requestControllers.current) {
-      if (!desiredKeys.has(key)) {
+    for (const [key, controller] of activeRequests.current) {
+      if (!canCompare || !desiredKeys.has(key)) {
         controller.abort()
-        requestControllers.current.delete(key)
+        activeRequests.current.delete(key)
       }
     }
     const retained = Object.fromEntries(Object.entries(modelsRef.current).filter(([key]) => desiredKeys.has(key)))
     modelsRef.current = retained
     setModels(retained)
     if (!canCompare) return
-    const missingIds = fetchIds.filter((modelId) => {
+    const nextQueue: QueuedModel[] = []
+    for (const modelId of fetchIds) {
       const key = canonicalModelKey(modelId)
-      return !modelsRef.current[key] && !requestControllers.current.has(key)
-    })
-    if (missingIds.length === 0) return
-    const loading = { ...modelsRef.current }
-    for (const modelId of missingIds) loading[canonicalModelKey(modelId)] = { kind: 'loading' }
-    modelsRef.current = loading
-    setModels(loading)
-    let cursor = 0
-    const request = async () => {
-      while (cursor < missingIds.length) {
-        const modelId = missingIds[cursor++]
-        const key = canonicalModelKey(modelId)
+      const status = modelsRef.current[key]
+      if (activeRequests.current.has(key)) continue
+      if (status && status.kind !== 'loading') continue
+      modelsRef.current[key] = { kind: 'loading' }
+      nextQueue.push({ key, modelId, generation })
+    }
+    requestQueue.current = nextQueue
+    setModels({ ...modelsRef.current })
+
+    const pump = () => {
+      if (!isMounted.current) return
+      while (activeRequests.current.size < 2) {
+        const next = requestQueue.current.shift()
+        if (!next) return
+        if (next.generation !== requestGeneration.current || selectedIds.current.get(next.key) !== next.modelId || activeRequests.current.has(next.key)) continue
         const controller = new AbortController()
-        requestControllers.current.set(key, controller)
-        try {
-          const response = await fetch(`/api/models/${encodeURIComponent(modelId.split('/')[0])}/${encodeURIComponent(modelId.split('/')[1])}?schema=13`, { signal: controller.signal })
-          const payload = await response.json() as HuggingFaceModel
-          if (!response.ok) throw new Error('unavailable')
-          if (!controller.signal.aborted) setModels((current) => {
-            const next = { ...current, [key]: { kind: 'ready', model: payload } as ModelStatus }
-            modelsRef.current = next
-            return next
-          })
-        } catch {
-          if (!controller.signal.aborted) setModels((current) => {
-            const next: Record<string, ModelStatus> = { ...current, [key]: { kind: 'error' } }
-            modelsRef.current = next
-            return next
-          })
-        } finally {
-          if (requestControllers.current.get(key) === controller) requestControllers.current.delete(key)
-        }
+        activeRequests.current.set(next.key, controller)
+        void (async () => {
+          try {
+            const response = await fetch(`/api/models/${encodeURIComponent(next.modelId.split('/')[0])}/${encodeURIComponent(next.modelId.split('/')[1])}?schema=13`, { signal: controller.signal })
+            const payload = await response.json() as HuggingFaceModel
+            if (!response.ok) throw new Error('unavailable')
+            if (!controller.signal.aborted && isMounted.current && selectedIds.current.has(next.key) && activeRequests.current.get(next.key) === controller) {
+              const updated: Record<string, ModelStatus> = { ...modelsRef.current, [next.key]: { kind: 'ready', model: payload } }
+              modelsRef.current = updated
+              setModels(updated)
+            }
+          } catch {
+            if (!controller.signal.aborted && isMounted.current && selectedIds.current.has(next.key) && activeRequests.current.get(next.key) === controller) {
+              const updated: Record<string, ModelStatus> = { ...modelsRef.current, [next.key]: { kind: 'error' } }
+              modelsRef.current = updated
+              setModels(updated)
+            }
+          } finally {
+            if (activeRequests.current.get(next.key) === controller) activeRequests.current.delete(next.key)
+            pump()
+          }
+        })()
       }
     }
-    void Promise.all(Array.from({ length: Math.min(2, missingIds.length) }, request))
+    pump()
+    return () => {
+      requestQueue.current = requestQueue.current.filter((entry) => entry.generation !== generation)
+    }
   }, [canCompare, fetchIds, modelIdsKey])
-
-  useEffect(() => () => {
-    for (const controller of requestControllers.current.values()) controller.abort()
-  }, [])
 
   useEffect(() => {
     if (!focusModelId) return

@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,6 +22,16 @@ const safeModel = (id: string) => {
 
 function compareUrl(...ids: string[]) {
   return `/compare?compare=1&${ids.map((id) => `model=${encodeURIComponent(`${id}~q4_k_m~8192~fp16~expanded~32~estimated~none`)}`).join('&')}`
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
 }
 
 describe('model comparison workspace', () => {
@@ -277,5 +288,79 @@ describe('model comparison workspace', () => {
 
     expect(new Set(links.map((link) => link.getAttribute('href'))).size).toBe(3)
     expect(targets.map((target) => target?.textContent)).toEqual(['A-B/C', 'A_B/C', 'A.B/C'])
+  })
+
+  it('completes the initial two-model load after StrictMode replays effects', async () => {
+    render(<StrictMode><ComparePage /></StrictMode>)
+
+    expect(await screen.findAllByText('TOTAL')).toHaveLength(2)
+  })
+
+  it('keeps no more than two requests active while third and fourth models are added', async () => {
+    const user = userEvent.setup()
+    const pending = new Map<string, ReturnType<typeof deferred<Response>>>()
+    let active = 0
+    let maxActive = 0
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const match = String(input).match(/\/api\/models\/([^/]+)\/([^?]+)/)
+      const id = `${decodeURIComponent(match![1])}/${decodeURIComponent(match![2])}`
+      const request = deferred<Response>()
+      pending.set(id, request)
+      active++
+      maxActive = Math.max(maxActive, active)
+      void request.promise.then(() => { active-- })
+      return request.promise
+    }))
+    render(<ComparePage />)
+    await vi.waitFor(() => expect(pending.size).toBe(2))
+
+    await user.click(screen.getByRole('button', { name: 'Add model' }))
+    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID' }), 'Org/Three')
+    await user.click(screen.getByRole('button', { name: 'Add Org/Three' }))
+    await user.click(screen.getByRole('button', { name: 'Add model' }))
+    await user.type(screen.getByRole('textbox', { name: 'Model 4 ID' }), 'Org/Four')
+    await user.click(screen.getByRole('button', { name: 'Add Org/Four' }))
+
+    expect(maxActive).toBe(2)
+    expect(pending.has('Org/Three')).toBe(false)
+    expect(pending.has('Org/Four')).toBe(false)
+  })
+
+  it('never starts a queued model request after that model is removed', async () => {
+    const user = userEvent.setup()
+    const pending = new Map<string, ReturnType<typeof deferred<Response>>>()
+    const requested: string[] = []
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const match = String(input).match(/\/api\/models\/([^/]+)\/([^?]+)/)
+      const id = `${decodeURIComponent(match![1])}/${decodeURIComponent(match![2])}`
+      requested.push(id)
+      const request = deferred<Response>()
+      pending.set(id, request)
+      return request.promise
+    }))
+    render(<ComparePage />)
+    await vi.waitFor(() => expect(requested).toEqual(['Qwen/One', 'Meta/Two']))
+    await user.click(screen.getByRole('button', { name: 'Add model' }))
+    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID' }), 'Org/Three')
+    await user.click(screen.getByRole('button', { name: 'Add Org/Three' }))
+    await user.click(screen.getByRole('button', { name: 'Remove Org/Three' }))
+
+    pending.get('Qwen/One')!.resolve(Response.json(safeModel('Qwen/One')))
+    pending.get('Meta/Two')!.resolve(Response.json(safeModel('Meta/Two')))
+    await screen.findAllByText('TOTAL')
+    expect(requested).toEqual(['Qwen/One', 'Meta/Two'])
+  })
+
+  it('does not start queued work or report late state updates after unmount', async () => {
+    const pending = deferred<Response>()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    vi.stubGlobal('fetch', vi.fn(() => pending.promise))
+    const view = render(<StrictMode><ComparePage /></StrictMode>)
+    view.unmount()
+
+    pending.resolve(Response.json(safeModel('Qwen/One')))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(consoleError).not.toHaveBeenCalled()
   })
 })
