@@ -72,6 +72,31 @@ describe('Hugging Face-style model detail route', () => {
     expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=13')
   })
 
+  it('progressively discloses an accessible editable serving scenario with conservative unknowns', async () => {
+    const user = userEvent.setup()
+    vi.mocked(fetch).mockImplementation(async () => Response.json({ ...apiModel, modelKind: 'language' }))
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Qwen3.8-27B' })
+    const scenario = screen.getByRole('group', { name: 'Serving scenario' })
+    expect(within(scenario).queryByLabelText('Prompt tokens per request')).not.toBeVisible()
+    await user.click(within(scenario).getByText('Serving scenario', { selector: 'summary' }))
+
+    expect(within(scenario).getByLabelText('Engine profile')).toHaveValue('vllm')
+    expect(within(scenario).getByLabelText('Prompt tokens per request')).toHaveValue(1024)
+    expect(within(scenario).getByLabelText('Maximum generated tokens')).toHaveValue(512)
+    expect(within(scenario).getByLabelText('Concurrency')).toHaveValue(1)
+    expect(within(scenario).getByText('Examples only; editable, not recommended guarantees.')).toBeInTheDocument()
+    expect(within(scenario).getByText('Decode resident lower bound')).toBeInTheDocument()
+    expect(within(scenario).getByText('Not safely derivable from public model metadata.')).toBeInTheDocument()
+    expect(within(scenario).getByRole('link', { name: /vLLM source/i })).toHaveAttribute('href', expect.stringMatching(/^https:/))
+
+    await user.selectOptions(within(scenario).getByLabelText('Workload example'), 'rag')
+    await user.clear(within(scenario).getByLabelText('Prompt tokens per request'))
+    await user.type(within(scenario).getByLabelText('Prompt tokens per request'), '2048')
+    expect(within(scenario).getByLabelText('Prompt tokens per request')).toHaveValue(2048)
+  })
+
   it('keeps source actions and adds a comparison entry for the loaded model', async () => {
     render(<App />)
 

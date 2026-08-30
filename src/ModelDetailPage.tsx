@@ -26,6 +26,7 @@ import EvidenceDrawer from './components/EvidenceDrawer'
 import HardwareProfileControls from './components/HardwareProfileControls'
 import FitPlanner from './components/FitPlanner'
 import ExportMenu from './components/ExportMenu'
+import ServingScenario from './components/ServingScenario'
 import type { SizingExportInput } from './lib/export'
 
 interface Props {
@@ -787,6 +788,20 @@ export default function ModelDetailPage({ route }: Props) {
                   totalGiB={estimate.totalGiB}
                   onApply={applyFitAdjustment}
                 />
+                {model.modelKind === 'language' && (model.spec.estimateConfidence ?? 'safe') === 'safe' && (
+                  <ServingScenario
+                    model={model.spec}
+                    estimateOptions={{
+                      quantization,
+                      kvPrecision,
+                      mlaCacheMode,
+                      weightBytesOverride: selectedVariant?.role === 'model' ? selectedVariant.weightSizeBytes : undefined,
+                      additionalWeightBytes: model.addon ? selectedVariant?.weightSizeBytes ?? model.addon.sizeBytes ?? undefined : undefined,
+                    }}
+                    artifactFormat={selectedVariant?.role === 'model' ? selectedVariant.format : null}
+                    hardwareKind={isHardwareProfileApplied ? savedHardwareProfile?.kind ?? null : null}
+                  />
+                )}
                 <div className="detail-sticky-result" role="status" aria-label="Current memory result">
                   <strong>{estimate.isLowerBound ? `${estimate.totalGiB.toFixed(2)} GiB lower bound` : `${estimate.totalGiB.toFixed(2)} GiB`}</strong>
                   <span>{fitLabels[fit]} · {vram} GiB capacity</span>

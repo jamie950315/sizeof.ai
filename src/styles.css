@@ -904,12 +904,14 @@ body { background: var(--ink); }
 
 .hardware-profile,
 .evidence-drawer,
-.fit-planner {
+.fit-planner,
+.serving-scenario {
   margin-top: 22px;
   padding: 14px;
   border: 1px solid var(--line);
   background: #10151c;
 }
+.serving-scenario { min-width: 0; }
 .hardware-profile { display: grid; gap: 9px; }
 .hardware-profile legend,
 .fit-planner h3 { padding: 0; margin: 0; color: var(--paper); font-size: 14px; }
@@ -938,6 +940,21 @@ body { background: var(--ink); }
 .evidence-drawer a { width: max-content; color: var(--accent); font-size: 11px; }
 .fit-planner { display: grid; gap: 10px; }
 .fit-planner li { color: var(--paper); font-size: 12px; }
+.serving-scenario summary { cursor: pointer; color: var(--paper); font-size: 14px; font-weight: 700; }
+.serving-scenario > details > p,
+.serving-result p { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.serving-input-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.serving-input-grid label { display: grid; min-width: 0; gap: 6px; color: var(--muted); font: 600 9px/1.25 'JetBrains Mono Variable', monospace; letter-spacing: .06em; text-transform: uppercase; }
+.serving-input-grid input,
+.serving-input-grid select { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); color: var(--paper); padding: 8px 9px; }
+.serving-source a { color: var(--accent); }
+.serving-result { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.serving-result dl { margin: 0; }
+.serving-result dl > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.serving-result dt, .serving-result dd { margin: 0; font-size: 11px; }
+.serving-result dt { color: var(--muted); }
+.serving-result dd { color: var(--paper); font-weight: 700; text-align: right; }
+.serving-status { margin: 12px 0 0; color: #f5b84b; font-size: 12px; }
 .detail-sticky-result { display: none; }
 
 @media (min-width: 951px) {
@@ -1054,6 +1071,7 @@ body { background: var(--ink); }
   .detail-architecture-list dd { text-align: left; }
   .detail-list-source { align-items: flex-start; flex-direction: column; }
   .hardware-memory-inputs { grid-template-columns: 1fr; }
+  .serving-input-grid { grid-template-columns: 1fr; }
   .detail-sticky-result {
     position: sticky;
     bottom: max(12px, env(safe-area-inset-bottom));
@@ -1078,6 +1096,7 @@ body { background: var(--ink); }
 
 @media (prefers-reduced-motion: reduce) {
   .detail-sticky-result { transition: none; }
+  .serving-scenario { transition: none; }
 }
 
 /* Public model comparison workspace */
