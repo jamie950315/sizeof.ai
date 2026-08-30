@@ -726,7 +726,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(window.location.search).toContain('variant=none')
   })
 
-  it('copies a hardware-profile URL that reproduces custom usable capacity in a fresh browser', async () => {
+  it('copies only a custom usable capacity URL that wins over local profile metadata in a fresh browser', async () => {
     const user = userEvent.setup()
     const writeText = vi.fn()
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
@@ -751,7 +751,35 @@ describe('Hugging Face-style model detail route', () => {
 
     const freshCalculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(within(freshCalculator).getByLabelText('Your VRAM')).toHaveValue('40')
-    expect(within(freshCalculator).getByText('Shared memory: 48 GiB total, 8 GiB reserved.')).toBeInTheDocument()
+    expect(within(freshCalculator).queryByText(/Shared memory|Different local GPU/)).not.toBeInTheDocument()
+    expect(new URL(copiedUrl).search).not.toMatch(/Shared%20memory|reservedGiB|hardware=/)
+  })
+
+  it('detaches a local hardware profile when choosing a VRAM preset and copies that preset exactly', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn()
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const first = render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    await user.clear(within(calculator).getByLabelText('Label'))
+    await user.type(within(calculator).getByLabelText('Label'), 'Private profile')
+    await user.clear(within(calculator).getByLabelText('Total memory (GiB)'))
+    await user.type(within(calculator).getByLabelText('Total memory (GiB)'), '48')
+    await user.clear(within(calculator).getByLabelText('Reserved memory (GiB)'))
+    await user.type(within(calculator).getByLabelText('Reserved memory (GiB)'), '8')
+    await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('40')
+    await user.selectOptions(within(calculator).getByLabelText('Your VRAM'), '64')
+    await user.click(screen.getByRole('button', { name: /copy sizeof url/i }))
+    const copiedUrl = window.location.href
+    expect(new URL(copiedUrl).search).toContain('vram=64')
+    expect(new URL(copiedUrl).search).not.toMatch(/Private|reservedGiB|hardware=/)
+
+    first.unmount()
+    window.history.replaceState(null, '', new URL(copiedUrl).pathname + new URL(copiedUrl).search)
+    render(<App />)
+    const freshCalculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(freshCalculator).getByLabelText('Your VRAM')).toHaveValue('64')
   })
 
   it('atomically falls back to estimated sizing when a valid publisher has an invalid variant', async () => {
@@ -772,6 +800,23 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(calculator).getByText('HYPOTHETICAL BIT/WEIGHT ESTIMATE')).toBeInTheDocument()
     expect(window.location.search).toContain('source=estimated')
     expect(window.location.search).toContain('variant=none')
+  })
+
+  it('restores the default addon variant when an addon URL variant is invalid', async () => {
+    window.history.replaceState(null, '', '/Qwen/Qwen3.8-27B?state=1&source=repository&variant=missing')
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      variants: [{
+        id: 'mtp', label: 'GGUF mtp-head', format: 'gguf', revision: 'sha1', path: 'mtp-head.gguf', source: 'file', role: 'addon',
+        bitsPerWeight: null, weightSizeBytes: 512 * 1024 ** 2, totalSizeBytes: 512 * 1024 ** 2,
+      }],
+      addon: { kind: 'mtp', baseModelId: 'Qwen/Qwen3.8-27B', parametersB: 0.46, sizeBytes: 512 * 1024 ** 2 },
+    })))
+    render(<App />)
+    const variants = await screen.findByRole('region', { name: 'Detected model variants' })
+    expect(within(variants).getByLabelText('Repository variant')).toHaveValue('mtp')
+    expect(window.location.search).toContain('source=repository')
+    expect(window.location.search).toContain('variant=mtp')
   })
 
   it('guards browser storage failures and rejects invalid hardware form values before applying', async () => {
@@ -801,7 +846,8 @@ describe('Hugging Face-style model detail route', () => {
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     await user.click(within(calculator).getByText(/Evidence:/))
-    expect(within(calculator).getByText(/Observed 2026-08-14T15:00:01.000Z/)).toBeInTheDocument()
+    expect(within(calculator).getByText(/Repository updated 2026-08-14T15:00:01.000Z/)).toBeInTheDocument()
+    expect(within(calculator).queryByText(/Observed 2026-08-14T15:00:01.000Z/)).not.toBeInTheDocument()
     expect(within(calculator).getByText(/UNKNOWN \/ Runtime-specific memory factors/).closest('li')).toHaveClass('evidence-unknown')
     const sticky = within(calculator).getByRole('status', { name: 'Current memory result' })
     expect(sticky).toHaveTextContent(/\d+\.\d+ GiB lower bound/i)

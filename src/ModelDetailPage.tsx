@@ -199,14 +199,18 @@ export default function ModelDetailPage({ route }: Props) {
             variant.id === parsed.selectedVariantId
             && (nextModel.addon || (variant.publisher ?? nextModel.owner ?? 'repository').toLowerCase() === requestedSource)
           ))
-          const selectedSource = requestedSource !== 'estimated' && !variantIsValid ? 'estimated' : requestedSource
-          const selectedVariantId = variantIsValid ? parsed.selectedVariantId : null
+          const selectedSource = requestedSource !== 'estimated' && !variantIsValid
+            ? nextModel.addon ? defaultSource : 'estimated'
+            : requestedSource
+          const selectedVariantId = variantIsValid
+            ? parsed.selectedVariantId
+            : nextModel.addon ? defaultVariant?.id ?? null : null
           setQuantization(parsed.quantization)
           setContext(parsed.context)
           setKvPrecision(parsed.kvPrecision)
           setMlaCacheMode(parsed.mlaCacheMode)
-          const urlControlsHardware = /(?:^|[?&])hardware=/.test(window.location.search)
-          const savedProfile = urlControlsHardware ? parsed.hardwareProfile ?? null : loadLocalHardwareProfile()
+          const urlControlsCapacity = /(?:^|[?&])state=1(?:&|$)/.test(window.location.search)
+          const savedProfile = urlControlsCapacity ? null : loadLocalHardwareProfile()
           setHardwareProfile(savedProfile)
           setFallbackVram(parsed.vramGiB)
           setVram(savedProfile ? usableMemoryGiB(savedProfile) : parsed.vramGiB)
@@ -226,10 +230,9 @@ export default function ModelDetailPage({ route }: Props) {
     if (!model || !restoredRouteState.current) return
     const query = serializeDetailState({
       quantization, context, kvPrecision, mlaCacheMode, vramGiB: vram, selectedSource, selectedVariantId,
-      ...(hardwareProfile ? { hardwareProfile } : {}),
     })
     window.history.replaceState(null, '', `${window.location.pathname}?${query}`)
-  }, [context, hardwareProfile, kvPrecision, mlaCacheMode, model, quantization, selectedSource, selectedVariantId, vram])
+  }, [context, kvPrecision, mlaCacheMode, model, quantization, selectedSource, selectedVariantId, vram])
 
   useEffect(() => {
     if (model) document.title = `${model.name} VRAM & specs — sizeof.ai`
@@ -318,6 +321,12 @@ export default function ModelDetailPage({ route }: Props) {
     }
     setHardwareProfile(null)
     setVram(fallbackVram)
+  }
+
+  function chooseVram(value: number) {
+    setHardwareProfile(null)
+    setFallbackVram(value)
+    setVram(value)
   }
 
   function applyFitAdjustment(adjustment: FitAdjustment) {
@@ -649,7 +658,7 @@ export default function ModelDetailPage({ route }: Props) {
                   </div>
                   <div className="control-block compact">
                     <label htmlFor="detail-vram">Your VRAM</label>
-                    <select id="detail-vram" value={vram} onChange={(event) => setVram(Number(event.target.value))}>
+                    <select id="detail-vram" value={vram} onChange={(event) => chooseVram(Number(event.target.value))}>
                       {!vramPresets.some((value) => value === vram) && <option value={vram}>{vram} GiB usable</option>}
                       {vramPresets.map((value) => <option value={value} key={value}>{value} GiB</option>)}
                     </select>

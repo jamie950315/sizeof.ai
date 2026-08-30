@@ -1,9 +1,4 @@
 import { kvPrecisions, quantizations, type KvPrecisionId, type QuantizationId } from '../data/quantizations'
-import {
-  parseHardwareProfile,
-  serializeHardwareProfile,
-  type HardwareProfile,
-} from './hardware-profile'
 
 export interface DetailCalculatorState {
   quantization: QuantizationId
@@ -13,18 +8,22 @@ export interface DetailCalculatorState {
   vramGiB: number
   selectedSource: string
   selectedVariantId: string | null
-  hardwareProfile?: HardwareProfile
 }
 
 const MAX_CONTEXT = 16_777_216
 const MAX_SOURCE_LENGTH = 96
 const MAX_VARIANT_LENGTH = 120
 const VRAM_CAPACITIES = new Set([8, 12, 16, 24, 32, 36, 48, 64, 80, 96, 128, 192, 256, 384, 512])
+const MAX_CUSTOM_VRAM_GIB = 4096
 const SOURCE_PATTERN = /^[a-z0-9][a-z0-9._-]*$/i
 const VARIANT_PATTERN = /^[a-z0-9][a-z0-9._:-]*$/i
 
 function validContext(value: number) {
   return Number.isSafeInteger(value) && value >= 1024 && value <= MAX_CONTEXT && value % 1024 === 0
+}
+
+function validVram(value: number) {
+  return VRAM_CAPACITIES.has(value) || (Number.isFinite(value) && value > 0 && value <= MAX_CUSTOM_VRAM_GIB)
 }
 
 function safeSource(value: string | null, fallback: string) {
@@ -68,8 +67,6 @@ export function parseDetailState(search: string, defaults: DetailCalculatorState
   const context = Number(params.get('ctx') ?? null)
   const vramGiB = Number(params.get('vram') ?? null)
   const mlaCacheMode = params.get('mla') ?? null
-  const hardwareValue = params.get('hardware') ?? null
-  const parsedHardwareProfile = parseHardwareProfile(hardwareValue)
   const selectedSource = safeSource(params.get('source') ?? null, defaults.selectedSource)
   const variantValue = params.get('variant') ?? null
 
@@ -84,18 +81,13 @@ export function parseDetailState(search: string, defaults: DetailCalculatorState
     mlaCacheMode: mlaCacheMode === 'expanded' || mlaCacheMode === 'latent'
       ? mlaCacheMode
       : defaults.mlaCacheMode,
-    vramGiB: VRAM_CAPACITIES.has(vramGiB) ? vramGiB : defaults.vramGiB,
+    vramGiB: validVram(vramGiB) ? vramGiB : defaults.vramGiB,
     selectedSource,
     selectedVariantId: selectedSource === 'estimated' || (versioned && variantValue === 'none')
       ? null
       : params.has('variant')
         ? safeVariant(variantValue) ?? defaults.selectedVariantId
       : defaults.selectedVariantId,
-    ...(versioned && hardwareValue === 'none'
-      ? {}
-      : parsedHardwareProfile
-      ? { hardwareProfile: parsedHardwareProfile }
-      : defaults.hardwareProfile ? { hardwareProfile: defaults.hardwareProfile } : {}),
   }
 }
 
@@ -110,6 +102,5 @@ export function serializeDetailState(state: DetailCalculatorState): string {
     ['source', state.selectedSource],
   ]
   entries.push(['variant', state.selectedVariantId ?? 'none'])
-  entries.push(['hardware', state.hardwareProfile ? serializeHardwareProfile(state.hardwareProfile) : 'none'])
   return serializeQuery(entries)
 }
