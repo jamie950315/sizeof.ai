@@ -27,6 +27,7 @@ import HardwareProfileControls from './components/HardwareProfileControls'
 import FitPlanner from './components/FitPlanner'
 import ExportMenu from './components/ExportMenu'
 import ServingScenario from './components/ServingScenario'
+import { getVerifiedServingArchitecture } from './data/engine-profiles'
 import type { SizingExportInput } from './lib/export'
 
 interface Props {
@@ -788,7 +789,7 @@ export default function ModelDetailPage({ route }: Props) {
                   totalGiB={estimate.totalGiB}
                   onApply={applyFitAdjustment}
                 />
-                {model.modelKind === 'language' && (model.spec.estimateConfidence ?? 'safe') === 'safe' && (
+                {model.modelKind === 'language' && getVerifiedServingArchitecture(model.spec).applicable && (
                   <ServingScenario
                     model={model.spec}
                     estimateOptions={{

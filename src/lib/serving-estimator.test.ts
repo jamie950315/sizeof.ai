@@ -28,7 +28,11 @@ describe('serving scenario estimator', () => {
     expect(result).toMatchObject({
       kind: 'lower-bound',
       profile: { id: 'vllm', reviewedAt: '2026-08-30', sourceUrl: expect.stringMatching(/^https:/) },
-      inputs: { promptTokens: 1024, maxGeneratedTokens: 512, concurrency: 1 },
+      inputs: {
+        profileId: 'vllm', promptTokens: 1024, maxGeneratedTokens: 512, concurrency: 1,
+        quantization: 'q4_k_m', kvPrecision: 'fp16', mlaCacheMode: null,
+        weightBytesOverride: null, additionalWeightBytes: null, artifactFormat: null, hardwareKind: 'discrete-gpu',
+      },
       prefillPeakGiB: null,
     })
     expect(result.components).toMatchObject({
@@ -38,7 +42,7 @@ describe('serving scenario estimator', () => {
       totalConcurrentKvGiB: ordinary.kvCacheGiB,
       decodeResidentGiB: ordinary.totalGiB,
     })
-    expect(JSON.stringify(result)).not.toMatch(/throughput|tokensPer|prefillPeakGiB":\d/i)
+    expect(JSON.stringify(result)).not.toMatch(/throughput|tokensPer|latency|speed|uncertainty|workspace|prefillPeakGiB":\d/i)
   })
 
   it('scales only per-request KV cache with concurrency and never resident weights', () => {
@@ -68,5 +72,33 @@ describe('serving scenario estimator', () => {
 
     expect(runtimeSpecific).toMatchObject({ kind: 'unavailable', components: null, prefillPeakGiB: null })
     expect(weightsOnly).toMatchObject({ kind: 'weights-only', components: { decodeResidentGiB: null, perRequestKvGiB: null }, prefillPeakGiB: null })
+  })
+
+  it('refuses stateful architecture facts even when confidence is absent or incorrectly safe', () => {
+    const statefulAttention = { fullLayers: 32, slidingLayers: 0, linearLayers: 0, kdaLayers: 0, recurrentLayers: 0, ssmLayers: 32, slidingWindow: null, stateKind: 'mamba' as const }
+
+    for (const estimateConfidence of [undefined, 'safe'] as const) {
+      const result = estimateServingScenario({ ...model, estimateConfidence, attentionProfile: statefulAttention }, baseInput)
+      expect(result).toMatchObject({ kind: 'unavailable', components: null, applicability: { applicable: false } })
+    }
+  })
+
+  it('preserves exact estimator inputs and addon weights without forbidden serving claims', () => {
+    const q4 = estimateServingScenario(model, { ...baseInput, additionalWeightBytes: 512 * 1024 ** 2 })
+    const q8 = estimateServingScenario(model, {
+      ...baseInput, quantization: 'q8_0', kvPrecision: 'q8_0', mlaCacheMode: 'expanded',
+      weightBytesOverride: 20 * 1024 ** 3, additionalWeightBytes: 512 * 1024 ** 2,
+      artifactFormat: 'safetensors', hardwareKind: 'unified-memory', batchLabel: 'batch-a',
+    })
+
+    expect(q4.components?.addonWeightsGiB).toBeCloseTo(0.5)
+    expect(q4.inputs).not.toEqual(q8.inputs)
+    expect(q8.inputs).toEqual({
+      profileId: 'vllm', promptTokens: 1024, maxGeneratedTokens: 512, concurrency: 1, batchLabel: 'batch-a',
+      quantization: 'q8_0', kvPrecision: 'q8_0', mlaCacheMode: 'expanded',
+      weightBytesOverride: 20 * 1024 ** 3, additionalWeightBytes: 512 * 1024 ** 2,
+      artifactFormat: 'safetensors', hardwareKind: 'unified-memory',
+    })
+    expect(JSON.stringify(q8)).not.toMatch(/latency|speed|uncertainty|workspace|throughput/i)
   })
 })

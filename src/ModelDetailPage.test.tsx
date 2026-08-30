@@ -74,7 +74,7 @@ describe('Hugging Face-style model detail route', () => {
 
   it('progressively discloses an accessible editable serving scenario with conservative unknowns', async () => {
     const user = userEvent.setup()
-    vi.mocked(fetch).mockImplementation(async () => Response.json({ ...apiModel, modelKind: 'language' }))
+    vi.mocked(fetch).mockImplementation(async () => Response.json({ ...apiModel, modelKind: 'language', spec: { ...apiModel.spec, estimateConfidence: 'safe' } }))
     render(<App />)
 
     await screen.findByRole('heading', { name: 'Qwen3.8-27B' })
@@ -95,6 +95,22 @@ describe('Hugging Face-style model detail route', () => {
     await user.clear(within(scenario).getByLabelText('Prompt tokens per request'))
     await user.type(within(scenario).getByLabelText('Prompt tokens per request'), '2048')
     expect(within(scenario).getByLabelText('Prompt tokens per request')).toHaveValue(2048)
+  })
+
+  it('does not expose serving controls for stateful facts even when confidence says safe', async () => {
+    vi.mocked(fetch).mockImplementation(async () => Response.json({
+      ...apiModel,
+      modelKind: 'language',
+      spec: {
+        ...apiModel.spec,
+        estimateConfidence: 'safe',
+        attentionProfile: { fullLayers: 16, slidingLayers: 0, linearLayers: 0, kdaLayers: 48, recurrentLayers: 0, ssmLayers: 0, slidingWindow: null, stateKind: 'kda' },
+      },
+    }))
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Qwen3.8-27B' })
+    expect(screen.queryByRole('group', { name: 'Serving scenario' })).not.toBeInTheDocument()
   })
 
   it('keeps source actions and adds a comparison entry for the loaded model', async () => {

@@ -1,4 +1,5 @@
 import type { HuggingFaceVariantFormat } from '../lib/huggingface-variants'
+import type { ModelSpec } from './models'
 
 export type EngineProfileId = 'llama.cpp' | 'mlx' | 'vllm'
 export type ServingHardwareKind = 'discrete-gpu' | 'unified-memory' | null
@@ -16,6 +17,24 @@ export interface EngineProfile {
 export interface EngineApplicability {
   applicable: boolean
   reason: string
+}
+
+export function getVerifiedServingArchitecture(model: ModelSpec): EngineApplicability {
+  if (model.estimateConfidence !== 'safe') {
+    return { applicable: false, reason: 'A verified safe attention architecture is required for a numeric serving lower bound.' }
+  }
+  const attention = model.attentionProfile
+  const hasStatefulFacts = attention !== undefined && (
+    attention.stateKind !== null
+    || attention.linearLayers > 0
+    || attention.kdaLayers > 0
+    || attention.recurrentLayers > 0
+    || attention.ssmLayers > 0
+  )
+  if (hasStatefulFacts) {
+    return { applicable: false, reason: 'Stateful architecture facts make engine-specific serving residency unavailable.' }
+  }
+  return { applicable: true, reason: 'Verified safe attention architecture facts are available.' }
 }
 
 export const engineProfiles: readonly EngineProfile[] = [
@@ -56,8 +75,10 @@ export function getEngineProfile(id: EngineProfileId): EngineProfile {
 
 export function getEngineApplicability(
   profile: EngineProfile,
-  input: { artifactFormat: HuggingFaceVariantFormat | null; hardwareKind: ServingHardwareKind },
+  input: { model: ModelSpec; artifactFormat: HuggingFaceVariantFormat | null; hardwareKind: ServingHardwareKind },
 ): EngineApplicability {
+  const architecture = getVerifiedServingArchitecture(input.model)
+  if (!architecture.applicable) return architecture
   if (profile.id === 'llama.cpp') {
     return input.artifactFormat === 'gguf'
       ? { applicable: true, reason: 'Selected GGUF artifact is compatible with this profile.' }

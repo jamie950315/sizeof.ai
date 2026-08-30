@@ -1,5 +1,5 @@
 import type { ModelSpec } from '../data/models'
-import { getEngineApplicability, getEngineProfile, type EngineApplicability, type EngineProfile, type EngineProfileId, type ServingHardwareKind } from '../data/engine-profiles'
+import { getEngineApplicability, getEngineProfile, getVerifiedServingArchitecture, type EngineApplicability, type EngineProfile, type EngineProfileId, type ServingHardwareKind } from '../data/engine-profiles'
 import type { HuggingFaceVariantFormat } from './huggingface-variants'
 import { estimateVram, type EstimateOptions } from './estimator'
 
@@ -25,7 +25,20 @@ export interface ServingComponents {
 export interface ServingScenarioEstimate {
   kind: 'lower-bound' | 'unavailable' | 'weights-only'
   profile: EngineProfile
-  inputs: Pick<ServingScenarioInput, 'promptTokens' | 'maxGeneratedTokens' | 'concurrency' | 'batchLabel'>
+  inputs: {
+    profileId: EngineProfileId
+    promptTokens: number
+    maxGeneratedTokens: number
+    concurrency: number
+    batchLabel: string | null
+    quantization: EstimateOptions['quantization']
+    kvPrecision: EstimateOptions['kvPrecision']
+    mlaCacheMode: NonNullable<EstimateOptions['mlaCacheMode']> | null
+    weightBytesOverride: number | null
+    additionalWeightBytes: number | null
+    artifactFormat: HuggingFaceVariantFormat | null
+    hardwareKind: ServingHardwareKind
+  }
   applicability: EngineApplicability
   components: ServingComponents | null
   prefillPeakGiB: null
@@ -45,31 +58,32 @@ export function estimateServingScenario(model: ModelSpec, input: ServingScenario
     throw new Error('Prompt and generated tokens cannot exceed the native context')
   }
 
-  const profile = getEngineProfile(input.profileId)
-  const applicability = getEngineApplicability(profile, input)
   const inputs = {
+    profileId: input.profileId,
     promptTokens: input.promptTokens,
     maxGeneratedTokens: input.maxGeneratedTokens,
     concurrency: input.concurrency,
-    ...(input.batchLabel?.trim() ? { batchLabel: input.batchLabel.trim() } : {}),
-  }
-  const unknownFactors = [...profile.unknownFactors]
-  if (model.estimateConfidence === 'runtime-specific') {
-    return { kind: 'unavailable', profile, inputs, applicability, components: null, prefillPeakGiB: null, unknownFactors: [...unknownFactors, 'Architecture-specific runtime state'] }
-  }
-  if (!applicability.applicable) {
-    return { kind: 'unavailable', profile, inputs, applicability, components: null, prefillPeakGiB: null, unknownFactors }
-  }
-
-  const singleSequence = estimateVram(model, {
+    batchLabel: input.batchLabel?.trim() || null,
     quantization: input.quantization,
     kvPrecision: input.kvPrecision,
-    mlaCacheMode: input.mlaCacheMode,
-    weightBytesOverride: input.weightBytesOverride,
-    additionalWeightBytes: input.additionalWeightBytes,
-    context: input.promptTokens + input.maxGeneratedTokens,
-  })
+    mlaCacheMode: input.mlaCacheMode ?? null,
+    weightBytesOverride: input.weightBytesOverride ?? null,
+    additionalWeightBytes: input.additionalWeightBytes ?? null,
+    artifactFormat: input.artifactFormat,
+    hardwareKind: input.hardwareKind,
+  }
+  const profile = getEngineProfile(input.profileId)
+  const applicability = getEngineApplicability(profile, { ...input, model })
+  const unknownFactors = [...profile.unknownFactors]
   if (model.estimateConfidence === 'weights-only') {
+    const singleSequence = estimateVram(model, {
+      quantization: input.quantization,
+      kvPrecision: input.kvPrecision,
+      mlaCacheMode: input.mlaCacheMode,
+      weightBytesOverride: input.weightBytesOverride,
+      additionalWeightBytes: input.additionalWeightBytes,
+      context: input.promptTokens + input.maxGeneratedTokens,
+    })
     return {
       kind: 'weights-only', profile, inputs, applicability,
       components: {
@@ -84,7 +98,22 @@ export function estimateServingScenario(model: ModelSpec, input: ServingScenario
       unknownFactors: [...unknownFactors, 'KV cache geometry and runtime state'],
     }
   }
+  const architecture = getVerifiedServingArchitecture(model)
+  if (!architecture.applicable) {
+    return { kind: 'unavailable', profile, inputs, applicability: architecture, components: null, prefillPeakGiB: null, unknownFactors: [...unknownFactors, 'Architecture-specific runtime state'] }
+  }
+  if (!applicability.applicable) {
+    return { kind: 'unavailable', profile, inputs, applicability, components: null, prefillPeakGiB: null, unknownFactors }
+  }
 
+  const singleSequence = estimateVram(model, {
+    quantization: input.quantization,
+    kvPrecision: input.kvPrecision,
+    mlaCacheMode: input.mlaCacheMode,
+    weightBytesOverride: input.weightBytesOverride,
+    additionalWeightBytes: input.additionalWeightBytes,
+    context: input.promptTokens + input.maxGeneratedTokens,
+  })
   const totalConcurrentKvGiB = singleSequence.kvCacheGiB * input.concurrency
   return {
     kind: 'lower-bound', profile, inputs, applicability,
