@@ -19,6 +19,23 @@ export interface EngineApplicability {
   reason: string
 }
 
+const verifiedEngineFamilyIds: Record<EngineProfileId, readonly string[]> = {
+  // These are the normalized family/model-type facts used by the repository's safe language-model catalog and detail fixtures.
+  'llama.cpp': ['qwen38', 'qwen36', 'qwen3', 'qwen35', 'ornith15', 'museglimmer', 'katcoder', 'gptoss', 'minicpm5'],
+  mlx: ['qwen38', 'qwen36', 'qwen3', 'qwen35', 'ornith15', 'museglimmer', 'katcoder', 'gptoss', 'minicpm5'],
+  vllm: ['qwen38', 'qwen36', 'qwen3', 'qwen35', 'ornith15', 'museglimmer', 'katcoder', 'gptoss', 'minicpm5'],
+}
+
+function normalizedFamily(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function getEngineArchitectureEvidence(profile: EngineProfile, model: ModelSpec): EngineApplicability {
+  return verifiedEngineFamilyIds[profile.id].includes(normalizedFamily(model.family))
+    ? { applicable: true, reason: `${profile.label} support is verified for this model family.` }
+    : { applicable: false, reason: `${profile.label} serving support has not been verified for the ${model.family || 'unknown'} architecture.` }
+}
+
 export function getVerifiedServingArchitecture(model: ModelSpec): EngineApplicability {
   if (model.estimateConfidence !== 'safe') {
     return { applicable: false, reason: 'A verified safe attention architecture is required for a numeric serving lower bound.' }
@@ -79,6 +96,8 @@ export function getEngineApplicability(
 ): EngineApplicability {
   const architecture = getVerifiedServingArchitecture(input.model)
   if (!architecture.applicable) return architecture
+  const engineArchitecture = getEngineArchitectureEvidence(profile, input.model)
+  if (!engineArchitecture.applicable) return engineArchitecture
   if (profile.id === 'llama.cpp') {
     return input.artifactFormat === 'gguf'
       ? { applicable: true, reason: 'Selected GGUF artifact is compatible with this profile.' }

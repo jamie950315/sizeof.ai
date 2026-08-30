@@ -4,7 +4,7 @@ import { estimateServingScenario } from './serving-estimator'
 import type { ModelSpec } from '../data/models'
 
 const model: ModelSpec = {
-  id: 'serving-test', name: 'Serving test', family: 'test', maker: 'test', parametersB: 8,
+  id: 'serving-test', name: 'Serving test', family: 'Qwen3.8', maker: 'test', parametersB: 8,
   layers: 32, attentionLayers: 32, kvHeads: 8, headDim: 128, maxContext: 8192,
   releaseYear: 2026, strengths: [], sourceUrl: 'https://example.test/model', estimateConfidence: 'safe',
 }
@@ -52,6 +52,18 @@ describe('serving scenario estimator', () => {
     expect(concurrent.components?.weightsGiB).toBe(single.components?.weightsGiB)
     expect(concurrent.components?.runtimeGiB).toBe(single.components?.runtimeGiB)
     expect(concurrent.components?.totalConcurrentKvGiB).toBe((single.components?.perRequestKvGiB ?? 0) * 4)
+    expect(concurrent.components?.decodeResidentGiB).toBe(
+      (single.components?.weightsGiB ?? 0) + (single.components?.runtimeGiB ?? 0) + (concurrent.components?.totalConcurrentKvGiB ?? 0),
+    )
+  })
+
+  it('counts addon weights once when concurrency is greater than one', () => {
+    const single = estimateServingScenario(model, { ...baseInput, additionalWeightBytes: 512 * 1024 ** 2 })
+    const concurrent = estimateServingScenario(model, { ...baseInput, concurrency: 4, additionalWeightBytes: 512 * 1024 ** 2 })
+
+    expect(single.components?.addonWeightsGiB).toBeCloseTo(0.5)
+    expect(concurrent.components?.addonWeightsGiB).toBeCloseTo(0.5)
+    expect(concurrent.components?.weightsGiB).toBe(single.components?.weightsGiB)
     expect(concurrent.components?.decodeResidentGiB).toBe(
       (single.components?.weightsGiB ?? 0) + (single.components?.runtimeGiB ?? 0) + (concurrent.components?.totalConcurrentKvGiB ?? 0),
     )

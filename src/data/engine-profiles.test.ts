@@ -3,7 +3,7 @@ import { engineProfiles, getEngineApplicability, getEngineProfile } from './engi
 import type { ModelSpec } from './models'
 
 const safeModel: ModelSpec = {
-  id: 'engine-test', name: 'Engine test', family: 'test', maker: 'test', parametersB: 8,
+  id: 'engine-test', name: 'Engine test', family: 'Qwen3.8', maker: 'test', parametersB: 8,
   layers: 32, attentionLayers: 32, kvHeads: 8, headDim: 128, maxContext: 8192,
   releaseYear: 2026, strengths: [], sourceUrl: 'https://example.test/model', estimateConfidence: 'safe',
 }
@@ -48,5 +48,14 @@ describe('serving engine profiles', () => {
       model: { ...safeModel, attentionProfile: { fullLayers: 32, slidingLayers: 0, linearLayers: 0, kdaLayers: 0, recurrentLayers: 0, ssmLayers: 32, slidingWindow: null, stateKind: 'mamba' } },
       artifactFormat: 'safetensors', hardwareKind: 'discrete-gpu',
     })).toMatchObject({ applicable: false, reason: expect.stringMatching(/stateful|architecture/i) })
+  })
+
+  it.each([
+    ['llama.cpp' as const, 'gguf' as const],
+    ['vllm' as const, 'safetensors' as const],
+  ])('refuses explicit-safe custom architecture for %s despite matching %s artifact facts', (profileId, artifactFormat) => {
+    expect(getEngineApplicability(getEngineProfile(profileId), {
+      model: { ...safeModel, family: 'custom', estimateConfidence: 'safe' }, artifactFormat, hardwareKind: 'discrete-gpu',
+    })).toMatchObject({ applicable: false, reason: expect.stringMatching(/support.*not verified|architecture/i) })
   })
 })
