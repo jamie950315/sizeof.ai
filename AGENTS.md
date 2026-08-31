@@ -78,6 +78,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Cloudflare production version: `3d4e767d-bdaa-4402-842b-f687ac5b4cfa` (deployed 2026-08-30).
 - 2026-08-31: Six-phase planning preview deployed only to `https://testnet.sizeof.ai` as the isolated `sizeof-ai-testnet` Worker. It includes evidence-aware fit planning, local hardware profiles, 2–4 model comparison, exports/share/indexing, conservative engine serving scenarios, and the testnet API/CLI/Action/MCP ecosystem. Public API, badge/embed, robots/sitemap, desktop 1280×800, mobile 390×844, CLI, and MCP checks passed; production remained on its existing Worker version and API response.
 - Cloudflare testnet version: `6ce49d13-e0c7-4502-a3e7-c40fd15cd23d` (deployed 2026-08-31).
+- 2026-09-01: Testnet comparison UX now uses compact hover labels on homepage compare icons, accepts curated choices plus Hugging Face or sizeof.ai model URLs, restores top navigation, provides per-model quantization, context, and VRAM bars, removes card-order arrows, and uses a valid Qwen/Ornith recommendation. Muse-Glimmer-30B now retains revision-checked hybrid-attention facts through a versioned cache fallback and exposes a runtime-specific lower bound. Desktop 1280×800, mobile 390×844, public API, and production-isolation checks passed.
+- Cloudflare testnet version: `e5fe9a24-dd40-4c95-b3c3-04739e917c66` (deployed 2026-09-01).
 
 ## Commands
 
