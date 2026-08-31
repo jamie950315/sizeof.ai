@@ -274,7 +274,10 @@ describe('sizeof.ai app', () => {
 
     window.history.replaceState(null, '', '/')
     render(<App />)
-    expect(screen.getByRole('link', { name: 'Compare MiniCPM5 1B' })).toHaveAttribute('href', expect.stringContaining('/compare?compare=1'))
+    const compare = screen.getByRole('link', { name: 'Compare MiniCPM5 1B' })
+    expect(compare).toHaveAttribute('href', expect.stringContaining('/compare?compare=1'))
+    expect(compare.querySelector('svg')).not.toBeNull()
+    expect(compare.querySelector('.catalog-compare-label')).toHaveTextContent('COMPARE')
   })
 
   it('does not search while the user is still typing', async () => {

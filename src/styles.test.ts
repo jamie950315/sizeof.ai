@@ -40,4 +40,16 @@ describe('mobile sticky result CSS', () => {
     expect(stylesheet).toMatch(/@media \(max-width: 620px\) \{[\s\S]*?\.serving-input-grid \{ grid-template-columns: 1fr; \}/)
     expect(stylesheet).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.serving-scenario[\s\S]*?transition: none;/)
   })
+
+  it('keeps catalog compare actions icon-sized and reveals their label only on hover or keyboard focus', () => {
+    expect(stylesheet).toMatch(/\.catalog-compare-action\s*\{[\s\S]*?width: 38px;/)
+    expect(stylesheet).toMatch(/\.catalog-compare-label\s*\{[\s\S]*?opacity: 0;/)
+    expect(stylesheet).toMatch(/\.catalog-compare-action:(?:hover|focus-visible)[\s\S]*?\.catalog-compare-label/)
+  })
+
+  it('gives comparison cards calculator-style memory bars and responsive quantization controls', () => {
+    expect(stylesheet).toMatch(/\.compare-memory-bar[\s\S]*?\.memory-bar/)
+    expect(stylesheet).toMatch(/\.compare-quant-grid\s*\{[\s\S]*?grid-template-columns:/)
+    expect(stylesheet).toMatch(/@media \(max-width: 620px\) \{[\s\S]*?\.compare-quant-grid/)
+  })
 })

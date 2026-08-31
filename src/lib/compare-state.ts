@@ -31,6 +31,33 @@ export type CompareModelIdValidation =
   | { valid: true; canonicalId: string }
   | { valid: false; reason: 'empty' | 'malformed' | 'reserved' }
 
+const COMPARE_MODEL_URL_HOSTS = new Set([
+  'huggingface.co',
+  'www.huggingface.co',
+  'sizeof.ai',
+  'www.sizeof.ai',
+  'testnet.sizeof.ai',
+])
+
+export function normalizeCompareModelInput(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  let candidate = trimmed
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed)
+      if (url.protocol !== 'https:' || !COMPARE_MODEL_URL_HOSTS.has(url.hostname.toLowerCase())) return null
+      const parts = url.pathname.split('/').filter(Boolean)
+      if (parts.length !== 2) return null
+      candidate = parts.map((part) => decodeURIComponent(part)).join('/')
+    } catch {
+      return null
+    }
+  }
+  const result = validateCompareModelId(candidate)
+  return result.valid ? result.canonicalId : null
+}
+
 export function validateCompareModelId(value: string): CompareModelIdValidation {
   const canonicalId = value.trim()
   if (!canonicalId) return { valid: false, reason: 'empty' }

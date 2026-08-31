@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseCompareState, serializeCompareState, validateCompareModelId, type CompareItemState } from './compare-state'
+import { normalizeCompareModelInput, parseCompareState, serializeCompareState, validateCompareModelId, type CompareItemState } from './compare-state'
 
 const defaults: Omit<CompareItemState, 'modelId'> = {
   quantization: 'q4_k_m',
@@ -67,5 +67,18 @@ describe('comparison URL state', () => {
     expect(validateCompareModelId('Qwen/Model')).toEqual({ valid: true, canonicalId: 'Qwen/Model' })
     expect(validateCompareModelId('compare/workspace')).toEqual({ valid: false, reason: 'reserved' })
     expect(validateCompareModelId('bad/..')).toEqual({ valid: false, reason: 'malformed' })
+  })
+
+  it('normalizes owner/repo, Hugging Face URLs, and sizeof.ai URLs to one canonical model ID', () => {
+    expect(normalizeCompareModelInput(' Qwen/Qwen3-8B ')).toBe('Qwen/Qwen3-8B')
+    expect(normalizeCompareModelInput('https://huggingface.co/Qwen/Qwen3-8B?download=true')).toBe('Qwen/Qwen3-8B')
+    expect(normalizeCompareModelInput('https://www.sizeof.ai/Qwen/Qwen3-8B?state=1')).toBe('Qwen/Qwen3-8B')
+    expect(normalizeCompareModelInput('https://testnet.sizeof.ai/Qwen/Qwen3-8B')).toBe('Qwen/Qwen3-8B')
+  })
+
+  it('rejects lookalike and reserved URLs instead of accepting arbitrary hosts or routes', () => {
+    expect(normalizeCompareModelInput('https://huggingface.example/Qwen/Qwen3-8B')).toBeNull()
+    expect(normalizeCompareModelInput('https://testnet.sizeof.ai/api/models/Qwen/Qwen3-8B')).toBeNull()
+    expect(normalizeCompareModelInput('https://sizeof.ai/compare')).toBeNull()
   })
 })

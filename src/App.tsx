@@ -3,6 +3,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Check,
+  Columns2,
   ChevronDown,
   ChevronUp,
   Code2,
@@ -379,7 +380,7 @@ function HomePage() {
                   <div><small>SIZING</small><strong>{searchSizingStatus(item)}</strong></div>
                   <div className="catalog-actions">
                     <a className="catalog-open-model" href={`/${item.owner}/${item.name}`} aria-label={`Open ${item.id}`}>OPEN</a>
-                    <a href={comparePath(item.id)} aria-label={`Compare ${item.id}`}>COMPARE</a>
+                    <a className="catalog-compare-action" href={comparePath(item.id)} aria-label={`Compare ${item.id}`}><Columns2 size={17} /><span className="catalog-compare-label">COMPARE</span></a>
                     <a href={`https://huggingface.co/${item.id}`} target="_blank" rel="noreferrer" aria-label={`${item.id} on Hugging Face`}><ArrowUpRight size={17} /></a>
                   </div>
                 </article>
@@ -441,7 +442,7 @@ function HomePage() {
                 <div><small>ARCHITECTURE</small><strong>{item.layers}L / {item.kvHeads} KVH</strong></div>
                 <div className="catalog-actions">
                   <a className="catalog-open-model" href={modelDetailPath(item.sourceUrl)} target="_blank" rel="noreferrer" aria-label={`Size ${item.name} (opens in new tab)`}>SIZE IT</a>
-                  <a href={comparePath(new URL(item.sourceUrl).pathname.slice(1))} aria-label={`Compare ${item.name}`}>COMPARE</a>
+                  <a className="catalog-compare-action" href={comparePath(new URL(item.sourceUrl).pathname.slice(1))} aria-label={`Compare ${item.name}`}><Columns2 size={17} /><span className="catalog-compare-label">COMPARE</span></a>
                   <a href={item.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${item.name} source`}><ArrowUpRight size={17} /></a>
                 </div>
               </article>

@@ -58,6 +58,34 @@ describe('model comparison workspace', () => {
     ])
     expect(screen.getAllByText('TOTAL').length).toBe(2)
     expect(window.location.search).toContain('compare=1')
+    expect(screen.getByRole('link', { name: 'sizeof.ai home' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: 'Model index' })).toHaveAttribute('href', '/#catalog')
+  })
+
+  it('offers curated models in searchable selectors and accepts Hugging Face and sizeof.ai URLs', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, '', '/compare')
+    render(<ComparePage />)
+
+    expect(screen.getAllByRole('option', { name: 'Qwen3.8 27B — Qwen/Qwen3.8-27B' })).toHaveLength(2)
+    const [first, second] = screen.getAllByRole('textbox', { name: /Model [12]/ })
+    await user.type(first, 'https://huggingface.co/Qwen/Qwen3-8B')
+    await user.type(second, 'https://testnet.sizeof.ai/openbmb/MiniCPM5-1B?state=1')
+    await user.click(screen.getByRole('button', { name: 'Compare models' }))
+
+    expect(await screen.findByRole('region', { name: 'Comparison for Qwen/Qwen3-8B' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Comparison for openbmb/MiniCPM5-1B' })).toBeInTheDocument()
+  })
+
+  it('uses a valid curated recommendation instead of the unavailable Llama pair', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, '', '/compare')
+    render(<ComparePage />)
+
+    expect(screen.queryByText(/Llama-3\.3-70B-Instruct/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Compare Qwen3.8 27B with Ornith 1.5 35B A3B' }))
+    expect(await screen.findByRole('region', { name: 'Comparison for Qwen/Qwen3.8-27B' })).toHaveTextContent('TOTAL')
+    expect(screen.getByRole('region', { name: 'Comparison for ornith-ai/Ornith-1.5-35B-A3B' })).toHaveTextContent('TOTAL')
   })
 
   it('provides an accessible comparison export menu after public models load', async () => {
@@ -129,10 +157,28 @@ describe('model comparison workspace', () => {
     render(<ComparePage />)
     const cards = await screen.findAllByRole('region', { name: /Comparison for / })
 
-    await user.selectOptions(within(cards[0]).getByRole('combobox', { name: 'Weight precision for Qwen/One' }), 'fp16')
+    await user.click(within(cards[0]).getByRole('button', { name: '16bit for Qwen/One' }))
 
-    expect(within(cards[0]).getByRole('combobox', { name: 'Weight precision for Qwen/One' })).toHaveValue('fp16')
-    expect(within(cards[1]).getByRole('combobox', { name: 'Weight precision for Meta/Two' })).toHaveValue('q4_k_m')
+    expect(within(cards[0]).getByRole('button', { name: '16bit for Qwen/One' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(cards[1]).getByRole('button', { name: '4bit for Meta/Two' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('shows the same segmented VRAM usage visualization and quick controls as a model calculator', async () => {
+    const user = userEvent.setup()
+    render(<ComparePage />)
+    const card = await screen.findByRole('region', { name: 'Comparison for Qwen/One' })
+
+    expect(within(card).getByRole('img', { name: /Memory usage:/ })).toBeInTheDocument()
+    expect(within(card).getByRole('button', { name: '4bit for Qwen/One' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(within(card).getByRole('button', { name: '16K context for Qwen/One' }))
+    expect(within(card).getByRole('spinbutton', { name: 'Context for Qwen/One' })).toHaveValue(16384)
+  })
+
+  it('removes model ordering arrows and keeps only the remove action in each card header', async () => {
+    render(<ComparePage />)
+    await screen.findAllByRole('region', { name: /Comparison for / })
+    expect(screen.queryByRole('button', { name: /Move .* (left|right)/ })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Remove / })).toHaveLength(2)
   })
 
   it('keeps unsafe models factual instead of showing LLM comparison numbers', async () => {
@@ -218,31 +264,27 @@ describe('model comparison workspace', () => {
     await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))))
 
-    await user.selectOptions(within(cards[0]).getByRole('combobox', { name: 'Weight precision for Qwen/One' }), 'fp16')
+    await user.click(within(cards[0]).getByRole('button', { name: '16bit for Qwen/One' }))
 
     expect(within(cards[0]).getByText('TOTAL')).toBeInTheDocument()
     expect(within(cards[1]).getByText('TOTAL')).toBeInTheDocument()
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
-  it('adds, removes, reorders, and focuses two additional cards within the four-model cap', async () => {
+  it('adds, removes, and focuses two additional cards within the four-model cap', async () => {
     const user = userEvent.setup()
     render(<ComparePage />)
     await screen.findAllByRole('region', { name: /Comparison for / })
     await user.click(screen.getByRole('button', { name: 'Add model' }))
-    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID' }), 'Org/Three')
+    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID or URL' }), 'Org/Three')
     await user.click(screen.getByRole('button', { name: 'Add Org/Three' }))
     expect(document.activeElement).toBe(await screen.findByRole('heading', { name: 'Org/Three' }))
     await user.click(screen.getByRole('button', { name: 'Add model' }))
-    await user.type(screen.getByRole('textbox', { name: 'Model 4 ID' }), 'Org/Four')
+    await user.type(screen.getByRole('textbox', { name: 'Model 4 ID or URL' }), 'Org/Four')
     await user.click(screen.getByRole('button', { name: 'Add Org/Four' }))
     expect(screen.getAllByRole('region', { name: /Comparison for / })).toHaveLength(4)
     expect(screen.queryByRole('button', { name: 'Add model' })).not.toBeInTheDocument()
     expect(screen.getByText('Maximum of four models may be compared.')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Move Org/Four left' }))
-    expect(screen.getAllByRole('region', { name: /Comparison for / }).map((card) => card.getAttribute('aria-label'))).toEqual([
-      'Comparison for Qwen/One', 'Comparison for Meta/Two', 'Comparison for Org/Four', 'Comparison for Org/Three',
-    ])
     await user.click(screen.getByRole('button', { name: 'Remove Org/Four' }))
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Org/Three' }))
   })
@@ -299,7 +341,7 @@ describe('model comparison workspace', () => {
     expect(restoredSecond).toHaveValue('')
   })
 
-  it('preserves cached cards and fetches only a newly added model across add, reorder, and remove', async () => {
+  it('preserves cached cards and fetches only a newly added model across add and remove', async () => {
     const user = userEvent.setup()
     let offline = false
     const requests: string[] = []
@@ -317,14 +359,13 @@ describe('model comparison workspace', () => {
 
     offline = true
     await user.click(screen.getByRole('button', { name: 'Add model' }))
-    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID' }), 'Org/Three')
+    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID or URL' }), 'Org/Three')
     await user.click(screen.getByRole('button', { name: 'Add Org/Three' }))
     expect(await screen.findByRole('region', { name: 'Comparison for Org/Three' })).toHaveTextContent('This public model is unavailable.')
     expect(screen.getByRole('region', { name: 'Comparison for Qwen/One' })).toHaveTextContent('TOTAL')
     expect(screen.getByRole('region', { name: 'Comparison for Meta/Two' })).toHaveTextContent('TOTAL')
     expect(requests).toEqual(['Qwen/One', 'Meta/Two', 'Org/Three'])
 
-    await user.click(screen.getByRole('button', { name: 'Move Org/Three left' }))
     await user.click(screen.getByRole('button', { name: 'Remove Org/Three' }))
     expect(requests).toEqual(['Qwen/One', 'Meta/Two', 'Org/Three'])
   })
@@ -334,12 +375,12 @@ describe('model comparison workspace', () => {
     render(<ComparePage />)
     await screen.findAllByText('TOTAL')
     await user.click(screen.getByRole('button', { name: 'Add model' }))
-    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID' }), 'Org/Three')
+    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID or URL' }), 'Org/Three')
     await user.click(screen.getByRole('button', { name: 'Add Org/Three' }))
 
     await user.click(screen.getByRole('button', { name: 'Add model' }))
 
-    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Model 4 ID' }))
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Model 4 ID or URL' }))
   })
 
   it('creates collision-free selector anchors for distinct valid canonical IDs', async () => {
@@ -377,10 +418,10 @@ describe('model comparison workspace', () => {
     await vi.waitFor(() => expect(pending.size).toBe(2))
 
     await user.click(screen.getByRole('button', { name: 'Add model' }))
-    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID' }), 'Org/Three')
+    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID or URL' }), 'Org/Three')
     await user.click(screen.getByRole('button', { name: 'Add Org/Three' }))
     await user.click(screen.getByRole('button', { name: 'Add model' }))
-    await user.type(screen.getByRole('textbox', { name: 'Model 4 ID' }), 'Org/Four')
+    await user.type(screen.getByRole('textbox', { name: 'Model 4 ID or URL' }), 'Org/Four')
     await user.click(screen.getByRole('button', { name: 'Add Org/Four' }))
 
     expect(maxActive).toBe(2)
@@ -403,7 +444,7 @@ describe('model comparison workspace', () => {
     render(<ComparePage />)
     await vi.waitFor(() => expect(requested).toEqual(['Qwen/One', 'Meta/Two']))
     await user.click(screen.getByRole('button', { name: 'Add model' }))
-    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID' }), 'Org/Three')
+    await user.type(screen.getByRole('textbox', { name: 'Model 3 ID or URL' }), 'Org/Three')
     await user.click(screen.getByRole('button', { name: 'Add Org/Three' }))
     await user.click(screen.getByRole('button', { name: 'Remove Org/Three' }))
 

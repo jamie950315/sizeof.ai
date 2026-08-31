@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Copy, Plus, X } from 'lucide-react'
-import { kvPrecisions, quantizations, type KvPrecisionId, type QuantizationId } from './data/quantizations'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { ArrowLeft, Check, Copy, Plus, X } from 'lucide-react'
+import { models as curatedModels } from './data/models'
+import { kvPrecisions, quantizations, type KvPrecisionId } from './data/quantizations'
 import { classifyFit, estimateVram } from './lib/estimator'
 import type { HuggingFaceModel } from './lib/huggingface'
-import { parseCompareState, serializeCompareState, validateCompareModelId, type CompareItemState } from './lib/compare-state'
+import { normalizeCompareModelInput, parseCompareState, serializeCompareState, validateCompareModelId, type CompareItemState } from './lib/compare-state'
 import { vramPresets } from './lib/vram-presets'
 import { buildModelEvidence } from './lib/evidence'
 import ExportMenu from './components/ExportMenu'
 import type { SizingExportInput } from './lib/export'
+import { getMemoryBarPartPercents, getMemoryBarUsage } from './lib/memory-bar'
 
 const defaults: Omit<CompareItemState, 'modelId'> = {
   quantization: 'q4_k_m', context: 8192, kvPrecision: 'fp16', mlaCacheMode: 'expanded', vramGiB: 32, source: 'estimated', variantId: null,
@@ -62,6 +64,32 @@ function cardId(modelId: string) {
 
 function canonicalModelKey(modelId: string) {
   return modelId.toLowerCase()
+}
+
+function curatedModelId(sourceUrl: string) {
+  return new URL(sourceUrl).pathname.slice(1)
+}
+
+function CompareSiteHeader() {
+  return (
+    <header className="compare-site-nav">
+      <a className="brand" href="/" aria-label="sizeof.ai home">sizeof<span>.ai</span></a>
+      <a href="/#catalog" aria-label="Model index"><ArrowLeft size={16} /> MODEL INDEX</a>
+      <span>COMPARE WORKSPACE</span>
+    </header>
+  )
+}
+
+function SuggestedModelSelect({ index, onChoose }: { index: number; onChoose: (value: string) => void }) {
+  return (
+    <select aria-label={`Suggested model ${index + 1}`} value="" onChange={(event) => onChoose(event.target.value)}>
+      <option value="">TOP MODELS</option>
+      {curatedModels.map((model) => {
+        const id = curatedModelId(model.sourceUrl)
+        return <option value={id} key={id}>{model.name} — {id}</option>
+      })}
+    </select>
+  )
 }
 
 export default function ComparePage() {
@@ -231,7 +259,8 @@ export default function ComparePage() {
     const unique = new Set<string>()
     const errors: Record<number, string> = {}
     const valid = builderDrafts.flatMap((draft, index) => {
-      const result = validateCompareModelId(draft)
+      const normalized = normalizeCompareModelInput(draft)
+      const result = validateCompareModelId(normalized ?? draft)
       if (!result.valid) { errors[index] = validationMessage(result.reason); return [] }
       const key = result.canonicalId.toLowerCase()
       if (unique.has(key)) { errors[index] = validationMessage('duplicate'); return [] }
@@ -240,13 +269,15 @@ export default function ComparePage() {
     })
     setBuilderErrors(errors)
     if (valid.length < 2) return
+    setBuilderDrafts(valid.map((item) => item.modelId))
     setItems(valid)
     setSubmitted(true)
   }
 
   const updateBuilderDraft = (index: number, value: string) => {
     setBuilderDrafts((current) => current.map((draft, draftIndex) => draftIndex === index ? value : draft))
-    const result = validateCompareModelId(value)
+    const normalized = normalizeCompareModelInput(value)
+    const result = validateCompareModelId(normalized ?? value)
     setBuilderErrors((current) => {
       const next = { ...current }
       if (result.valid) delete next[index]
@@ -256,7 +287,9 @@ export default function ComparePage() {
   }
 
   const addPendingModel = (index: number) => {
-    const result = validateCompareModelId(pendingDrafts[index] ?? '')
+    const rawValue = pendingDrafts[index] ?? ''
+    const normalized = normalizeCompareModelInput(rawValue)
+    const result = validateCompareModelId(normalized ?? rawValue)
     const used = new Set(items.map((item) => item.modelId.toLowerCase()))
     if (!result.valid || used.has(result.valid ? result.canonicalId.toLowerCase() : '')) {
       setPendingErrors((current) => ({ ...current, [index]: validationMessage(!result.valid ? result.reason : 'duplicate') }))
@@ -276,43 +309,44 @@ export default function ComparePage() {
 
   if (!canCompare) {
     return (
-      <main className="compare-page compare-builder" aria-labelledby="compare-title">
-        <span>MODEL WORKSPACE</span>
-        <h1 id="compare-title">Compare models</h1>
-        <p>Compare two to four public Hugging Face model profiles with independent memory settings.</p>
-        <div className="compare-builder-inputs">
-          {builderDrafts.map((draft, index) => (
-            <label key={index}>
-              <span>MODEL {index + 1} ID</span>
-              <input
-                id={index === 0 ? 'compare-add' : undefined}
-                aria-label={`Model ${index + 1} ID`}
-                aria-invalid={Boolean(builderErrors[index])}
-                aria-describedby={builderErrors[index] ? `builder-error-${index}` : undefined}
-                value={draft}
-                placeholder="owner/repository"
-                maxLength={193}
-                onChange={(event) => updateBuilderDraft(index, event.target.value)}
-              />
-              {builderErrors[index] && <small id={`builder-error-${index}`} role="alert">{builderErrors[index]}</small>}
-            </label>
-          ))}
-        </div>
-        <p className="compare-examples">Examples: <button type="button" onClick={() => {
-          const examples = [{ modelId: 'Qwen/Qwen3.8-27B', ...defaults }, { modelId: 'meta-llama/Llama-3.3-70B-Instruct', ...defaults }]
-          setBuilderDrafts(examples.map((item) => item.modelId))
-          setBuilderErrors({})
-          setItems(examples)
-          setSubmitted(true)
-        }}>Qwen/Qwen3.8-27B + Llama-3.3-70B-Instruct</button></p>
-        {Object.keys(builderErrors).length > 0 && <p className="compare-error" role="alert">Choose two unique public model IDs to compare.</p>}
-        <button type="button" className="compare-primary" onClick={applyBuilder}>Compare models</button>
-      </main>
+      <><CompareSiteHeader /><main className="compare-page compare-builder" aria-labelledby="compare-title">
+          <span>MODEL WORKSPACE</span>
+          <h1 id="compare-title">Compare models</h1>
+          <p>Choose a top model or paste an owner/repository, Hugging Face URL, or sizeof.ai URL.</p>
+          <div className="compare-builder-inputs">
+            {builderDrafts.map((draft, index) => (
+              <label key={index}>
+                <span>MODEL {index + 1}</span>
+                <SuggestedModelSelect index={index} onChoose={(value) => value && updateBuilderDraft(index, value)} />
+                <input
+                  id={index === 0 ? 'compare-add' : undefined}
+                  aria-label={`Model ${index + 1} ID or URL`}
+                  aria-invalid={Boolean(builderErrors[index])}
+                  aria-describedby={builderErrors[index] ? `builder-error-${index}` : undefined}
+                  value={draft}
+                  placeholder="owner/repository or model URL"
+                  maxLength={512}
+                  onChange={(event) => updateBuilderDraft(index, event.target.value)}
+                />
+                {builderErrors[index] && <small id={`builder-error-${index}`} role="alert">{builderErrors[index]}</small>}
+              </label>
+            ))}
+          </div>
+          <p className="compare-examples">Recommended: <button type="button" aria-label="Compare Qwen3.8 27B with Ornith 1.5 35B A3B" onClick={() => {
+            const examples = [{ modelId: 'Qwen/Qwen3.8-27B', ...defaults }, { modelId: 'ornith-ai/Ornith-1.5-35B-A3B', ...defaults }]
+            setBuilderDrafts(examples.map((item) => item.modelId))
+            setBuilderErrors({})
+            setItems(examples)
+            setSubmitted(true)
+          }}>Qwen3.8 27B + Ornith 1.5 35B A3B</button></p>
+          {Object.keys(builderErrors).length > 0 && <p className="compare-error" role="alert">Choose two unique public model IDs to compare.</p>}
+          <button type="button" className="compare-primary" onClick={applyBuilder}>Compare models</button>
+        </main></>
     )
   }
 
   return (
-    <main className="compare-page" aria-labelledby="compare-title">
+    <><CompareSiteHeader /><main className="compare-page" aria-labelledby="compare-title">
       <header className="compare-header">
         <div><span>MODEL WORKSPACE</span><h1 id="compare-title">Compare models</h1></div>
         <div className="compare-header-actions">
@@ -345,31 +379,22 @@ export default function ComparePage() {
               setFocusModelId(next[index]?.modelId ?? next[index - 1]?.modelId ?? null)
               return next
             })}
-            canMoveLeft={index > 0}
-            canMoveRight={index < activeItems.length - 1}
-            onMove={(direction) => setItems((current) => {
-              const destination = index + direction
-              if (destination < 0 || destination >= current.length) return current
-              const next = [...current]
-              ;[next[index], next[destination]] = [next[destination], next[index]]
-              setFocusModelId(item.modelId)
-              return next
-            })}
           />
         ))}
       </section>
       {pendingDrafts.length > 0 && (
         <section className="compare-pending" aria-label="Additional comparison models">
           {pendingDrafts.map((draft, index) => (
-            <label key={index}>Model {items.length + index + 1} ID
+            <label key={index}>Model {items.length + index + 1}
+              <SuggestedModelSelect index={items.length + index} onChoose={(value) => value && setPendingDrafts((current) => current.map((draft, draftIndex) => draftIndex === index ? value : draft))} />
               <input
                 id={`compare-pending-${items.length + index + 1}`}
-                aria-label={`Model ${items.length + index + 1} ID`}
+                aria-label={`Model ${items.length + index + 1} ID or URL`}
                 aria-invalid={Boolean(pendingErrors[index])}
                 aria-describedby={pendingErrors[index] ? `pending-error-${index}` : undefined}
                 value={draft}
                 placeholder="owner/repository"
-                maxLength={193}
+                maxLength={512}
                 onChange={(event) => setPendingDrafts((current) => current.map((value, draftIndex) => draftIndex === index ? event.target.value : value))}
               />
               {pendingErrors[index] && <small id={`pending-error-${index}`} role="alert">{pendingErrors[index]}</small>}
@@ -385,7 +410,7 @@ export default function ComparePage() {
           return next
         })}><Plus size={16} /> Add model</button>
         : <p className="compare-cap">Maximum of four models may be compared.</p>}
-    </main>
+    </main></>
   )
 }
 
@@ -395,12 +420,9 @@ interface CompareCardProps {
   status: ModelStatus
   onChange: (update: Partial<CompareItemState>) => void
   onRemove: () => void
-  canMoveLeft: boolean
-  canMoveRight: boolean
-  onMove: (direction: -1 | 1) => void
 }
 
-function CompareCard({ item, index, status, onChange, onRemove, canMoveLeft, canMoveRight, onMove }: CompareCardProps) {
+function CompareCard({ item, index, status, onChange, onRemove }: CompareCardProps) {
   const label = displayModelId(item, index)
   const model = status.kind === 'ready' ? status.model : null
   const variants = useMemo(() => model?.variants.filter((variant) => variant.role === (model.addon ? 'addon' : 'model')) ?? [], [model])
@@ -412,23 +434,32 @@ function CompareCard({ item, index, status, onChange, onRemove, canMoveLeft, can
     ? estimateVram(model.spec, estimateOptions(model, item, selectedVariant ?? null))
     : null
   const fit = estimate ? classifyFit(estimate.totalGiB, item.vramGiB) : null
+  const memoryUsage = estimate ? getMemoryBarUsage(estimate.totalGiB, item.vramGiB) : null
+  const memoryParts = estimate ? getMemoryBarPartPercents([estimate.weightsGiB, estimate.kvCacheGiB, estimate.runtimeGiB]) : []
+  const contextPresets = [4096, 8192, 16384, 32768].filter((value) => value <= (model?.maxContext ?? 32768))
+  const memoryStyle = memoryUsage ? {
+    width: `${memoryUsage.usedPercent}%`,
+    '--memory-risk-opacity': memoryUsage.riskOpacity,
+    '--memory-weights-offload-opacity': memoryUsage.weightsOffloadOpacity,
+  } as CSSProperties : undefined
 
   return (
     <article className="compare-card" role="region" aria-label={`Comparison for ${label}`}>
-      <header><div><span>MODEL {index + 1}</span><h2 id={cardId(item.modelId)} tabIndex={-1}>{label}</h2></div><div className="compare-card-actions"><button type="button" onClick={() => onMove(-1)} disabled={!canMoveLeft} aria-label={`Move ${label} left`}>←</button><button type="button" onClick={() => onMove(1)} disabled={!canMoveRight} aria-label={`Move ${label} right`}>→</button><button type="button" onClick={onRemove} aria-label={`Remove ${label}`}><X size={15} /></button></div></header>
+      <header><div><span>MODEL {index + 1}</span><h2 id={cardId(item.modelId)} tabIndex={-1}>{label}</h2></div><div className="compare-card-actions"><button type="button" onClick={onRemove} aria-label={`Remove ${label}`}><X size={15} /></button></div></header>
       {status.kind === 'loading' && <p>Loading public model…</p>}
       {status.kind === 'error' && <p className="compare-error" role="alert">This public model is unavailable.</p>}
       {model && (
         <>
           {comparable ? <div className="compare-controls">
-            <label>Weight precision for {label}<select aria-label={`Weight precision for ${label}`} value={item.quantization} onChange={(event) => onChange({ quantization: event.target.value as QuantizationId })}>{quantizations.map((value) => <option key={value.id} value={value.id}>{value.label}</option>)}</select></label>
-            <label>Context for {label}<input aria-label={`Context for ${label}`} type="number" min="1024" step="1024" value={item.context} onChange={(event) => onChange({ context: Math.max(1024, Math.round(Number(event.target.value) / 1024) * 1024 || 1024) })} /></label>
+            <fieldset className="compare-quant-control"><legend>Weight precision for {label}</legend><div className="compare-quant-grid">{quantizations.map((value) => <button type="button" key={value.id} aria-label={`${value.label} for ${label}`} aria-pressed={item.quantization === value.id} className={item.quantization === value.id ? 'active' : ''} onClick={() => onChange({ quantization: value.id })}>{value.label}</button>)}</div></fieldset>
+            <label className="compare-context-control">Context for {label}<input aria-label={`Context for ${label}`} type="number" min="1024" step="1024" value={item.context} onChange={(event) => onChange({ context: Math.max(1024, Math.round(Number(event.target.value) / 1024) * 1024 || 1024) })} /><span className="compare-context-presets">{contextPresets.map((value) => <button type="button" key={value} aria-label={`${value / 1024}K context for ${label}`} className={item.context === value ? 'active' : ''} onClick={() => onChange({ context: value })}>{value / 1024}K</button>)}</span></label>
             <label>KV precision for {label}<select aria-label={`KV precision for ${label}`} value={item.kvPrecision} onChange={(event) => onChange({ kvPrecision: event.target.value as KvPrecisionId })}>{kvPrecisions.map((value) => <option key={value.id} value={value.id}>{value.label}</option>)}</select></label>
             {model.spec?.kvCache?.kind === 'mla' && <label>MLA mode for {label}<select aria-label={`MLA mode for ${label}`} value={item.mlaCacheMode} onChange={(event) => onChange({ mlaCacheMode: event.target.value as 'expanded' | 'latent' })}><option value="expanded">Expanded</option><option value="latent">Latent</option></select></label>}
             <label>VRAM for {label}<select aria-label={`VRAM for ${label}`} value={item.vramGiB} onChange={(event) => onChange({ vramGiB: Number(event.target.value) })}>{vramPresets.map((value) => <option key={value} value={value}>{value} GiB</option>)}</select></label>
             {sources.length > 1 && <label>Artifact source for {label}<select aria-label={`Artifact source for ${label}`} value={item.source} onChange={(event) => onChange({ source: event.target.value, variantId: null })}>{sources.map((source) => <option key={source} value={source}>{source}</option>)}</select></label>}
             {item.source !== 'estimated' && sourceVariants.length > 0 && <label>Artifact for {label}<select aria-label={`Artifact for ${label}`} value={item.variantId ?? ''} onChange={(event) => onChange({ variantId: event.target.value || null })}><option value="">Choose artifact</option>{sourceVariants.map((variant) => <option key={variant.id} value={variant.id}>{variant.label}</option>)}</select></label>}
           </div> : <p className="compare-not-comparable">Not comparable — this public model has resource evidence but no safe autoregressive memory estimate.</p>}
+          {estimate && memoryUsage && <div className="compare-memory-bar"><div className="compare-memory-summary"><span>VRAM USAGE</span><strong>{estimate.totalGiB.toFixed(2)} / {item.vramGiB} GiB</strong></div><div className={`memory-bar${memoryUsage.offloadGiB > 0 ? ' has-offload' : ''}`} role="img" aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${item.vramGiB} GiB VRAM`}><div className="memory-bar-used" style={memoryStyle}><span className="weights" style={{ width: `${memoryParts[0]}%` }} /><span className="kv" style={{ width: `${memoryParts[1]}%` }} /><span className="runtime" style={{ width: `${memoryParts[2]}%` }} /><span className="memory-bar-risk" aria-hidden="true" style={{ opacity: memoryUsage.riskOpacity }} /></div><span className="memory-bar-remaining" aria-hidden="true" style={{ width: `${memoryUsage.remainingPercent}%` }} />{memoryUsage.offloadGiB > 0 && <span className="memory-bar-offload">OFFLOAD {memoryUsage.offloadGiB.toFixed(2)} GiB</span>}</div></div>}
           <dl className="compare-rows">
             <div><dt>TOTAL</dt><dd>{formatGiB(estimate?.totalGiB ?? null)}{estimate?.isLowerBound ? ' lower bound' : ''}</dd></div>
             <div><dt>WEIGHTS</dt><dd>{formatGiB(estimate?.weightsGiB ?? (model.tensorSizeBytes ? model.tensorSizeBytes / 1024 ** 3 : null))}</dd></div>
