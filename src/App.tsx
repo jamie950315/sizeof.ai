@@ -36,25 +36,15 @@ import {
 } from './lib/url-state'
 import { parseHuggingFaceModelPath } from './lib/huggingface'
 import { serializeCompareState } from './lib/compare-state'
+import {
+  createSearchCacheKey,
+  readSearchCache,
+  writeSearchCache,
+  type HuggingFaceSearchModel,
+  type HuggingFaceSearchResponse,
+} from './lib/model-search-cache'
 
 const contextPresets = contextLevels
-
-interface HuggingFaceSearchModel {
-  id: string
-  owner: string
-  name: string
-  downloads: number
-  likes: number
-  task: string | null
-  trendingScore: number
-  gated: boolean
-}
-
-interface HuggingFaceSearchResponse {
-  query: string
-  models: HuggingFaceSearchModel[]
-  nextCursor?: string | null
-}
 
 function searchSizingStatus(model: HuggingFaceSearchModel) {
   return searchSizingStatusForTask(model.task, model.gated)
@@ -154,6 +144,7 @@ function HomePage() {
   const [searchState, setSearchState] = useState<'idle' | 'loading' | 'loading-more' | 'error'>('idle')
   const [searchLoadMoreError, setSearchLoadMoreError] = useState(false)
   const searchRequestId = useRef(0)
+  const searchTimer = useRef(0)
   const [copied, setCopied] = useState(false)
 
   const model = models.find((item) => item.id === modelId) ?? models[0]
@@ -187,76 +178,110 @@ function HomePage() {
     window.setTimeout(() => setCopied(false), 1600)
   }
 
-  async function searchHuggingFace(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const query = catalogQuery.trim()
-    const searchBusy = searchState === 'loading' || searchState === 'loading-more'
-    if (searchBusy) return
-    if (!query) {
-      searchRequestId.current += 1
-      setSubmittedCatalogQuery('')
-      setSearchResults(null)
-      setNextSearchCursor(null)
-      setSearchLoadMoreError(false)
-      setSearchState('idle')
-      return
-    }
-    if (query.length < 2 || query.length > 80) return
-
-    const requestId = searchRequestId.current + 1
-    searchRequestId.current = requestId
-    setSubmittedCatalogQuery(query)
-    setSubmittedSearchAuthor(searchAuthor.trim())
-    setSubmittedSearchModelType(searchModelType)
+  function clearSearchResults() {
+    searchRequestId.current += 1
+    setSubmittedCatalogQuery('')
+    setSubmittedSearchAuthor('')
+    setSubmittedSearchModelType('')
     setSearchResults(null)
     setNextSearchCursor(null)
     setSearchLoadMoreError(false)
-    setSearchState('loading')
-    try {
-      const params = new URLSearchParams({ q: query })
-      if (searchAuthor.trim()) params.set('author', searchAuthor.trim())
-      if (searchModelType) params.set('type', searchModelType)
-      const response = await fetch(`/api/search/models?${params.toString()}`)
-      if (!response.ok) throw new Error('Search request failed')
-      const payload = await response.json() as HuggingFaceSearchResponse
-      if (searchRequestId.current !== requestId) return
-      setSearchResults(sortSearchModels(Array.isArray(payload.models) ? payload.models : [], query))
-      setNextSearchCursor(typeof payload.nextCursor === 'string' ? payload.nextCursor : null)
-      setSearchState('idle')
-    } catch {
-      if (searchRequestId.current !== requestId) return
-      setSearchResults(null)
-      setSearchState('error')
-    }
+    setSearchState('idle')
   }
 
-  async function loadMoreSearchResults() {
-    if (!nextSearchCursor || searchState !== 'idle') return
-    const requestId = searchRequestId.current
+  async function executeSearch(
+    query: string,
+    author: string,
+    modelType: string,
+    options: { cursor?: string; refresh?: boolean } = {},
+  ) {
+    if (query.length < 1 || query.length > 80) return
+    const requestId = searchRequestId.current + 1
+    searchRequestId.current = requestId
+    const cursor = options.cursor ?? ''
+    const cacheKey = createSearchCacheKey({ query, author, modelType, cursor })
+    setSubmittedCatalogQuery(query)
+    setSubmittedSearchAuthor(author)
+    setSubmittedSearchModelType(modelType)
     setSearchLoadMoreError(false)
-    setSearchState('loading-more')
+
+    if (!cursor && !options.refresh) {
+      const cached = readSearchCache(cacheKey)
+      if (cached) {
+        setSearchResults(sortSearchModels(cached.models, query))
+        setNextSearchCursor(typeof cached.nextCursor === 'string' ? cached.nextCursor : null)
+        setSearchState('idle')
+        return
+      }
+    }
+
+    if (cursor) setSearchState('loading-more')
+    else {
+      setNextSearchCursor(null)
+      setSearchState('loading')
+    }
+
     try {
-      const params = new URLSearchParams({ q: submittedCatalogQuery })
-      if (submittedSearchAuthor) params.set('author', submittedSearchAuthor)
-      if (submittedSearchModelType) params.set('type', submittedSearchModelType)
-      params.set('cursor', nextSearchCursor)
+      const params = new URLSearchParams({ q: query })
+      if (author) params.set('author', author)
+      if (modelType) params.set('type', modelType)
+      if (cursor) params.set('cursor', cursor)
       const response = await fetch(`/api/search/models?${params.toString()}`)
       if (!response.ok) throw new Error('Search request failed')
       const payload = await response.json() as HuggingFaceSearchResponse
       if (searchRequestId.current !== requestId) return
       const incoming = Array.isArray(payload.models) ? payload.models : []
+      const nextCursor = typeof payload.nextCursor === 'string' ? payload.nextCursor : null
+      writeSearchCache(cacheKey, { query, models: incoming, nextCursor })
       setSearchResults((current) => {
+        if (!cursor) return sortSearchModels(incoming, query)
         const modelsById = new Map((current ?? []).map((model) => [model.id, model]))
         for (const model of incoming) modelsById.set(model.id, model)
-        return sortSearchModels([...modelsById.values()], submittedCatalogQuery)
+        return sortSearchModels([...modelsById.values()], query)
       })
-      setNextSearchCursor(typeof payload.nextCursor === 'string' ? payload.nextCursor : null)
+      setNextSearchCursor(nextCursor)
       setSearchState('idle')
     } catch {
       if (searchRequestId.current !== requestId) return
-      setSearchLoadMoreError(true)
-      setSearchState('idle')
+      if (cursor) {
+        setSearchLoadMoreError(true)
+        setSearchState('idle')
+        return
+      }
+      setSearchResults(null)
+      setSearchState('error')
     }
+  }
+
+  useEffect(() => {
+    const query = catalogQuery.trim()
+    window.clearTimeout(searchTimer.current)
+    if (!query) {
+      clearSearchResults()
+      return
+    }
+    searchTimer.current = window.setTimeout(() => {
+      void executeSearch(query, searchAuthor.trim(), searchModelType)
+    }, 80)
+    return () => window.clearTimeout(searchTimer.current)
+  }, [catalogQuery, searchAuthor, searchModelType])
+
+  async function searchHuggingFace(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    window.clearTimeout(searchTimer.current)
+    const query = catalogQuery.trim()
+    if (!query) {
+      clearSearchResults()
+      return
+    }
+    await executeSearch(query, searchAuthor.trim(), searchModelType, { refresh: true })
+  }
+
+  async function loadMoreSearchResults() {
+    if (!nextSearchCursor || (searchState !== 'idle' && searchState !== 'error')) return
+    await executeSearch(submittedCatalogQuery, submittedSearchAuthor, submittedSearchModelType, {
+      cursor: nextSearchCursor,
+    })
   }
 
   const memoryParts = [
@@ -305,7 +330,6 @@ function HomePage() {
                 <button
                   type="submit"
                   aria-label="Search Hugging Face"
-                  disabled={searchState === 'loading' || searchState === 'loading-more'}
                 >
                   {searchState === 'loading' ? 'SEARCHING' : 'SEARCH'} <ArrowUpRight size={17} />
                 </button>
@@ -334,7 +358,7 @@ function HomePage() {
                     maxLength={96}
                   />
                 </label>
-                <p>Search runs on Enter or Search.</p>
+                <p>Results update as you type.</p>
               </div>
             </form>
           </div>
@@ -355,7 +379,7 @@ function HomePage() {
               <div className="catalog-header">
                 <span>MODEL</span><span>DOWNLOADS</span><span>LIKES</span><span>TASK</span><span>SIZING</span><span />
               </div>
-              {searchState === 'loading' && (
+              {searchState === 'loading' && !searchResults && (
                 <div className="catalog-state" role="status"><span className="pulse-dot" /> Searching Hugging Face for “{submittedCatalogQuery}”…</div>
               )}
               {searchState === 'error' && (
@@ -401,7 +425,7 @@ function HomePage() {
               </button>
             )}
             <span className="visually-hidden" role="status" aria-live="polite">
-              {searchState === 'loading-more' ? 'Loading more Hugging Face models' : ''}
+              {searchState === 'loading' ? `Searching Hugging Face for ${submittedCatalogQuery}` : searchState === 'loading-more' ? 'Loading more Hugging Face models' : ''}
             </span>
           </section>
         )}

@@ -84,6 +84,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Cloudflare testnet version: `8bc80fc9-2d61-4b01-ac0c-4186cbf3ee0a` (deployed 2026-09-03).
 - 2026-09-03: Finance approved the four enterprise Hugging Face keys. They are stored only on `sizeof-ai-testnet`, `HF_ENTERPRISE_KEYS_ENABLED=true`, and live testnet search plus uncached model lookups succeeded. Direct key checks confirmed four distinct valid accounts. Production still uses only the original `HF_TOKEN` and was not deployed.
 - Cloudflare testnet version: `8d5a89e9-f897-4ede-ad9b-94541dbdc964` (deployed 2026-09-03).
+- 2026-09-03: Homepage Hugging Face search updates as you type. One-character queries are allowed, previous name/link result pages are cached in the browser session, and architecture/spec details still load from the existing model API. A full Hub name dump is not stored locally because the Hub has 2M+ models. Desktop typeahead on testnet and production isolation checks passed.
+- Cloudflare testnet version: `ea6ce05b-47b3-4aa4-8ad5-64b8fca371ad` (deployed 2026-09-03).
 
 ## Commands
 

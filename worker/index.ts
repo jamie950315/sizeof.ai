@@ -576,8 +576,8 @@ export async function handleModelSearchApi(
   const author = url.searchParams.get('author')?.trim() ?? ''
   const modelType = url.searchParams.get('type')?.trim() ?? ''
   const cursor = url.searchParams.get('cursor')?.trim() ?? ''
-  if (query.length < 2 || query.length > 80) {
-    return json({ error: 'Search query must contain between 2 and 80 characters' }, 400)
+  if (query.length < 1 || query.length > 80) {
+    return json({ error: 'Search query must contain between 1 and 80 characters' }, 400)
   }
   if ((author && !isValidSearchAuthor(author))
     || (modelType && !SEARCH_MODEL_TYPES.has(modelType))

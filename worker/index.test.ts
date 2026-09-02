@@ -563,8 +563,31 @@ describe('Hugging Face model API', () => {
     }
   })
 
-  it('rejects a search shorter than two characters without contacting Hugging Face', async () => {
+  it('rejects a blank search without contacting Hugging Face', async () => {
     const fetcher = vi.spyOn(globalThis, 'fetch')
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/search/models?q=%20'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        ctx,
+      )
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Search query must contain between 1 and 80 characters',
+      })
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+      expect(fetcher).not.toHaveBeenCalled()
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('accepts a single-character search', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([]))
     const cache = new MemoryModelCache()
     const { ctx } = modelCacheContext()
 
@@ -575,12 +598,11 @@ describe('Hugging Face model API', () => {
         ctx,
       )
 
-      expect(response.status).toBe(400)
-      await expect(response.json()).resolves.toEqual({
-        error: 'Search query must contain between 2 and 80 characters',
-      })
-      expect(response.headers.get('Cache-Control')).toBe('no-store')
-      expect(fetcher).not.toHaveBeenCalled()
+      expect(response.status).toBe(200)
+      expect(fetcher).toHaveBeenCalledWith(
+        'https://huggingface.co/api/models?search=Q&sort=trendingScore&direction=-1&limit=12',
+        { headers: { Accept: 'application/json' } },
+      )
     } finally {
       fetcher.mockRestore()
     }

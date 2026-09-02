@@ -1,7 +1,8 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { clearSearchCacheForTests } from './lib/model-search-cache'
 import stylesCss from './styles.css?inline'
 
 const testStyles = document.createElement('style')
@@ -13,7 +14,10 @@ beforeAll(() => {
 afterAll(() => testStyles.remove())
 
 describe('sizeof.ai app', () => {
-  beforeEach(() => window.history.replaceState(null, '', '/'))
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/')
+    clearSearchCacheForTests()
+  })
 
   it('opens directly into the model explorer without a marketing hero', () => {
     render(<App />)
@@ -280,14 +284,26 @@ describe('sizeof.ai app', () => {
     expect(compare.querySelector('.catalog-compare-label')).toHaveTextContent('COMPARE')
   })
 
-  it('does not search while the user is still typing', async () => {
+  it('searches as the query is typed without pressing Enter', async () => {
     const user = userEvent.setup()
-    const fetcher = vi.spyOn(globalThis, 'fetch')
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+      query: 'QWEN',
+      nextCursor: null,
+      models: [{
+        id: 'Qwen/Qwen3.8-27B', owner: 'Qwen', name: 'Qwen3.8-27B',
+        downloads: 2_090_699, likes: 12_025, task: 'image-text-to-text',
+        trendingScore: 2_236, gated: false,
+      }],
+    }))
     render(<App />)
 
     await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN')
 
-    expect(fetcher).not.toHaveBeenCalled()
+    expect(await screen.findByRole('link', { name: 'Open Qwen/Qwen3.8-27B' })).toHaveAttribute(
+      'href',
+      '/Qwen/Qwen3.8-27B',
+    )
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN')
     expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B')).toBeInTheDocument()
     fetcher.mockRestore()
   })
@@ -372,7 +388,7 @@ describe('sizeof.ai app', () => {
     expect(within(results).getAllByText('RESOURCE PROFILE')).toHaveLength(34)
   })
 
-  it('submits model type and author filters only after Search is pressed', async () => {
+  it('applies author and model-type filters as they change', async () => {
     const user = userEvent.setup()
     const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
       query: 'QWEN', nextCursor: null, models: [],
@@ -380,13 +396,13 @@ describe('sizeof.ai app', () => {
     render(<App />)
 
     await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN')
+    await screen.findByText('No Hugging Face models matched “QWEN”.')
     await user.type(screen.getByRole('textbox', { name: 'Filter by author' }), 'Qwen')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by model type' }), 'text-generation')
-    expect(fetcher).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'Search Hugging Face' }))
-
-    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN&author=Qwen&type=text-generation')
+    await waitFor(() => {
+      expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN&author=Qwen&type=text-generation')
+    })
     fetcher.mockRestore()
   })
 
@@ -441,24 +457,49 @@ describe('sizeof.ai app', () => {
     fetcher.mockRestore()
   })
 
-  it('blocks a new search while another page is loading', async () => {
+  it('starts a new typed query even if another page is still loading', async () => {
     const user = userEvent.setup()
     let finishPage: ((response: Response) => void) | undefined
     const pendingPage = new Promise<Response>((resolve) => { finishPage = resolve })
     const fetcher = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(Response.json({ query: 'QWEN', nextCursor: 'next-page==', models: [] }))
       .mockReturnValueOnce(pendingPage)
+      .mockResolvedValueOnce(Response.json({ query: 'LLAMA', nextCursor: null, models: [] }))
     render(<App />)
 
     const searchbox = screen.getByRole('searchbox', { name: 'Search Hugging Face models' })
     await user.type(searchbox, 'QWEN{enter}')
     await user.click(await screen.findByRole('button', { name: 'Load more models' }))
-    expect(screen.getByRole('button', { name: 'Search Hugging Face' })).toBeDisabled()
     await user.clear(searchbox)
     await user.type(searchbox, 'LLAMA{enter}')
-    expect(fetcher).toHaveBeenCalledTimes(2)
 
+    expect(await screen.findByText('No Hugging Face models matched “LLAMA”.')).toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=LLAMA')
     finishPage?.(Response.json({ query: 'QWEN', nextCursor: null, models: [] }))
+    expect(screen.queryByText('No Hugging Face models matched “QWEN”.')).not.toBeInTheDocument()
+    fetcher.mockRestore()
+  })
+
+  it('reuses the local name cache when the same query is typed again', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+      query: 'QWEN',
+      nextCursor: null,
+      models: [{
+        id: 'Qwen/Qwen3.8-27B', owner: 'Qwen', name: 'Qwen3.8-27B',
+        downloads: 1, likes: 1, task: 'text-generation', trendingScore: 1, gated: false,
+      }],
+    }))
+    render(<App />)
+    const searchbox = screen.getByRole('searchbox', { name: 'Search Hugging Face models' })
+
+    await user.type(searchbox, 'QWEN')
+    expect(await screen.findByRole('link', { name: 'Open Qwen/Qwen3.8-27B' })).toBeInTheDocument()
+    await user.clear(searchbox)
+    await user.type(searchbox, 'QWEN')
+
+    expect(await screen.findByRole('link', { name: 'Open Qwen/Qwen3.8-27B' })).toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledTimes(1)
     fetcher.mockRestore()
   })
 
