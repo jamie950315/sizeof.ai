@@ -29,7 +29,8 @@
     "testnet": {
       "name": "sizeof-ai-testnet",
       "vars": {
-        "ENVIRONMENT": "testnet"
+        "ENVIRONMENT": "testnet",
+        "HF_ENTERPRISE_KEYS_ENABLED": "false"
       },
       "kv_namespaces": [
         { "binding": "MODEL_CACHE", "id": "0a07ede1f0744dd696857d5bea6d2441" }

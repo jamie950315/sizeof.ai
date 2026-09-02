@@ -36,6 +36,7 @@ import {
   readModelResponse,
   type ModelCacheNamespace,
 } from './model-cache'
+import { createHfTokenPool, createRotatingHfFetcher } from './hf-token-pool'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 type GgufReader = (
@@ -1175,7 +1176,16 @@ interface WorkerBindings {
   MODEL_CACHE: ModelCacheNamespace
   ASSETS: { fetch(request: Request): Promise<Response> }
   HF_TOKEN?: string
+  HF_ENTERPRISE_KEYS_ENABLED?: string
+  HF_TOKEN_ENTERPRISE_1?: string
+  HF_TOKEN_ENTERPRISE_2?: string
+  HF_TOKEN_ENTERPRISE_3?: string
+  HF_TOKEN_ENTERPRISE_4?: string
   ENVIRONMENT?: string
+}
+
+function huggingFaceFetcher(env: WorkerBindings): Fetcher {
+  return createRotatingHfFetcher(fetch, createHfTokenPool(env))
 }
 
 const publicEstimateCorsHeaders = {
@@ -1218,7 +1228,7 @@ async function loadPublicModelResponse(
   const internalRequest = new Request(
     `https://sizeof.internal/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}`,
   )
-  const response = await handleModelApi(internalRequest, fetch, readGguf, env.HF_TOKEN)
+  const response = await handleModelApi(internalRequest, huggingFaceFetcher(env), readGguf)
   if (response.ok) {
     response.headers.set('X-Sizeof-Model-Source', 'huggingface')
     queueModelResponseWrite(env.MODEL_CACHE, key, response.clone(), ctx)
@@ -1381,7 +1391,7 @@ export async function handleWorkerRequest(
     return staticResponse(sitemap(host), 'application/xml; charset=utf-8', 'public, max-age=3600')
   }
   if (url.pathname === '/api/search/models') {
-    return handleModelSearchApi(request, fetch, env.HF_TOKEN)
+    return handleModelSearchApi(request, huggingFaceFetcher(env))
   }
   if (!url.pathname.startsWith('/api/models/')) {
     const asset = await env.ASSETS.fetch(request)
@@ -1407,7 +1417,7 @@ export async function handleWorkerRequest(
     if (cachedModel?.state === 'fresh') return modelResponseFromCache(cachedModel)
   }
 
-  const response = await handleModelApi(request, fetch, readGguf, env.HF_TOKEN)
+  const response = await handleModelApi(request, huggingFaceFetcher(env), readGguf)
   if (route && response.ok) {
     response.headers.set('X-Sizeof-Model-Source', 'huggingface')
     queueModelResponseWrite(

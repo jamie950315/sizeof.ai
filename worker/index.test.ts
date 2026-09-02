@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { resetHfTokenRotationForTests } from './hf-token-pool'
 import { applyAssetCachePolicy, handleModelApi, handleWorkerRequest, readGguf, selectCommunityRepositories, selectCommunityRepository } from './index'
 import { normalizeHuggingFaceModel } from '../src/lib/huggingface'
 
@@ -369,6 +370,67 @@ describe('Hugging Face model API', () => {
       )
     } finally {
       fetcher.mockRestore()
+    }
+  })
+
+  it('does not send stored enterprise Hugging Face keys until they are explicitly enabled', async () => {
+    resetHfTokenRotationForTests()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([]))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+      HF_TOKEN: 'hf_test_token',
+      HF_ENTERPRISE_KEYS_ENABLED: 'false',
+      HF_TOKEN_ENTERPRISE_1: 'hf_ent_1',
+      HF_TOKEN_ENTERPRISE_2: 'hf_ent_2',
+      HF_TOKEN_ENTERPRISE_3: 'hf_ent_3',
+      HF_TOKEN_ENTERPRISE_4: 'hf_ent_4',
+    }
+
+    try {
+      await handleWorkerRequest(new Request('https://sizeof.ai/api/search/models?q=QWEN'), env, ctx)
+      await handleWorkerRequest(new Request('https://sizeof.ai/api/search/models?q=Qwen'), env, ctx)
+      const tokens = fetcher.mock.calls.map(([, init]) => new Headers(init?.headers).get('Authorization'))
+      expect(tokens).toEqual(['Bearer hf_test_token', 'Bearer hf_test_token'])
+    } finally {
+      fetcher.mockRestore()
+      resetHfTokenRotationForTests()
+    }
+  })
+
+  it('rotates Hugging Face keys on every lookup after enterprise keys are enabled', async () => {
+    resetHfTokenRotationForTests()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([]))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+      HF_TOKEN: 'hf_test_token',
+      HF_ENTERPRISE_KEYS_ENABLED: 'true',
+      HF_TOKEN_ENTERPRISE_1: 'hf_ent_1',
+      HF_TOKEN_ENTERPRISE_2: 'hf_ent_2',
+      HF_TOKEN_ENTERPRISE_3: 'hf_ent_3',
+      HF_TOKEN_ENTERPRISE_4: 'hf_ent_4',
+    }
+
+    try {
+      for (const query of ['QWEN', 'Qwen', 'qwen', 'Orni', 'Muse']) {
+        await handleWorkerRequest(new Request(`https://sizeof.ai/api/search/models?q=${query}`), env, ctx)
+      }
+      const tokens = fetcher.mock.calls.map(([, init]) => new Headers(init?.headers).get('Authorization'))
+      expect(tokens).toEqual([
+        'Bearer hf_test_token',
+        'Bearer hf_ent_1',
+        'Bearer hf_ent_2',
+        'Bearer hf_ent_3',
+        'Bearer hf_ent_4',
+      ])
+    } finally {
+      fetcher.mockRestore()
+      resetHfTokenRotationForTests()
     }
   })
 

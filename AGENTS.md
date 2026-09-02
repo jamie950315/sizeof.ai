@@ -80,6 +80,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Cloudflare testnet version: `6ce49d13-e0c7-4502-a3e7-c40fd15cd23d` (deployed 2026-08-31).
 - 2026-09-01: Testnet comparison UX now uses compact hover labels on homepage compare icons, accepts curated choices plus Hugging Face or sizeof.ai model URLs, restores top navigation, provides per-model quantization, context, and VRAM bars, removes card-order arrows, and uses a valid Qwen/Ornith recommendation. Muse-Glimmer-30B now retains revision-checked hybrid-attention facts through a versioned cache fallback and exposes a runtime-specific lower bound. Desktop 1280×800, mobile 390×844, public API, and production-isolation checks passed.
 - Cloudflare testnet version: `e5fe9a24-dd40-4c95-b3c3-04739e917c66` (deployed 2026-09-01).
+- 2026-09-03: Testnet Hugging Face lookups can rotate across multiple API keys. The four enterprise keys remain disabled behind `HF_ENTERPRISE_KEYS_ENABLED=false` and were not uploaded or called. Existing production `HF_TOKEN` was not changed. Desktop/API checks passed on testnet; production Worker version and homepage/API hashes were unchanged.
+- Cloudflare testnet version: `8bc80fc9-2d61-4b01-ac0c-4186cbf3ee0a` (deployed 2026-09-03).
 
 ## Commands
 
@@ -87,6 +89,7 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - `npm test`: unit and component tests
 - `npm run build`: production build
 - `npm run deploy`: deploy the Worker and static assets
+- `npm run deploy:testnet`: deploy the isolated `sizeof-ai-testnet` Worker to `testnet.sizeof.ai`
 - `npx wrangler dev --port 8790`: run the complete Worker, API, and static site locally when 8787 is occupied by Executor
 
 ## Working Agreements
@@ -96,4 +99,6 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Cite primary model sources in catalog data.
 - Never commit Cloudflare credentials or local Wrangler state.
 - After every website feature or fix, deploy the current changes to Cloudflare production and verify the public domains and visible production page; a commit or push alone is not completion. Record the deployed Cloudflare version in this file.
+- The current six-phase stream deploys only to `testnet.sizeof.ai` until production is explicitly approved.
+- Hugging Face requests rotate across the active API key pool. Enterprise keys (`HF_TOKEN_ENTERPRISE_1` through `HF_TOKEN_ENTERPRISE_4`) must stay unused until finance approval; do not set `HF_ENTERPRISE_KEYS_ENABLED=true` or upload those secrets before that approval.
 - Run tests, build, and a real local smoke test before declaring completion.
