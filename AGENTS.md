@@ -82,6 +82,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Cloudflare testnet version: `e5fe9a24-dd40-4c95-b3c3-04739e917c66` (deployed 2026-09-01).
 - 2026-09-03: Testnet Hugging Face lookups can rotate across multiple API keys. The four enterprise keys remain disabled behind `HF_ENTERPRISE_KEYS_ENABLED=false` and were not uploaded or called. Existing production `HF_TOKEN` was not changed. Desktop/API checks passed on testnet; production Worker version and homepage/API hashes were unchanged.
 - Cloudflare testnet version: `8bc80fc9-2d61-4b01-ac0c-4186cbf3ee0a` (deployed 2026-09-03).
+- 2026-09-03: Finance approved the four enterprise Hugging Face keys. They are stored only on `sizeof-ai-testnet`, `HF_ENTERPRISE_KEYS_ENABLED=true`, and live testnet search plus uncached model lookups succeeded. Direct key checks confirmed four distinct valid accounts. Production still uses only the original `HF_TOKEN` and was not deployed.
+- Cloudflare testnet version: `8d5a89e9-f897-4ede-ad9b-94541dbdc964` (deployed 2026-09-03).
 
 ## Commands
 
@@ -100,5 +102,5 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Never commit Cloudflare credentials or local Wrangler state.
 - After every website feature or fix, deploy the current changes to Cloudflare production and verify the public domains and visible production page; a commit or push alone is not completion. Record the deployed Cloudflare version in this file.
 - The current six-phase stream deploys only to `testnet.sizeof.ai` until production is explicitly approved.
-- Hugging Face requests rotate across the active API key pool. Enterprise keys (`HF_TOKEN_ENTERPRISE_1` through `HF_TOKEN_ENTERPRISE_4`) must stay unused until finance approval; do not set `HF_ENTERPRISE_KEYS_ENABLED=true` or upload those secrets before that approval.
+- Hugging Face requests rotate across the active API key pool. Enterprise keys are enabled on testnet only (`HF_ENTERPRISE_KEYS_ENABLED=true` plus `HF_TOKEN_ENTERPRISE_1` through `HF_TOKEN_ENTERPRISE_4`). Do not copy those secrets to production or enable the flag there without explicit approval.
 - Run tests, build, and a real local smoke test before declaring completion.
