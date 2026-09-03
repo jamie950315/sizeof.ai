@@ -37,6 +37,7 @@ import {
   type ModelCacheNamespace,
 } from './model-cache'
 import { createHfTokenPool, createRotatingHfFetcher } from './hf-token-pool'
+import { racePrefixSearch } from './prefix-search'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 type GgufReader = (
@@ -1181,6 +1182,9 @@ interface WorkerBindings {
   HF_TOKEN_ENTERPRISE_2?: string
   HF_TOKEN_ENTERPRISE_3?: string
   HF_TOKEN_ENTERPRISE_4?: string
+  SIZEOF_SEARCH_JP_URL?: string
+  SIZEOF_SEARCH_US_URL?: string
+  SIZEOF_SEARCH_TOKEN?: string
   ENVIRONMENT?: string
 }
 
@@ -1391,7 +1395,22 @@ export async function handleWorkerRequest(
     return staticResponse(sitemap(host), 'application/xml; charset=utf-8', 'public, max-age=3600')
   }
   if (url.pathname === '/api/search/models') {
-    return handleModelSearchApi(request, huggingFaceFetcher(env))
+    const indexed = await racePrefixSearch(env, request.url)
+    if (indexed.result) {
+      const response = json({
+        query: indexed.result.query,
+        models: indexed.result.models,
+        nextCursor: indexed.result.nextCursor ?? null,
+      }, 200, {
+        'Cache-Control': 'public, max-age=30',
+        'Cloudflare-CDN-Cache-Control': 'public, max-age=120, stale-while-revalidate=600',
+      })
+      response.headers.set('X-Sizeof-Search-Source', indexed.result.source)
+      return response
+    }
+    const fallback = await handleModelSearchApi(request, huggingFaceFetcher(env))
+    fallback.headers.set('X-Sizeof-Search-Source', 'huggingface')
+    return fallback
   }
   if (!url.pathname.startsWith('/api/models/')) {
     const asset = await env.ASSETS.fetch(request)

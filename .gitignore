@@ -10,3 +10,6 @@ coverage/
 output/playwright/
 output/favicon-previews/
 .superpowers/
+
+services/search-index/data/
+services/search-index/.env

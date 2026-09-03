@@ -1,0 +1,33 @@
+services:
+  api:
+    build: .
+    command: python -m src.server
+    restart: unless-stopped
+    environment:
+      SIZEOF_SEARCH_TOKEN: ${SIZEOF_SEARCH_TOKEN}
+      SIZEOF_SEARCH_HOST: ${SIZEOF_SEARCH_HOST}
+      SIZEOF_SEARCH_DB: /data/models.sqlite
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8788:8788"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8788/health', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+  indexer:
+    build: .
+    command: python -m src.indexer
+    restart: unless-stopped
+    environment:
+      SIZEOF_SEARCH_DB: /data/models.sqlite
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_TOKEN_ENTERPRISE_1: ${HF_TOKEN_ENTERPRISE_1:-}
+      HF_TOKEN_ENTERPRISE_2: ${HF_TOKEN_ENTERPRISE_2:-}
+      HF_TOKEN_ENTERPRISE_3: ${HF_TOKEN_ENTERPRISE_3:-}
+      HF_TOKEN_ENTERPRISE_4: ${HF_TOKEN_ENTERPRISE_4:-}
+    volumes:
+      - ./data:/data
+    depends_on:
+      - api
