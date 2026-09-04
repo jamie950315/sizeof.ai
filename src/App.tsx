@@ -68,8 +68,9 @@ function searchModelRank(model: HuggingFaceSearchModel, query: string) {
   const name = model.name.toLocaleLowerCase('en')
   const id = model.id.toLocaleLowerCase('en')
   if (id === normalizedQuery) return 0
-  if (name === normalizedQuery && owner === normalizedQuery) return 1
-  if (name === normalizedQuery) return 2
+  if (normalizedQuery.includes('/')) return id.startsWith(normalizedQuery) ? 1 : 5
+  if (normalizedQuery.length >= 4 && name === normalizedQuery && owner === normalizedQuery) return 1
+  if (normalizedQuery.length >= 4 && name === normalizedQuery) return 2
   if (owner === normalizedQuery) return 3
   if (name.startsWith(normalizedQuery)) return 4
   return 5

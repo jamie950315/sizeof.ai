@@ -463,6 +463,30 @@ describe('Hugging Face model API', () => {
     }
   })
 
+  it('does not promote two-character exact names over popular prefix matches', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([
+      { id: 'trungzpham/qw', downloads: 1, trendingScore: 1, private: false },
+      { id: 'Qwen/Qwen3-0.6B', downloads: 2_000_000, trendingScore: 2_200, private: false },
+    ]))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/search/models?q=Qw'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        ctx,
+      )
+      const body = await response.json() as { models: Array<{ id: string }> }
+      expect(body.models.map((model) => model.id)).toEqual([
+        'Qwen/Qwen3-0.6B',
+        'trungzpham/qw',
+      ])
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
   it('forwards author and model type filters and returns the next cursor', async () => {
     const nextCursor = 'eyIkb3IiOlt7InRyZW5kaW5nU2NvcmUiOjE3fV19='
     const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('[]', {

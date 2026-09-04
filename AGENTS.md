@@ -90,6 +90,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Cloudflare testnet version: `67f8a69f-635b-491d-b147-7447f97ff73e` (deployed 2026-09-03).
 - 2026-09-05: Osaka and San Jose each store about 3.04 million public model names on disk (~875 MB). Search was slow because every query scanned the full list (3–5 s locally, which exceeded the Worker wait and fell back to Hugging Face). Prefix indexes now answer in milliseconds; testnet `Qwen`/`Q` queries return the Osaka index.
 - 2026-09-05: Search edge-case tests cover one-character ranking, owner/name exactness, filters, pagination, empty indexes, token pooling, and Worker race/fallback. Full `owner/name` queries now match through the owner index as well as the name index. Osaka and San Jose search APIs were rebuilt; Cloudflare testnet Worker was not redeployed. Production homepage hash remained `c6900a49382143aede43fcdf74203f15ad073211232d0286afc1dbddb1d7ddeb`.
+- 2026-09-05: Short prefixes no longer promote exact two- or three-character names over popular matches, and `owner/name` queries use the author list directly. Index refreshes now update top downloads, then ingest newly created Hugging Face models instead of stopping after the first 5,000 popular rows. Live testnet `Qw`/`Qwen/Qwen3` queries return Osaka in about 1 ms locally; Osaka ingested 1,166 new names on the first created-at pass.
+- Cloudflare testnet version: `c42a50e5-4f44-4c60-a833-46ef6116a07f` (deployed 2026-09-05).
 
 ## Commands
 

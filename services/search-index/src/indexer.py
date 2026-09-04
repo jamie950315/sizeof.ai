@@ -86,55 +86,109 @@ def normalize(raw: dict) -> dict | None:
     }
 
 
-def crawl_once() -> int:
-    pool = tokens()
-    db = connect(DB_PATH)
+class TokenCursor:
+    def __init__(self, pool: list[str]):
+        self.pool = pool
+        self.index = 0
+
+    def next(self) -> str | None:
+        if not self.pool:
+            return None
+        token = self.pool[self.index % len(self.pool)]
+        self.index += 1
+        return token
+
+
+def crawl_pages(
+    db,
+    token_cursor: TokenCursor,
+    sort: str,
+    *,
+    max_pages: int | None = None,
+    new_id_stagnant: int | None = None,
+    count_stagnant: int | None = None,
+    min_total_for_count_stagnant: int = 100_000,
+) -> dict:
     cursor = None
     page = 0
     accepted = 0
-    index = 0
+    inserted_total = 0
     seen_cursors: set[str] = set()
-    stagnant = 0
+    stagnant_new = 0
+    stagnant_count = 0
     last_total = count_models(db)
     while True:
-        url = 'https://huggingface.co/api/models?limit=1000&sort=downloads&direction=-1'
+        url = f'https://huggingface.co/api/models?limit=1000&sort={sort}&direction=-1'
         if cursor:
             url += '&cursor=' + urllib.parse.quote(cursor)
-        token = pool[index % len(pool)] if pool else None
-        index += 1
-        status, body, link = request_json(url, token)
+        status, body, link = request_json(url, token_cursor.next())
         if status == 429:
             time.sleep(20)
             continue
         if status != 200 or not isinstance(body, list):
-            print(json.dumps({'message': 'page failed', 'status': status, 'page': page}), flush=True)
+            print(json.dumps({'message': 'page failed', 'sort': sort, 'status': status, 'page': page}), flush=True)
             time.sleep(5)
             if page == 0:
                 break
             continue
         rows = [row for item in body if isinstance(item, dict) for row in [normalize(item)] if row]
+        inserted = 0
         if rows:
-            upsert_models(db, rows)
+            inserted, _updated = upsert_models(db, rows)
             accepted += len(rows)
+            inserted_total += inserted
         page += 1
-        current_total = count_models(db)
-        if current_total <= last_total:
-            stagnant += 1
+        current_total = last_total + inserted
+        if inserted == 0:
+            stagnant_new += 1
+            stagnant_count += 1
         else:
-            stagnant = 0
+            stagnant_new = 0
+            stagnant_count = 0
             last_total = current_total
         if page % 10 == 0:
             set_meta(db, 'updated_at', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
-            print(json.dumps({'message': 'indexed', 'page': page, 'models': current_total}), flush=True)
-        cursor = next_cursor(link)
-        if not cursor or not body or cursor in seen_cursors or last_total > 100000 and stagnant >= 5:
+            print(json.dumps({
+                'message': 'indexed',
+                'sort': sort,
+                'page': page,
+                'models': current_total,
+                'inserted': inserted_total,
+            }), flush=True)
+        next_page = next_cursor(link)
+        stop_count = (
+            count_stagnant is not None
+            and last_total > min_total_for_count_stagnant
+            and stagnant_count >= count_stagnant
+        )
+        stop_new = new_id_stagnant is not None and stagnant_new >= new_id_stagnant
+        stop_max = max_pages is not None and page >= max_pages
+        if not next_page or not body or next_page in seen_cursors or stop_count or stop_new or stop_max:
             break
-        seen_cursors.add(cursor)
-        time.sleep(0.05)
+        seen_cursors.add(next_page)
+        cursor = next_page
+    return {'sort': sort, 'pages': page, 'accepted': accepted, 'inserted': inserted_total}
+
+
+def crawl_once() -> int:
+    pool = tokens()
+    db = connect(DB_PATH)
+    token_cursor = TokenCursor(pool)
+    existing_total = count_models(db)
+    if existing_total < 100_000:
+        downloads = crawl_pages(db, token_cursor, 'downloads', count_stagnant=5)
+    else:
+        downloads = crawl_pages(db, token_cursor, 'downloads', max_pages=30)
+    newest = crawl_pages(db, token_cursor, 'createdAt', new_id_stagnant=5, max_pages=200)
     set_meta(db, 'updated_at', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
     total = count_models(db)
     db.close()
-    print(json.dumps({'message': 'crawl complete', 'accepted': accepted, 'total': total}), flush=True)
+    print(json.dumps({
+        'message': 'crawl complete',
+        'downloads': downloads,
+        'createdAt': newest,
+        'total': total,
+    }), flush=True)
     return total
 
 

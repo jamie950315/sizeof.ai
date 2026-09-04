@@ -43,6 +43,8 @@ FIXTURES = [
     model('meta-llama/Llama-2-7b', downloads=3_000_000, trending=700, task='text-generation'),
     model('meta-llama/Llama-3-8B', downloads=2_500_000, trending=1_100, task='text-generation'),
     model('mlx-community/Qwen2.5-7B-4bit', downloads=20_000, trending=80, task='text-generation'),
+    model('trungzpham/qw', downloads=10, trending=1, task='text-generation'),
+    model('mishkashishka/qwe', downloads=12, trending=1, task='text-generation'),
     model('z/short', downloads=1, trending=1),
     model('other/zz-hidden', downloads=10, trending=10),
 ]
@@ -71,6 +73,8 @@ class BuildIndexTests(unittest.TestCase):
         self.assertNotIn('q', indexes['name2'])
         self.assertIn('qw', indexes['name2'])
         self.assertEqual([item['id'] for item in indexes['owner2']['qw']], ['Qwen/Qwen3-0.6B'])
+        self.assertEqual([item['id'] for item in indexes['owner_exact']['qwen']], ['Qwen/Qwen3-0.6B'])
+        self.assertEqual([item['id'] for item in indexes['name_exact']['qwen3-0.6b']], ['Qwen/Qwen3-0.6B'])
 
 
 class SearchTests(unittest.TestCase):
@@ -148,10 +152,17 @@ class SearchTests(unittest.TestCase):
         self.assertNotIn('z/short', self.ids('zz'))
         self.assertEqual(self.ids('zz'), ['other/zz-hidden'])
 
+    def test_short_prefix_prefers_popular_names_over_exact_short_names(self):
+        self.assertEqual(self.ids('Qw')[0], 'Qwen/Qwen3-0.6B')
+        self.assertEqual(self.ids('Qwe')[0], 'Qwen/Qwen3-0.6B')
+        self.assertGreater(self.ids('Qw').index('trungzpham/qw'), self.ids('Qw').index('Qwen/Qwen3-0.6B'))
+
     def test_full_id_matches_when_name_prefix_differs_from_owner(self):
         self.assertEqual(self.ids('meta-llama/Llama-3-8B'), ['meta-llama/Llama-3-8B'])
         self.assertIn('meta-llama/Llama-2-7b', self.ids('meta-llama/Llama'))
         self.assertIn('Qwen/Qwen3-0.6B', self.ids('Qwen/Qwen3'))
+        self.assertEqual(self.ids('Qwen/')[0], 'Qwen/Qwen3-0.6B')
+        self.assertEqual(self.ids('Community/Qwen-extra'), ['Community/Qwen-extra'])
 
     def test_empty_index_returns_empty(self):
         with loaded([]):

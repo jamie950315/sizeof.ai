@@ -457,6 +457,32 @@ describe('sizeof.ai app', () => {
     fetcher.mockRestore()
   })
 
+  it('keeps popular prefix matches ahead of two-character exact names', async () => {
+    const user = userEvent.setup()
+    const exact = {
+      id: 'trungzpham/qw', owner: 'trungzpham', name: 'qw',
+      downloads: 1, likes: 1, task: 'text-generation', trendingScore: 1, gated: false,
+    }
+    const popular = {
+      id: 'Qwen/Qwen3-0.6B', owner: 'Qwen', name: 'Qwen3-0.6B',
+      downloads: 2_000_000, likes: 12_000, task: 'text-generation', trendingScore: 2_200, gated: false,
+    }
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+      query: 'Qw', nextCursor: null, models: [exact, popular],
+    }))
+    render(<App />)
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'Qw{enter}')
+
+    const resultRegion = await screen.findByRole('region', { name: 'Hugging Face search results' })
+    const openLinks = within(resultRegion).getAllByRole('link', { name: /^Open / })
+    expect(openLinks.map((link) => link.getAttribute('aria-label'))).toEqual([
+      'Open Qwen/Qwen3-0.6B',
+      'Open trungzpham/qw',
+    ])
+    fetcher.mockRestore()
+  })
+
   it('starts a new typed query even if another page is still loading', async () => {
     const user = userEvent.setup()
     let finishPage: ((response: Response) => void) | undefined

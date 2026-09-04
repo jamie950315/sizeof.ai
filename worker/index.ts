@@ -560,8 +560,9 @@ function searchMatchRank(id: string, query: string) {
   const owner = separator === -1 ? '' : normalizedId.slice(0, separator)
   const name = separator === -1 ? normalizedId : normalizedId.slice(separator + 1)
   if (normalizedId === normalizedQuery) return 0
-  if (name === normalizedQuery && owner === normalizedQuery) return 1
-  if (name === normalizedQuery) return 2
+  if (normalizedQuery.includes('/')) return normalizedId.startsWith(normalizedQuery) ? 1 : 5
+  if (normalizedQuery.length >= 4 && name === normalizedQuery && owner === normalizedQuery) return 1
+  if (normalizedQuery.length >= 4 && name === normalizedQuery) return 2
   if (owner === normalizedQuery) return 3
   if (name.startsWith(normalizedQuery)) return 4
   return 5

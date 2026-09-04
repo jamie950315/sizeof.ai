@@ -21,6 +21,8 @@ STATE = {
         'name2': {},
         'owner1': {},
         'owner2': {},
+        'name_exact': {},
+        'owner_exact': {},
     },
     'count': 0,
     'updated_at': None,
@@ -38,21 +40,32 @@ def build_indexes(models: list[dict]) -> dict[str, dict[str, list[dict]]]:
     name2: dict[str, list[dict]] = defaultdict(list)
     owner1: dict[str, list[dict]] = defaultdict(list)
     owner2: dict[str, list[dict]] = defaultdict(list)
+    name_exact: dict[str, list[dict]] = defaultdict(list)
+    owner_exact: dict[str, list[dict]] = defaultdict(list)
     for model in models:
         name = model['name'].lower()
         owner = model['owner'].lower()
         if name:
             name1[name[:1]].append(model)
+            name_exact[name].append(model)
             if len(name) >= 2:
                 name2[name[:2]].append(model)
         if owner:
             owner1[owner[:1]].append(model)
+            owner_exact[owner].append(model)
             if len(owner) >= 2:
                 owner2[owner[:2]].append(model)
-    for bucket in (name1, name2, owner1, owner2):
+    for bucket in (name1, name2, owner1, owner2, name_exact, owner_exact):
         for items in bucket.values():
             items.sort(key=_popularity)
-    return {'name1': dict(name1), 'name2': dict(name2), 'owner1': dict(owner1), 'owner2': dict(owner2)}
+    return {
+        'name1': dict(name1),
+        'name2': dict(name2),
+        'owner1': dict(owner1),
+        'owner2': dict(owner2),
+        'name_exact': dict(name_exact),
+        'owner_exact': dict(owner_exact),
+    }
 
 
 def rank(model: dict, query: str) -> tuple:
@@ -103,8 +116,6 @@ def search(query: str, author: str, model_type: str, limit: int, offset: int) ->
     needed = offset + limit + 1
     with LOCK:
         indexes = STATE['indexes']
-    owner_items = _bucket(indexes, 'owner', q)
-    name_items = _bucket(indexes, 'name', q)
     seen: set[str] = set()
     results: list[dict] = []
 
@@ -124,13 +135,22 @@ def search(query: str, author: str, model_type: str, limit: int, offset: int) ->
             if len(results) >= needed:
                 return
 
-    if len(q) > 1:
-        take(owner_items, lambda model, query=q: model['owner'].lower() == query)
-        take(name_items, lambda model, query=q: model['name'].lower() == query)
-    take(name_items, lambda model, query=q: model['name'].lower().startswith(query))
-    take(owner_items, lambda model, query=q: model['owner'].lower().startswith(query))
-    take(name_items, lambda model, query=q: model['id'].lower().startswith(query))
-    take(owner_items, lambda model, query=q: model['id'].lower().startswith(query))
+    if '/' in q:
+        owner_part, name_part = q.split('/', 1)
+        items = indexes.get('owner_exact', {}).get(owner_part) or _bucket(indexes, 'owner', owner_part)
+        take(items, lambda model, query=q, owner_part=owner_part, name_part=name_part: (
+            model['id'].lower().startswith(query)
+            or (model['owner'].lower() == owner_part and model['name'].lower().startswith(name_part))
+        ))
+    else:
+        owner_items = _bucket(indexes, 'owner', q)
+        name_items = _bucket(indexes, 'name', q)
+        if len(q) > 1:
+            take(indexes.get('owner_exact', {}).get(q, []), lambda _model: True)
+        if len(q) >= 4:
+            take(indexes.get('name_exact', {}).get(q, []), lambda _model: True)
+        take(name_items, lambda model, query=q: model['name'].lower().startswith(query))
+        take(owner_items, lambda model, query=q: model['owner'].lower().startswith(query))
     page = results[offset:offset + limit]
     return page, len(results) > offset + limit
 

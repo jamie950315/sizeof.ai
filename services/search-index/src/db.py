@@ -33,7 +33,20 @@ def connect(path: str) -> sqlite3.Connection:
     db.executescript(SCHEMA)
     return db
 
-def upsert_models(db: sqlite3.Connection, rows: list[dict]) -> None:
+def existing_ids(db: sqlite3.Connection, ids: list[str]) -> set[str]:
+    found: set[str] = set()
+    for start in range(0, len(ids), 400):
+        chunk = ids[start:start + 400]
+        placeholders = ','.join('?' * len(chunk))
+        rows = db.execute(f'SELECT id FROM models WHERE id IN ({placeholders})', chunk).fetchall()
+        found.update(str(row['id']) for row in rows)
+    return found
+
+
+def upsert_models(db: sqlite3.Connection, rows: list[dict]) -> tuple[int, int]:
+    if not rows:
+        return 0, 0
+    existing = existing_ids(db, [row['id'] for row in rows])
     db.executemany(
         """INSERT INTO models(id, owner, name, id_lower, owner_lower, name_lower, downloads, likes, task, trending, gated)
            VALUES(:id, :owner, :name, :id_lower, :owner_lower, :name_lower, :downloads, :likes, :task, :trending, :gated)
@@ -46,6 +59,8 @@ def upsert_models(db: sqlite3.Connection, rows: list[dict]) -> None:
         rows,
     )
     db.commit()
+    inserted = sum(1 for row in rows if row['id'] not in existing)
+    return inserted, len(rows) - inserted
 
 def set_meta(db: sqlite3.Connection, key: str, value: str) -> None:
     db.execute('INSERT INTO meta(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', (key, value))
