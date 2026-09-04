@@ -5,7 +5,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from .db import connect, count_models, set_meta, upsert_models
+from .db import connect, count_models, get_meta, set_meta, upsert_models
 
 DB_PATH = os.environ.get('SIZEOF_SEARCH_DB', '/data/models.sqlite')
 USER_AGENT = 'sizeof.ai-search-indexer/1.0 (+https://sizeof.ai)'
@@ -117,6 +117,7 @@ def crawl_pages(
     stagnant_new = 0
     stagnant_count = 0
     last_total = count_models(db)
+    stop_reason = 'end'
     while True:
         url = f'https://huggingface.co/api/models?limit=1000&sort={sort}&direction=-1'
         if cursor:
@@ -129,6 +130,7 @@ def crawl_pages(
             print(json.dumps({'message': 'page failed', 'sort': sort, 'status': status, 'page': page}), flush=True)
             time.sleep(5)
             if page == 0:
+                stop_reason = 'error'
                 break
             continue
         rows = [row for item in body if isinstance(item, dict) for row in [normalize(item)] if row]
@@ -163,30 +165,62 @@ def crawl_pages(
         )
         stop_new = new_id_stagnant is not None and stagnant_new >= new_id_stagnant
         stop_max = max_pages is not None and page >= max_pages
-        if not next_page or not body or next_page in seen_cursors or stop_count or stop_new or stop_max:
-            break
-        seen_cursors.add(next_page)
-        cursor = next_page
-    return {'sort': sort, 'pages': page, 'accepted': accepted, 'inserted': inserted_total}
+        if not next_page or not body:
+            stop_reason = 'end'
+        elif next_page in seen_cursors:
+            stop_reason = 'repeat'
+        elif stop_count:
+            stop_reason = 'count_stagnant'
+        elif stop_new:
+            stop_reason = 'new_stagnant'
+        elif stop_max:
+            stop_reason = 'max_pages'
+        else:
+            seen_cursors.add(next_page)
+            cursor = next_page
+            continue
+        break
+    return {
+        'sort': sort,
+        'pages': page,
+        'accepted': accepted,
+        'inserted': inserted_total,
+        'complete': stop_reason in ('end', 'repeat'),
+        'stop': stop_reason,
+    }
+
+
+BACKFILL_SORTS = ('downloads', 'createdAt', 'lastModified')
+FULL_BACKFILL_MAX_PAGES = 10_000
+META_FULL_BACKFILL = 'full_backfill_done'
 
 
 def crawl_once() -> int:
     pool = tokens()
     db = connect(DB_PATH)
     token_cursor = TokenCursor(pool)
-    existing_total = count_models(db)
-    if existing_total < 100_000:
-        downloads = crawl_pages(db, token_cursor, 'downloads', count_stagnant=5)
+    force = os.environ.get('SIZEOF_SEARCH_FULL_BACKFILL', '').strip().lower() in ('1', 'true', 'yes')
+    backfill_done = get_meta(db, META_FULL_BACKFILL) == 'true' and not force
+    passes: dict[str, dict] = {}
+    if not backfill_done:
+        complete = True
+        for sort in BACKFILL_SORTS:
+            result = crawl_pages(db, token_cursor, sort, max_pages=FULL_BACKFILL_MAX_PAGES)
+            passes[sort] = result
+            complete = complete and bool(result.get('complete'))
+        if complete:
+            set_meta(db, META_FULL_BACKFILL, 'true')
+        print(json.dumps({'message': 'full backfill', 'complete': complete, 'passes': {key: value['inserted'] for key, value in passes.items()}}), flush=True)
     else:
-        downloads = crawl_pages(db, token_cursor, 'downloads', max_pages=30)
-    newest = crawl_pages(db, token_cursor, 'createdAt', new_id_stagnant=5, max_pages=200)
+        passes['downloads'] = crawl_pages(db, token_cursor, 'downloads', max_pages=30)
+        passes['createdAt'] = crawl_pages(db, token_cursor, 'createdAt', new_id_stagnant=5)
     set_meta(db, 'updated_at', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
     total = count_models(db)
     db.close()
     print(json.dumps({
         'message': 'crawl complete',
-        'downloads': downloads,
-        'createdAt': newest,
+        'mode': 'refresh' if backfill_done else 'backfill',
+        'passes': passes,
         'total': total,
     }), flush=True)
     return total

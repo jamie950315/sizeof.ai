@@ -4,7 +4,7 @@ This service keeps a public Hugging Face model-name index on the Osaka and San J
 
 It stores names, owners, downloads, likes, task, and gated flags only. Architecture and VRAM estimates stay on the existing model API.
 
-After the first full download-ranked crawl, each refresh updates the most downloaded models and then walks newest created models until it meets names already in the index.
+The first completed crawl walks the Hub by downloads, created time, and last modified until each list ends, so older names missed by one ordering can still be inserted. Later refreshes update the most downloaded models and then walk newest created models, including unpopular ones, until they meet names already in the index.
 
 ## Run
 

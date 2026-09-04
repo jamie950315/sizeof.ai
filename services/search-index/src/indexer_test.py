@@ -88,6 +88,7 @@ class TokenPoolTests(unittest.TestCase):
 
 
 
+
 class CrawlOnceTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -102,21 +103,30 @@ class CrawlOnceTests(unittest.TestCase):
         self.db_patch.stop()
         self.tmp.cleanup()
 
+    def mark_backfill_done(self):
+        conn = db.connect(self.db_path)
+        db.set_meta(conn, indexer.META_FULL_BACKFILL, 'true')
+        conn.close()
+
     def fake_pages(self, by_sort: dict):
         remaining = {key: list(value) for key, value in by_sort.items()}
         urls: list[str] = []
 
         def fake_request(url, _token):
             urls.append(url)
-            sort = 'createdAt' if 'sort=createdAt' in url else 'downloads'
-            pages = remaining[sort]
+            sort = 'downloads'
+            for name in ('createdAt', 'lastModified'):
+                if f'sort={name}' in url:
+                    sort = name
+                    break
+            pages = remaining.setdefault(sort, [])
             if not pages:
                 return 200, [], None
             return pages.pop(0)
 
         return fake_request, urls
 
-    def test_stops_when_cursor_repeats(self):
+    def test_full_backfill_walks_every_sort_to_the_end(self):
         fake_request, urls = self.fake_pages({
             'downloads': [
                 (200, [{'id': 'org/a', 'private': False}], '<https://huggingface.co/api/models?cursor=abc>; rel="next"'),
@@ -124,21 +134,54 @@ class CrawlOnceTests(unittest.TestCase):
                 (200, [{'id': 'org/c', 'private': False}], '<https://huggingface.co/api/models?cursor=def>; rel="next"'),
             ],
             'createdAt': [
-                (200, [{'id': 'org/a', 'private': False}], None),
+                (200, [{'id': 'org/old-miss', 'private': False}], None),
+            ],
+            'lastModified': [
+                (200, [{'id': 'org/touched-miss', 'private': False}], None),
             ],
         })
         with patch.object(indexer, 'request_json', side_effect=fake_request), \
              patch.object(indexer, 'tokens', return_value=['hf_test']):
             total = indexer.crawl_once()
         conn = db.connect(self.db_path)
-        ids = [row['id'] for row in conn.execute('SELECT id FROM models ORDER BY id')]
+        ids = {row['id'] for row in conn.execute('SELECT id FROM models')}
+        flag = db.get_meta(conn, indexer.META_FULL_BACKFILL)
         conn.close()
-        self.assertEqual(total, 2)
-        self.assertEqual(ids, ['org/a', 'org/b'])
+        self.assertEqual(total, 4)
+        self.assertEqual(ids, {'org/a', 'org/b', 'org/old-miss', 'org/touched-miss'})
+        self.assertEqual(flag, 'true')
         self.assertTrue(any('sort=downloads' in url for url in urls))
         self.assertTrue(any('sort=createdAt' in url for url in urls))
+        self.assertTrue(any('sort=lastModified' in url for url in urls))
 
-    def test_last_modified_keeps_going_while_new_models_appear(self):
+    def test_full_backfill_does_not_stop_after_existing_rows(self):
+        conn = db.connect(self.db_path)
+        db.upsert_models(conn, [{
+            'id': 'org/old', 'owner': 'org', 'name': 'old',
+            'id_lower': 'org/old', 'owner_lower': 'org', 'name_lower': 'old',
+            'downloads': 1, 'likes': 0, 'task': None, 'trending': 0, 'gated': 0,
+        }])
+        conn.close()
+        downloads = []
+        for index in range(1, 9):
+            nxt = f'<https://huggingface.co/api/models?cursor=d{index}>; rel="next"' if index < 8 else None
+            downloads.append((200, [{'id': 'org/old', 'private': False}], nxt))
+        fake_request, urls = self.fake_pages({
+            'downloads': downloads,
+            'createdAt': [(200, [{'id': 'org/tail', 'private': False}], None)],
+            'lastModified': [(200, [], None)],
+        })
+        with patch.object(indexer, 'request_json', side_effect=fake_request), \
+             patch.object(indexer, 'tokens', return_value=['hf_test']):
+            indexer.crawl_once()
+        conn = db.connect(self.db_path)
+        ids = {row['id'] for row in conn.execute('SELECT id FROM models')}
+        conn.close()
+        self.assertIn('org/tail', ids)
+        self.assertEqual(sum('sort=downloads' in url for url in urls), 8)
+
+    def test_refresh_keeps_going_while_new_models_appear(self):
+        self.mark_backfill_done()
         conn = db.connect(self.db_path)
         db.upsert_models(conn, [{
             'id': 'org/old', 'owner': 'org', 'name': 'old',
@@ -171,6 +214,7 @@ class CrawlOnceTests(unittest.TestCase):
         self.assertEqual(sum('sort=createdAt' in url for url in urls), 7)
 
     def test_populated_index_only_refreshes_a_bounded_downloads_pass(self):
+        self.mark_backfill_done()
         call = {'downloads': 0, 'createdAt': 0}
 
         def fake_request(url, _token):
@@ -188,15 +232,20 @@ class CrawlOnceTests(unittest.TestCase):
         self.assertEqual(call['downloads'], 30)
         self.assertEqual(call['createdAt'], 1)
 
-    def test_page_zero_failure_stops_that_sort(self):
+    def test_page_zero_failure_does_not_mark_backfill_complete(self):
         fake_request, _urls = self.fake_pages({
             'downloads': [(500, None, None)],
             'createdAt': [(500, None, None)],
+            'lastModified': [(500, None, None)],
         })
         with patch.object(indexer, 'request_json', side_effect=fake_request), \
              patch.object(indexer, 'tokens', return_value=['hf_test']):
             total = indexer.crawl_once()
+        conn = db.connect(self.db_path)
+        flag = db.get_meta(conn, indexer.META_FULL_BACKFILL)
+        conn.close()
         self.assertEqual(total, 0)
+        self.assertIsNone(flag)
 
     def test_drops_private_rows_and_retries_after_429(self):
         pages = {
@@ -209,6 +258,7 @@ class CrawlOnceTests(unittest.TestCase):
                 ], None),
             ],
             'createdAt': [(200, [{'id': 'org/public', 'private': False}], None)],
+            'lastModified': [(200, [{'id': 'org/public', 'private': False}], None)],
         }
         fake_request, _urls = self.fake_pages(pages)
         with patch.object(indexer, 'request_json', side_effect=fake_request), \
@@ -216,6 +266,8 @@ class CrawlOnceTests(unittest.TestCase):
             total = indexer.crawl_once()
         conn = db.connect(self.db_path)
         ids = [row['id'] for row in conn.execute('SELECT id FROM models')]
+        flag = db.get_meta(conn, indexer.META_FULL_BACKFILL)
         conn.close()
         self.assertEqual(total, 1)
         self.assertEqual(ids, ['org/public'])
+        self.assertEqual(flag, 'true')
