@@ -13,3 +13,7 @@ output/favicon-previews/
 
 services/search-index/data/
 services/search-index/.env
+
+__pycache__/
+*.pyc
+

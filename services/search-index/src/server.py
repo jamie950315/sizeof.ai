@@ -130,6 +130,7 @@ def search(query: str, author: str, model_type: str, limit: int, offset: int) ->
     take(name_items, lambda model, query=q: model['name'].lower().startswith(query))
     take(owner_items, lambda model, query=q: model['owner'].lower().startswith(query))
     take(name_items, lambda model, query=q: model['id'].lower().startswith(query))
+    take(owner_items, lambda model, query=q: model['id'].lower().startswith(query))
     page = results[offset:offset + limit]
     return page, len(results) > offset + limit
 

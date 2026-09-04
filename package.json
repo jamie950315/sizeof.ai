@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "vite",
     "test": "vitest run",
+    "test:search-index": "python3 -m unittest discover -s services/search-index/src -t services/search-index -p '*_test.py'",
     "test:watch": "vitest",
     "cli": "node ./cli/sizeof.mjs",
     "mcp": "node ./mcp/server.mjs",

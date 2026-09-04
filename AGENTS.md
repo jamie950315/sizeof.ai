@@ -89,11 +89,13 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - 2026-09-03: Testnet search races Osaka and San Jose name indexes and uses the first successful response, with Hugging Face as fallback. The public site stays on Cloudflare. Live testnet queries returned the Osaka index; San Jose is indexing in parallel. Production was unchanged.
 - Cloudflare testnet version: `67f8a69f-635b-491d-b147-7447f97ff73e` (deployed 2026-09-03).
 - 2026-09-05: Osaka and San Jose each store about 3.04 million public model names on disk (~875 MB). Search was slow because every query scanned the full list (3–5 s locally, which exceeded the Worker wait and fell back to Hugging Face). Prefix indexes now answer in milliseconds; testnet `Qwen`/`Q` queries return the Osaka index.
+- 2026-09-05: Search edge-case tests cover one-character ranking, owner/name exactness, filters, pagination, empty indexes, token pooling, and Worker race/fallback. Full `owner/name` queries now match through the owner index as well as the name index. Osaka and San Jose search APIs were rebuilt; Cloudflare testnet Worker was not redeployed. Production homepage hash remained `c6900a49382143aede43fcdf74203f15ad073211232d0286afc1dbddb1d7ddeb`.
 
 ## Commands
 
 - `npm run dev`: local Vite development server
 - `npm test`: unit and component tests
+- `npm run test:search-index`: VPS model-name index unit tests
 - `npm run build`: production build
 - `npm run deploy`: deploy the Worker and static assets
 - `npm run deploy:testnet`: deploy the isolated `sizeof-ai-testnet` Worker to `testnet.sizeof.ai`

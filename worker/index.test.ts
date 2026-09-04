@@ -661,6 +661,123 @@ describe('Hugging Face model API', () => {
     }
   })
 
+  it('returns prefix-index results without contacting Hugging Face', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('jp.example/search?q=Q')) {
+        return Response.json({
+          query: 'Q',
+          models: [{ id: 'Qwen/Qwen3-0.6B' }],
+          nextCursor: null,
+          source: 'jp',
+          indexSize: 3_040_000,
+        })
+      }
+      if (url.includes('us.example')) return new Response('nope', { status: 502 })
+      throw new Error(`Unexpected search fetch: ${url}`)
+    })
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://testnet.sizeof.ai/api/search/models?q=Q'),
+        {
+          ASSETS: { fetch: vi.fn() },
+          MODEL_CACHE: cache,
+          SIZEOF_SEARCH_JP_URL: 'https://jp.example',
+          SIZEOF_SEARCH_US_URL: 'https://us.example',
+          SIZEOF_SEARCH_TOKEN: 'secret',
+          HF_TOKEN: 'hf_test_token',
+        },
+        ctx,
+      )
+      const body = await response.json() as { models: Array<{ id: string }> }
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('X-Sizeof-Search-Source')).toBe('jp')
+      expect(response.headers.get('Cache-Control')).toBe('public, max-age=30')
+      expect(body.models.map((model) => model.id)).toEqual(['Qwen/Qwen3-0.6B'])
+      expect(fetcher.mock.calls.map(([input]) => String(input)).some((url) => url.includes('huggingface.co'))).toBe(false)
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('falls back to Hugging Face when both indexes miss', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('jp.example') || url.includes('us.example')) {
+        return new Response('nope', { status: 502 })
+      }
+      if (url.startsWith('https://huggingface.co/api/models?')) {
+        return Response.json([{ id: 'Qwen/Qwen3.8-27B', private: false, trendingScore: 10 }])
+      }
+      throw new Error(`Unexpected search fetch: ${url}`)
+    })
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://testnet.sizeof.ai/api/search/models?q=Qwen'),
+        {
+          ASSETS: { fetch: vi.fn() },
+          MODEL_CACHE: cache,
+          SIZEOF_SEARCH_JP_URL: 'https://jp.example',
+          SIZEOF_SEARCH_US_URL: 'https://us.example',
+          SIZEOF_SEARCH_TOKEN: 'secret',
+          HF_TOKEN: 'hf_test_token',
+        },
+        ctx,
+      )
+      const body = await response.json() as { models: Array<{ id: string }> }
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('X-Sizeof-Search-Source')).toBe('huggingface')
+      expect(body.models.map((model) => model.id)).toEqual(['Qwen/Qwen3.8-27B'])
+      expect(fetcher.mock.calls.map(([input]) => String(input)).some((url) => (
+        url.startsWith('https://huggingface.co/api/models?search=Qwen')
+      ))).toBe(true)
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('does not fall back to Hugging Face for a real empty index page', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('jp.example/search?')) {
+        return Response.json({ query: 'zzzznope', models: [], nextCursor: null, source: 'jp', indexSize: 3_040_000 })
+      }
+      throw new Error(`Unexpected search fetch: ${url}`)
+    })
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://testnet.sizeof.ai/api/search/models?q=zzzznope'),
+        {
+          ASSETS: { fetch: vi.fn() },
+          MODEL_CACHE: cache,
+          SIZEOF_SEARCH_JP_URL: 'https://jp.example',
+          SIZEOF_SEARCH_TOKEN: 'secret',
+          HF_TOKEN: 'hf_test_token',
+        },
+        ctx,
+      )
+      const body = await response.json() as { models: unknown[] }
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('X-Sizeof-Search-Source')).toBe('jp')
+      expect(body.models).toEqual([])
+      expect(fetcher.mock.calls.map(([input]) => String(input)).some((url) => url.includes('huggingface.co'))).toBe(false)
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
   it('requires HTML shells to revalidate while leaving hashed assets cacheable', () => {
     const html = applyAssetCachePolicy(new Response('<!doctype html>', {
       headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=3600' },
