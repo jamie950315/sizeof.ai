@@ -88,6 +88,7 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Cloudflare testnet version: `ea6ce05b-47b3-4aa4-8ad5-64b8fca371ad` (deployed 2026-09-03).
 - 2026-09-03: Testnet search races Osaka and San Jose name indexes and uses the first successful response, with Hugging Face as fallback. The public site stays on Cloudflare. Live testnet queries returned the Osaka index; San Jose is indexing in parallel. Production was unchanged.
 - Cloudflare testnet version: `67f8a69f-635b-491d-b147-7447f97ff73e` (deployed 2026-09-03).
+- 2026-09-05: Osaka and San Jose each store about 3.04 million public model names on disk (~875 MB). Search was slow because every query scanned the full list (3–5 s locally, which exceeded the Worker wait and fell back to Hugging Face). Prefix indexes now answer in milliseconds; testnet `Qwen`/`Q` queries return the Osaka index.
 
 ## Commands
 

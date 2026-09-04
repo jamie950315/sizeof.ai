@@ -93,6 +93,9 @@ def crawl_once() -> int:
     page = 0
     accepted = 0
     index = 0
+    seen_cursors: set[str] = set()
+    stagnant = 0
+    last_total = count_models(db)
     while True:
         url = 'https://huggingface.co/api/models?limit=1000&sort=downloads&direction=-1'
         if cursor:
@@ -114,12 +117,19 @@ def crawl_once() -> int:
             upsert_models(db, rows)
             accepted += len(rows)
         page += 1
+        current_total = count_models(db)
+        if current_total <= last_total:
+            stagnant += 1
+        else:
+            stagnant = 0
+            last_total = current_total
         if page % 10 == 0:
             set_meta(db, 'updated_at', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
-            print(json.dumps({'message': 'indexed', 'page': page, 'models': count_models(db)}), flush=True)
+            print(json.dumps({'message': 'indexed', 'page': page, 'models': current_total}), flush=True)
         cursor = next_cursor(link)
-        if not cursor or not body:
+        if not cursor or not body or cursor in seen_cursors or last_total > 100000 and stagnant >= 5:
             break
+        seen_cursors.add(cursor)
         time.sleep(0.05)
     set_meta(db, 'updated_at', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
     total = count_models(db)
