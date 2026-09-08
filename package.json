@@ -23,7 +23,9 @@
     "cf:check": "wrangler deploy --dry-run",
     "deploy": "npm run build && wrangler deploy",
     "cf:check:testnet": "wrangler deploy --dry-run --env testnet",
-    "deploy:testnet": "npm run build && wrangler deploy --env testnet"
+    "deploy:testnet": "npm run build && wrangler deploy --env testnet",
+    "deploy:docs": "npm run build && wrangler deploy --config wrangler.docs.jsonc",
+    "cf:check:docs": "wrangler deploy --dry-run --config wrangler.docs.jsonc"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "latest",

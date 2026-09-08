@@ -19,6 +19,7 @@ import { models } from './data/models'
 import { useCopy } from './lib/use-copy'
 import ModelDetailPage from './ModelDetailPage'
 import ComparePage from './ComparePage'
+import PlatformNav from './platform/PlatformNav'
 import {
   kvPrecisions,
   quantizations,
@@ -338,6 +339,7 @@ function HomePage() {
           <span>Method</span>
         </a>
       </header>
+      <PlatformNav />
 
       <main id="top" className="home-main">
         <section className="home-search-explorer" aria-label="Model search explorer">

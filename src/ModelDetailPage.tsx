@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import PlatformNav from './platform/PlatformNav'
+import SaveModelButton from './platform/SaveModelButton'
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -430,7 +432,7 @@ export default function ModelDetailPage({ route }: Props) {
   if (error) {
     return (
       <div className="detail-shell">
-        <header className="site-header detail-header"><Brand /></header>
+        <header className="site-header detail-header"><Brand /></header><PlatformNav />
         <main className="detail-state">
           <span>HUGGING FACE LOOKUP / ERROR</span>
           <h1>{notFound ? 'Model not found.' : 'Unable to load model.'}</h1>
@@ -444,7 +446,7 @@ export default function ModelDetailPage({ route }: Props) {
   if (!model) {
     return (
       <div className="detail-shell">
-        <header className="site-header detail-header"><Brand /></header>
+        <header className="site-header detail-header"><Brand /></header><PlatformNav />
         <main className="detail-state loading-state">
           <LoaderCircle size={30} />
           <span>READING HUGGING FACE MODEL</span>
@@ -564,6 +566,7 @@ export default function ModelDetailPage({ route }: Props) {
           <span>Hugging Face</span><ExternalLink size={16} />
         </a>
       </header>
+      <PlatformNav />
 
       <main className="detail-workspace">
         <section className="detail-hero" aria-label="Model navigation">
@@ -576,6 +579,8 @@ export default function ModelDetailPage({ route }: Props) {
             </button>
             {exportInput && <ExportMenu input={exportInput} fileStem="sizeof-ai-sizing" />}
             <a className="compare-entry" href={comparePath(model.id)} aria-label={`Compare ${model.id}`}>COMPARE</a>
+            <a className="platform-model-action" href={`/deploy?model=${encodeURIComponent(model.id)}`}>DEPLOY PLAN ↗</a>
+            <SaveModelButton modelId={model.id} />
           </div>
           <div className="detail-tags">
             {copyError && <p role="alert">{copyError}</p>}

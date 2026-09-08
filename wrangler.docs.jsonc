@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "sizeof-ai-docs",
+  "main": "./worker/docs.ts",
+  "compatibility_date": "2026-09-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/*", "!/assets/*", "!/favicon*", "!/apple-touch-icon.png"]
+  },
+  "observability": { "enabled": true },
+  "routes": [{ "pattern": "docs.sizeof.ai", "custom_domain": true }]
+}

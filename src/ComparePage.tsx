@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useCopy } from './lib/use-copy'
+import PlatformNav from './platform/PlatformNav'
 import { ArrowLeft, Check, Copy, Plus, X } from 'lucide-react'
 import { models as curatedModels } from './data/models'
 import { kvPrecisions, quantizations, type KvPrecisionId } from './data/quantizations'
@@ -74,11 +75,11 @@ function curatedModelId(sourceUrl: string) {
 
 function CompareSiteHeader() {
   return (
-    <header className="compare-site-nav">
+    <><header className="compare-site-nav">
       <a className="brand" href="/" aria-label="sizeof.ai home">sizeof<span>.ai</span></a>
       <a href="/#catalog" aria-label="Model index"><ArrowLeft size={16} /> MODEL INDEX</a>
       <span>COMPARE WORKSPACE</span>
-    </header>
+    </header><PlatformNav /></>
   )
 }
 

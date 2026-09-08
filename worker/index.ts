@@ -38,6 +38,7 @@ import {
 } from './model-cache'
 import { createHfTokenPool, createRotatingHfFetcher } from './hf-token-pool'
 import { racePrefixSearch } from './prefix-search'
+import { docsArticles } from '../src/docs/content'
 import { fetchWithSafeRedirects, readBoundedBody, readUpstreamJson, UpstreamError } from './upstream'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
@@ -423,6 +424,20 @@ function escapeHtml(value: string) {
 }
 
 function pageMetadata(pathname: string, host: string) {
+  const platformPages: Record<string, { title: string; description: string }> = {
+    '/start': { title: 'Local model workspace', description: 'Choose, size, compare and prepare local model deployments with practical tools and guides.' },
+    '/deploy': { title: 'Deployment workbench', description: 'Build a local-first deployment runbook for llama.cpp, MLX LM or vLLM.' },
+    '/hardware': { title: 'Hardware planning lab', description: 'Plan memory, disk space, download time and electricity costs with visible assumptions.' },
+    '/library': { title: 'My model library', description: 'Save a local model shortlist and notes in your browser.' },
+    '/docs': { title: 'Local model field guide', description: 'Practical local-model deployment guides for beginners and advanced users.' },
+  }
+  const platformPage = platformPages[pathname]
+  if (platformPage) return { ...platformPage, title: `${platformPage.title} | sizeof.ai`, canonical: `${host}${pathname}`, type: 'website' }
+  if (pathname.startsWith('/docs/')) {
+    const article = docsArticles.find((entry) => pathname === `/docs/${entry.slug}`)
+    return article ? { title: `${article.title} | sizeof.ai Docs`, description: article.description,
+      canonical: `https://docs.sizeof.ai/${article.slug}`, type: 'article' } : null
+  }
   if (pathname === '/compare') return {
     title: 'Compare model memory estimates | sizeof.ai',
     description: 'Compare public model memory estimates across configurations and hardware capacity.',
@@ -509,7 +524,7 @@ function svgCardInput(url: URL): ShareCardInput | null {
 }
 
 function sitemap(host: string) {
-  const routes = ['/', '/compare', ...models.map((model) => new URL(model.sourceUrl).pathname)]
+  const routes = ['/', '/start', '/deploy', '/hardware', '/compare', '/docs', ...docsArticles.map((article) => `/docs/${article.slug}`), ...models.map((model) => new URL(model.sourceUrl).pathname)]
   const locations = [...new Set(routes)].map((route) => `<url><loc>${escapeHtml(`${host}${route}`)}</loc></url>`).join('')
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${locations}</urlset>`
 }

@@ -10,11 +10,21 @@ Model listing reads are bounded and reject incomplete pagination. Incomplete wei
 
 ## Features
 
+### Local deployment platform (testnet)
+
+- `/start`: beginner and advanced entry paths with shared navigation across the platform.
+- `/deploy`: reviewed llama.cpp, MLX LM and vLLM command templates; OS/hardware compatibility checks, safe local-only endpoints, startup checklist, API smoke requests, share links and Markdown runbooks. These commands are not executed by the site and are not a promise that a given model/engine/device combination works.
+- `/hardware`: dedicated/unified/multi-GPU memory budgets, disk and download worksheets, and user-priced electricity/API break-even comparisons. No invented throughput or live pricing claims.
+- `/library`: up to 200 saved model names with tags/notes, selection for comparison, import/export, removal undo and corrupt-storage recovery. Browser-local only; never store API keys in notes. Backups are bounded to 4 MB.
+- `/docs`: searchable 16-guide knowledge base, experience filters, article navigation and original sources. Also independently hosted at `https://docs.sizeof.ai`, where articles render without JavaScript and provide `.md`, `/llms.txt`, and `/sitemap.xml` endpoints.
+
+Workspaces and docs are loaded on demand. Static assets bypass the application Worker on testnet and docs. The docs Worker has no Hugging Face secrets or model-cache binding. Model-detail pages link directly to deployment planning and saving a shortlist.
+
 - VRAM calculator with separate weight, KV-cache, and runtime estimates
-- Seven common GGUF weight quantizations from FP16 to Q2_K
+- Eight weight-precision estimates from 16 bits through 1 bit per weight
 - Configurable context window and KV-cache precision
 - Shareable calculator state in the URL
-- Model recommendations for 8–80 GiB VRAM budgets
+- Shared VRAM capacities from 8–512 GiB, with safe-fit recommendations only where justified
 - Searchable, source-linked model catalog
 - Dynamic Hugging Face model detail pages by replacing `huggingface.co` with `sizeof.ai`
 - Engine-aware MLA cache estimates with expanded-reference and compressed-latent modes
@@ -136,6 +146,15 @@ npm run cf:check
 ```
 
 ## Cloudflare deployment
+
+Current platform work stays on testnet. Deploy documentation independently; do not use the production command without explicit approval:
+
+```bash
+npm run deploy:testnet
+npm run deploy:docs
+```
+
+`wrangler.docs.jsonc` owns only `docs.sizeof.ai`. The documentation source is in `src/docs/content.ts`. Add a guide there with unique section IDs, related guides, reviewed primary sources, and explicit limits; route metadata and machine-readable versions use the same registry.
 
 The site deploys as a Cloudflare Worker with Static Assets. The Worker serves a same-origin model metadata API for dynamic Hugging Face detail pages. The Wrangler configuration includes the `sizeof.ai` and `www.sizeof.ai` custom domains, so no Pi or separate origin server is required.
 

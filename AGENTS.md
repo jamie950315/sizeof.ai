@@ -105,6 +105,15 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Osaka and San Jose run reviewed service code: one shared ranking order, incremental SQLite row loading, explicit reload/sync health, validated cursors and continuation links. Verified both served generation `fa0beb204b96a19a7fff5578d671ec93f2e39151375a7fbdfef87021dd9cb27f`, 3,054,836 models at review time. Existing old-model completeness limitations remain.
 - Verification: 462 JS/TS tests and 61 Python tests, Node 24.10.0 build/typecheck, local Worker smoke, desktop/mobile browser search/detail/comparison and simulated failure feedback, live public API/CLI, and unchanged production homepage hash. Browser artifacts remain ignored under `output/playwright/`.
 
+## Current platform release (2026-09-08)
+
+- Testnet version `e155c3a2-5c4b-48cb-9fa1-824f479a6bda` adds `/start`, `/deploy`, `/hardware`, `/library`, `/docs` and shared navigation. Production remains unchanged. New workspaces are lazy-loaded; model-detail pages can seed a deployment or save a model.
+- Deployment workbench generates reviewed local-only llama.cpp/MLX/vLLM templates with platform checks, validation, startup checklist, API probes, sharing and Markdown export. It does not execute commands or verify arbitrary runtime/model compatibility. Hardware worksheets cover dedicated/unified/multi-device reserves, storage/download time and user-priced electricity/API cost comparisons, not speed predictions.
+- Model library is browser-local, capped at 200 models and 4 MB backups; notes/tags, comparison selection, export/merge, undo and corrupted-storage recovery are included. Never store credentials there. Imports merge against current stored data and preserve existing notes.
+- Independent `sizeof-ai-docs` Worker version `e936a57a-3e3b-48d5-8ce1-e12e2255b142` serves `https://docs.sizeof.ai` using `wrangler.docs.jsonc`, with no HF credentials or model KV binding. Sixteen reviewed guides live in `src/docs/content.ts`; the same registry drives searchable UI, HTML without JavaScript, `.md` articles, sitemap and llms.txt. Mobile guide navigation collapses by default.
+- Static resource exclusions are enabled only for testnet/docs (`run_worker_first` negative asset rules), preserving main production config. Platform/docs deployment commands are distinct; do not deploy production without explicit permission.
+- Verified 552 JS/TS tests + 61 Python tests, Node 24 build/typecheck and both deployment dry-runs. Live checks include docs HTML/Markdown/404, search, deployment templates, model prefill, library reload, desktop/mobile layouts and unchanged production homepage hash. Runtime inference for generated runbooks is not tested on every target platform.
+
 ## Commands
 
 - `npm run dev`: local Vite development server
@@ -113,6 +122,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - `npm run build`: production build
 - `npm run deploy`: deploy the Worker and static assets
 - `npm run deploy:testnet`: deploy the isolated `sizeof-ai-testnet` Worker to `testnet.sizeof.ai`
+- `npm run deploy:docs`: build and deploy the isolated documentation Worker to `docs.sizeof.ai`
+- `npm run cf:check:docs`: documentation deployment dry-run
 - `npx wrangler dev --port 8790`: run the complete Worker, API, and static site locally when 8787 is occupied by Executor
 
 ## Working Agreements
