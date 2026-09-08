@@ -72,6 +72,29 @@ describe('createHfTokenPool', () => {
 })
 
 describe('createRotatingHfFetcher', () => {
+  it('preserves Request headers and existing credentials', async () => {
+    const fetcher = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => new Response('ok'))
+    const rotating = createRotatingHfFetcher(fetcher, createHfTokenPool({ HF_TOKEN: 'hf_test' }))
+    const request = new Request('https://huggingface.co/api/models/org/name', {
+      headers: { Range: 'bytes=0-100', Authorization: 'Bearer original' },
+    })
+    await rotating(request)
+    expect(fetcher).toHaveBeenLastCalledWith(request, undefined)
+    const withoutAuth = new Request(request.url, { headers: { Range: 'bytes=0-100' } })
+    await rotating(withoutAuth)
+    const headers = new Headers(fetcher.mock.calls.at(-1)?.[1]?.headers)
+    expect(headers.get('Range')).toBe('bytes=0-100')
+    expect(headers.get('Authorization')).toBe('Bearer hf_test')
+  })
+
+  it('never adds credentials to HTTP or arbitrary HF subdomains', async () => {
+    const fetcher = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => new Response('ok'))
+    const rotating = createRotatingHfFetcher(fetcher, createHfTokenPool({ HF_TOKEN: 'hf_test' }))
+    for (const url of ['http://huggingface.co/api/models', 'https://other.huggingface.co/file']) {
+      await rotating(url)
+      expect(fetcher).toHaveBeenLastCalledWith(url, undefined)
+    }
+  })
   it('attaches the next token only to Hugging Face requests and leaves other URLs untouched', async () => {
     const fetcher = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => new Response('ok'))
     const rotating = createRotatingHfFetcher(fetcher, createHfTokenPool({

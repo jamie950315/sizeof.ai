@@ -46,14 +46,14 @@ function isSearchModel(value: unknown): value is HuggingFaceSearchModel {
   return typeof item.id === 'string'
     && typeof item.owner === 'string'
     && typeof item.name === 'string'
-    && typeof item.downloads === 'number'
-    && typeof item.likes === 'number'
+    && typeof item.downloads === 'number' && Number.isFinite(item.downloads)
+    && typeof item.likes === 'number' && Number.isFinite(item.likes)
     && (item.task === null || typeof item.task === 'string')
-    && typeof item.trendingScore === 'number'
+    && typeof item.trendingScore === 'number' && Number.isFinite(item.trendingScore)
     && typeof item.gated === 'boolean'
 }
 
-function isSearchResponse(value: unknown): value is HuggingFaceSearchResponse {
+export function isSearchResponse(value: unknown): value is HuggingFaceSearchResponse {
   if (typeof value !== 'object' || value === null) return false
   const item = value as Record<string, unknown>
   if (typeof item.query !== 'string' || !Array.isArray(item.models)) return false

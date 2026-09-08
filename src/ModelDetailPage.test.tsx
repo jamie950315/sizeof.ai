@@ -69,7 +69,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(calculator).getByRole('button', { name: '4K' })).toBeInTheDocument()
     expect(within(calculator).getByRole('button', { name: '16K' })).toBeInTheDocument()
     expect(within(calculator).getByRole('button', { name: '64K' })).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=13')
+    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=13', { signal: expect.any(AbortSignal) })
   })
 
   it('progressively discloses an accessible editable serving scenario with conservative unknowns', async () => {
@@ -1001,6 +1001,34 @@ describe('Hugging Face-style model detail route', () => {
     await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
     expect(within(calculator).getByRole('alert')).toHaveTextContent(/valid hardware profile/i)
     expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('32')
+  })
+
+  it('reports failed hardware persistence while retaining the explicit page configuration', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    await user.type(within(calculator).getByLabelText('Label'), 'Workstation')
+    const save = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
+    await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
+    expect(within(calculator).getByRole('alert')).toHaveTextContent('it was not saved')
+    save.mockRestore()
+    const remove = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
+    await user.click(within(calculator).getByRole('button', { name: 'Clear profile' }))
+    expect(within(calculator).getByRole('alert')).toHaveTextContent('It may return after reloading')
+    remove.mockRestore()
+  })
+
+  it('labels failed refresh data as stale rather than live-only metadata', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(apiModel, { headers: { 'X-Sizeof-Model-Source': 'kv-stale' } })))
+    render(<App />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Showing older saved model data')
+  })
+
+  it('does not mislabel a service failure as a missing model', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: 'Upstream unavailable' }, { status: 503 })))
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Unable to load model.' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Model not found.' })).not.toBeInTheDocument()
   })
 
   it('shows time-aware evidence kinds and a numeric lower-bound sticky summary', async () => {

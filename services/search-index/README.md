@@ -10,6 +10,10 @@ The first completed crawl walks the Hub by downloads, created time, and last mod
 
 Transient page failures retry with bounded backoff; an unsuccessful pass retries after five minutes instead of six hours. Repeated cursors are failures, not proof of completeness. Only successful passes advance `updated_at` or publish. Successful cycles wait six hours before the next crawl.
 
+Health returns HTTP 503 for an empty index, a failed memory reload, or a failed crawler/replica cycle. `ready` reports whether the last completed snapshot is still searchable; `syncHealthy` and `degraded` distinguish freshness failures from search unavailability. Shared local status records expose the failed stage, check time, and exception type without persisting request details or secrets. Successful refreshes clear the failure. Malformed upstream next-page links are errors, never evidence that a crawl finished. Search rejects malformed and out-of-range cursors instead of silently restarting pagination or scanning the entire list.
+
+Index loading streams SQLite rows directly into model records to avoid keeping a second full row list in memory. A single popularity ordering populates all six search buckets instead of sorting and recomputing ranking keys in each bucket. A local synthetic 100,000-model check reduced index construction from 0.347 s to 0.178 s; real-host timings depend on the data and machine.
+
 ## Run
 
 ```bash

@@ -3,11 +3,12 @@ export const contextLevels = [2048, 4096, 8192, 16384, 32768, 65536, 131072, 262
 export type ContextDirection = 'up' | 'down'
 
 const minimumContext = 1024
+export const maximumContext = 16_777_216
 const contextBoundaries = [minimumContext, ...contextLevels]
 
-function normalizedContext(value: number) {
+export function normalizedContext(value: number) {
   const rounded = Math.round(value)
-  return Number.isFinite(rounded) ? Math.max(minimumContext, rounded || minimumContext) : minimumContext
+  return Number.isFinite(rounded) ? Math.min(maximumContext, Math.max(minimumContext, rounded || minimumContext)) : minimumContext
 }
 
 function contextBoundariesThrough(current: number) {
@@ -46,5 +47,5 @@ export function getContextStep(current: number, direction: ContextDirection) {
 export function stepContext(current: number, direction: ContextDirection) {
   const normalized = normalizedContext(current)
   const step = getContextStep(normalized, direction)
-  return Math.max(minimumContext, normalized + (direction === 'up' ? step : -step))
+  return normalizedContext(normalized + (direction === 'up' ? step : -step))
 }

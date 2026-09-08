@@ -81,7 +81,7 @@ function huggingFaceRequestUrl(input: RequestInfo | URL) {
 
 export function isHuggingFaceRequest(input: RequestInfo | URL) {
   const url = huggingFaceRequestUrl(input)
-  return url?.hostname === 'huggingface.co' || Boolean(url?.hostname.endsWith('.huggingface.co'))
+  return url?.protocol === 'https:' && url.hostname === 'huggingface.co'
 }
 
 function hasAuthorization(headers: HeadersInit) {
@@ -106,11 +106,12 @@ function withAuthorization(headers: HeadersInit | undefined, token: string): Hea
 
 export function createRotatingHfFetcher(fetcher: Fetcher, pool: HfTokenPool): Fetcher {
   return (input, init) => {
-    if (!isHuggingFaceRequest(input) || (init?.headers && hasAuthorization(init.headers))) {
+    const headers = init?.headers ?? (input instanceof Request ? input.headers : undefined)
+    if (!isHuggingFaceRequest(input) || (headers && hasAuthorization(headers))) {
       return fetcher(input, init)
     }
     const token = pool.next()
     if (!token) return fetcher(input, init)
-    return fetcher(input, { ...init, headers: withAuthorization(init?.headers, token) })
+    return fetcher(input, { ...init, headers: withAuthorization(headers, token) })
   }
 }

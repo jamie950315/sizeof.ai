@@ -8,6 +8,7 @@ import urllib.request
 
 from .db import connect, count_models, get_meta, set_meta, upsert_models
 from .snapshot import publish_snapshot
+from .status import record_status
 
 DB_PATH = os.environ.get('SIZEOF_SEARCH_DB', '/data/models.sqlite')
 USER_AGENT = 'sizeof.ai-search-indexer/1.0 (+https://sizeof.ai)'
@@ -55,12 +56,12 @@ def next_cursor(link: str | None) -> str | None:
         start = part.find('<')
         end = part.find('>')
         if start == -1 or end == -1:
-            continue
-        try:
-            url = urllib.parse.urlparse(part[start + 1:end])
-            return urllib.parse.parse_qs(url.query).get('cursor', [None])[0]
-        except Exception:
-            return None
+            raise ValueError('Malformed next-page link')
+        url = urllib.parse.urlparse(part[start + 1:end])
+        cursor = urllib.parse.parse_qs(url.query).get('cursor', [None])[0]
+        if not cursor:
+            raise ValueError('Next-page link has no cursor')
+        return cursor
     return None
 
 
@@ -109,8 +110,6 @@ def crawl_pages(
     *,
     max_pages: int | None = None,
     new_id_stagnant: int | None = None,
-    count_stagnant: int | None = None,
-    min_total_for_count_stagnant: int = 100_000,
 ) -> dict:
     cursor = None
     page = 0
@@ -118,7 +117,6 @@ def crawl_pages(
     inserted_total = 0
     seen_cursors: set[str] = set()
     stagnant_new = 0
-    stagnant_count = 0
     last_total = count_models(db)
     stop_reason = 'end'
     while True:
@@ -153,10 +151,8 @@ def crawl_pages(
         current_total = last_total + inserted
         if inserted == 0:
             stagnant_new += 1
-            stagnant_count += 1
         else:
             stagnant_new = 0
-            stagnant_count = 0
             last_total = current_total
         if page % 10 == 0:
             print(json.dumps({
@@ -167,19 +163,12 @@ def crawl_pages(
                 'inserted': inserted_total,
             }), flush=True)
         next_page = next_cursor(link)
-        stop_count = (
-            count_stagnant is not None
-            and last_total > min_total_for_count_stagnant
-            and stagnant_count >= count_stagnant
-        )
         stop_new = new_id_stagnant is not None and stagnant_new >= new_id_stagnant
         stop_max = max_pages is not None and page >= max_pages
         if not next_page or not body:
             stop_reason = 'end'
         elif next_page in seen_cursors:
             stop_reason = 'repeat'
-        elif stop_count:
-            stop_reason = 'count_stagnant'
         elif stop_new:
             stop_reason = 'new_stagnant'
         elif stop_max:
@@ -209,9 +198,15 @@ class CrawlIncompleteError(RuntimeError):
 
 
 def crawl_once() -> int:
-    pool = tokens()
     db = connect(DB_PATH)
-    token_cursor = TokenCursor(pool)
+    try:
+        return _crawl_once(db)
+    finally:
+        db.close()
+
+
+def _crawl_once(db) -> int:
+    token_cursor = TokenCursor(tokens())
     force = os.environ.get('SIZEOF_SEARCH_FULL_BACKFILL', '').strip().lower() in ('1', 'true', 'yes')
     backfill_done = get_meta(db, META_FULL_BACKFILL) == 'true' and not force
     passes: dict[str, dict] = {}
@@ -233,7 +228,6 @@ def crawl_once() -> int:
     if successful:
         set_meta(db, 'updated_at', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
     total = count_models(db)
-    db.close()
     print(json.dumps({
         'message': 'crawl complete',
         'mode': 'refresh' if backfill_done else 'backfill',
@@ -253,7 +247,9 @@ def main() -> None:
         delay = 6 * 60 * 60
         try:
             crawl_once()
+            record_status(DB_PATH, 'indexer')
         except Exception as error:
+            record_status(DB_PATH, 'indexer', error)
             print(json.dumps({'message': 'crawl error', 'error': str(error)}), flush=True)
             delay = 5 * 60
         time.sleep(delay)

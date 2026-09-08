@@ -18,7 +18,12 @@ function env(overrides: Partial<PrefixSearchEnv> = {}): PrefixSearchEnv {
 const SEARCH_REQUEST = 'https://testnet.sizeof.ai/api/search/models?q=Q'
 
 function jsonIndex(source: string, models: unknown[], indexSize = 10) {
-  return Response.json({ query: 'Q', models, source, indexSize })
+  const rows = models.map((model) => {
+    const row = model as { id: string }
+    const [owner, name] = row.id.split('/')
+    return { owner, name, downloads: 0, likes: 0, trendingScore: 0, task: null, gated: false, ...row }
+  })
+  return Response.json({ query: 'Q', models: rows, source, indexSize })
 }
 
 describe('racePrefixSearch', () => {
@@ -35,7 +40,7 @@ describe('racePrefixSearch', () => {
     const result = await racePrefixSearch(env(), SEARCH_REQUEST)
 
     expect(result.result?.source).toBe('us')
-    expect(result.result?.models).toEqual([{ id: 'Qwen/Fast' }])
+    expect(result.result?.models).toMatchObject([{ id: 'Qwen/Fast' }])
   })
 
   it('falls back when both indexes fail', async () => {
@@ -86,6 +91,7 @@ describe('racePrefixSearch', () => {
       SIZEOF_SEARCH_US_URL: undefined,
     }), SEARCH_REQUEST)
     expect(fetchMock).toHaveBeenCalledWith('https://jp.example/search?q=Q', expect.anything())
+    expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ redirect: 'manual' }))
   })
 
   it('forwards author, type, and cursor query params', async () => {
@@ -110,7 +116,7 @@ describe('racePrefixSearch', () => {
     }))
     const result = await racePrefixSearch(env(), SEARCH_REQUEST)
     expect(result.result?.source).toBe('jp')
-    expect(result.result?.models).toEqual([{ id: 'Qwen/JP' }])
+    expect(result.result?.models).toMatchObject([{ id: 'Qwen/JP' }])
   })
 
   it('accepts an empty page when the index is populated', async () => {

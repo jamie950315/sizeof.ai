@@ -6,6 +6,17 @@ import ExportMenu from './ExportMenu'
 const input = { generatedAt: '2026-08-30T12:00:00.000Z', records: [{ model: { id: 'Qwen/Example', sourceUrl: 'https://huggingface.co/Qwen/Example' }, configuration: { quantization: '4bit', contextTokens: 8192, kvPrecision: 'fp16', mlaCacheMode: 'expanded' }, hardware: { capacityGiB: 32 }, estimate: { kind: 'estimate' as const, totalGiB: 18.5 }, evidence: [] }] }
 
 describe('ExportMenu', () => {
+  it('reports failure when both clipboard methods fail and cleans up the textarea', async () => {
+    const user = userEvent.setup()
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } })
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: vi.fn().mockReturnValue(false) })
+    render(<ExportMenu input={input} fileStem="test" />)
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not copy')
+    expect(screen.queryByText('COPIED')).not.toBeInTheDocument()
+    expect(document.querySelector('textarea')).toBeNull()
+  })
   it('uses an accessible disclosure panel and restores focus on Escape', async () => {
     const user = userEvent.setup()
     render(<ExportMenu input={input} fileStem="test" />)

@@ -60,7 +60,18 @@ class NextCursorTests(unittest.TestCase):
             ),
             'new',
         )
-        self.assertIsNone(next_cursor('rel="next" without-brackets'))
+        for malformed in ('rel="next" without-brackets', '<https://huggingface.co/api/models>; rel="next"'):
+            with self.assertRaises(ValueError):
+                next_cursor(malformed)
+
+    def test_duplicate_page_rows_do_not_inflate_inserted_count(self):
+        with tempfile.TemporaryDirectory() as directory:
+            conn = db.connect(str(Path(directory) / 'models.sqlite'))
+            try:
+                self.assertEqual(db.upsert_models(conn, [normalize({'id': 'org/a'})] * 2), (1, 1))
+                self.assertEqual(db.count_models(conn), 1)
+            finally:
+                conn.close()
 
 
 class TokenPoolTests(unittest.TestCase):
@@ -339,3 +350,15 @@ class CrawlOnceTests(unittest.TestCase):
                  patch.dict(os.environ, {'SIZEOF_SEARCH_PUBLISH_SNAPSHOT': enabled}):
                 indexer.crawl_once()
                 self.assertEqual(publish.call_count, int(enabled == 'true'))
+
+    def test_malformed_next_link_never_publishes_or_marks_complete(self):
+        with patch.object(indexer, 'request_json', return_value=(
+            200, [{'id': 'org/a'}], '<https://huggingface.co/api/models>; rel="next"'
+        )), patch.object(indexer, 'publish_snapshot') as publish:
+            with self.assertRaisesRegex(ValueError, 'no cursor'):
+                indexer.crawl_once()
+            publish.assert_not_called()
+        conn = db.connect(self.db_path)
+        self.assertIsNone(db.get_meta(conn, indexer.META_FULL_BACKFILL))
+        self.assertIsNone(db.get_meta(conn, 'updated_at'))
+        conn.close()

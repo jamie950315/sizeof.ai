@@ -24,6 +24,24 @@ function safeModel() {
 }
 
 describe('public estimate contract', () => {
+  it('does not claim a verified fit for a runtime-specific lower bound', () => {
+    const parsed = parsePublicEstimateQuery('model=Qwen%2FQwen3.8-27B&vram=4096')
+    if (!parsed.ok) throw new Error(parsed.error)
+    const model = safeModel()
+    if (!model.spec) throw new Error('Expected fixture spec')
+    model.spec.estimateConfidence = 'runtime-specific'
+    expect(buildPublicEstimate(model, parsed.value).result).toMatchObject({
+      state: 'lower-bound', fit: null,
+    })
+  })
+  it('exposes corrupted known geometry instead of disguising it as unavailable metadata', () => {
+    const parsed = parsePublicEstimateQuery('model=Qwen%2FQwen3.8-27B')
+    if (!parsed.ok) throw new Error(parsed.error)
+    const model = safeModel()
+    if (!model.spec) throw new Error('Expected fixture spec')
+    model.spec.parametersB = NaN
+    expect(() => buildPublicEstimate(model, parsed.value)).toThrow('Invalid model parameter count')
+  })
   it('parses bounded defaults and rejects unknown, duplicate, malformed, and unsafe parameters', () => {
     const parsed = parsePublicEstimateQuery('model=Qwen%2FQwen3.8-27B')
     expect(parsed).toMatchObject({

@@ -187,10 +187,6 @@ function selectedVariant(model: HuggingFaceModel, input: PublicEstimateInput) {
   return variant
 }
 
-function finiteEstimate(estimate: VramEstimate) {
-  return Object.values(estimate).every((value) => typeof value !== 'number' || Number.isFinite(value))
-}
-
 function detailSource(model: HuggingFaceModel, artifact: HuggingFaceVariant | null) {
   if (!artifact) return 'estimated'
   if (model.addon || artifact.role === 'addon') return 'repository'
@@ -244,21 +240,12 @@ export function buildPublicEstimate(
     weightBytesOverride,
     additionalWeightBytes,
   }
-  let estimate: VramEstimate | null = null
-  let reason = model.estimateReason
-  if (model.spec) {
-    try {
-      const candidate = estimateVram(model.spec, estimateOptions)
-      if (finiteEstimate(candidate)) estimate = candidate
-      else reason = 'missing-kv-geometry'
-    } catch {
-      reason = 'missing-kv-geometry'
-    }
-  }
+  const estimate = model.spec ? estimateVram(model.spec, estimateOptions) : null
+  const reason = model.estimateReason
   const state = estimate
     ? model.spec?.estimateConfidence === 'runtime-specific' ? 'lower-bound' as const : 'estimate' as const
     : 'unavailable' as const
-  const fit = estimate ? classifyFit(estimate.totalGiB, input.capacityGiB) : null
+  const fit = estimate && state === 'estimate' ? classifyFit(estimate.totalGiB, input.capacityGiB) : null
   const plannerOptions = {
     quantization: input.quantization,
     kvPrecision: input.kvPrecision,

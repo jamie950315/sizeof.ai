@@ -1,8 +1,10 @@
-const MODEL_CACHE_VERSION = 2
+import { readBoundedBody } from './upstream'
+
+const MODEL_CACHE_VERSION = 4
 const MODEL_CACHE_FRESH_MS = 24 * 60 * 60 * 1_000
 const MODEL_CACHE_STALE_MS = 7 * 24 * 60 * 60 * 1_000
 const MODEL_CACHE_MAX_AGE_MS = MODEL_CACHE_FRESH_MS + MODEL_CACHE_STALE_MS
-const MODEL_CACHE_MAX_BODY_LENGTH = 25 * 1024 * 1024
+const MODEL_CACHE_MAX_BODY_LENGTH = 4 * 1024 * 1024
 const MODEL_CACHE_EXPIRATION_SECONDS = 30 * 24 * 60 * 60
 
 export const modelResponseHeaders = {
@@ -12,7 +14,7 @@ export const modelResponseHeaders = {
 }
 
 export interface ModelCacheEntry {
-  version: 2
+  version: 4
   fetchedAt: number
   body: string
 }
@@ -40,7 +42,7 @@ function isModelCacheEntry(value: unknown): value is ModelCacheEntry {
 }
 
 function cachedBodyMatchesKey(body: string, key: string) {
-  const match = /^model-response-v2:([^/]+)\/(.+)$/.exec(key)
+  const match = /^model-response-v4:([^/]+)\/(.+)$/.exec(key)
   if (!match) return false
   try {
     const parsed: unknown = JSON.parse(body)
@@ -54,7 +56,7 @@ function cachedBodyMatchesKey(body: string, key: string) {
 }
 
 export function createModelKvKey(owner: string, repo: string) {
-  return `model-response-v2:${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
+  return `model-response-v4:${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
 }
 
 export async function readModelResponse(
@@ -73,7 +75,11 @@ export async function readModelResponse(
     }))
     return null
   }
-  if (!isModelCacheEntry(value) || !cachedBodyMatchesKey(value.body, key)) return null
+  if (value === null) return null
+  if (!isModelCacheEntry(value) || !cachedBodyMatchesKey(value.body, key)) {
+    console.error(JSON.stringify({ message: 'Invalid model cache entry rejected', key }))
+    return null
+  }
   if (value.fetchedAt > now) return null
   const ageMs = now - value.fetchedAt
   if (ageMs >= MODEL_CACHE_MAX_AGE_MS) return null
@@ -123,9 +129,8 @@ export function queueModelResponseWrite(
   fetchedAt = Date.now(),
 ) {
   ctx.waitUntil((async () => {
-    const body = await response.text()
-    if (new TextEncoder().encode(body).byteLength > MODEL_CACHE_MAX_BODY_LENGTH) return
-    if (!cachedBodyMatchesKey(body, key)) return
+    const body = new TextDecoder().decode(await readBoundedBody(response, MODEL_CACHE_MAX_BODY_LENGTH))
+    if (!cachedBodyMatchesKey(body, key)) throw new Error('Model cache identity mismatch')
     const entry: ModelCacheEntry = {
       version: MODEL_CACHE_VERSION,
       fetchedAt,

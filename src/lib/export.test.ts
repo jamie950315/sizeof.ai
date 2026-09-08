@@ -13,6 +13,12 @@ const input = {
 }
 
 describe('sizing export document', () => {
+  it.each([true, false])('preserves whether a hardware profile was applied in CSV (%s)', (applied) => {
+    const csv = exportSizingCsv({ ...input, records: [{ ...input.records[0], hardware: {
+      capacityGiB: 32, profile: { kind: 'discrete-gpu', label: 'GPU', applied },
+    } }] })
+    expect(csv).toContain(`records[0].hardware.profile.applied,${applied}`)
+  })
   it('creates a versioned record document and omits non-finite fields without synthetic zeroes', () => {
     expect(createSizingExport(input)).toMatchObject({
       schemaVersion: EXPORT_SCHEMA_VERSION,

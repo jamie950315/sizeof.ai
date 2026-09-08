@@ -19,7 +19,7 @@ const SOURCE_PATTERN = /^[a-z0-9][a-z0-9._-]*$/i
 const VARIANT_PATTERN = /^[a-z0-9][a-z0-9._:-]*$/i
 
 function validContext(value: number) {
-  return Number.isSafeInteger(value) && value >= 1024 && value <= MAX_CONTEXT && value % 1024 === 0
+  return Number.isSafeInteger(value) && value >= 1024 && value <= MAX_CONTEXT
 }
 
 function validVram(value: number) {

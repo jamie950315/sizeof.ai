@@ -12,6 +12,12 @@ function estimate(model, total = 10) {
 }
 
 describe('sizeof MCP stdio server', () => {
+  it('rejects an API success for the wrong model', async () => {
+    await expect(callTool('estimate', { model: 'Org/Model' }, {
+      fetch: vi.fn().mockResolvedValue(Response.json(estimate('Other/Model'))),
+      baseUrl: 'https://testnet.sizeof.ai',
+    })).rejects.toThrow('unreadable response')
+  })
   it('exposes estimate, compare, and find_fit with bounded JSON Schemas and no destination argument', () => {
     expect(TOOL_DEFINITIONS.map((tool) => tool.name)).toEqual(['estimate', 'compare', 'find_fit'])
     for (const tool of TOOL_DEFINITIONS) {

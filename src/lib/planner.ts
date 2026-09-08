@@ -30,6 +30,7 @@ export type HighestPrecisionFitResult =
         | 'mla-mode-required'
         | 'native-context-too-small'
         | 'no-precision-fits'
+        | 'fixed-artifact-precision'
     }
 
 export interface FitAdjustment {
@@ -102,15 +103,8 @@ function estimateAt(
   model: ModelSpec,
   options: EstimateOptionsWithoutContext,
   context: number,
-): VramEstimate | null {
-  try {
-    const estimate = estimateVram(model, { ...options, context })
-    return Object.values(estimate).every((value) => typeof value !== 'number' || Number.isFinite(value))
-      ? estimate
-      : null
-  } catch {
-    return null
-  }
+): VramEstimate {
+  return estimateVram(model, { ...options, context })
 }
 
 export function findMaximumSafeContext(
@@ -122,7 +116,6 @@ export function findMaximumSafeContext(
   if (unsafe) return { kind: 'unavailable', reason: unsafe }
 
   const firstEstimate = estimateAt(model, options, 1024)
-  if (!firstEstimate) return { kind: 'unavailable', reason: 'missing-safe-geometry' }
   if (firstEstimate.totalGiB > capacityGiB) return { kind: 'unavailable', reason: 'weights-do-not-fit' }
 
   let low = 1
@@ -131,7 +124,6 @@ export function findMaximumSafeContext(
   while (low <= high) {
     const midpoint = Math.floor((low + high) / 2)
     const estimate = estimateAt(model, options, midpoint * 1024)
-    if (!estimate) return { kind: 'unavailable', reason: 'missing-safe-geometry' }
     if (estimate.totalGiB <= capacityGiB) {
       low = midpoint + 1
       bestEstimate = estimate
@@ -153,11 +145,13 @@ export function findHighestPrecisionFit(
   if (options.context > model.maxContext || options.context < 1024 || options.context % 1024 !== 0) {
     return { kind: 'unavailable', reason: 'missing-safe-geometry' }
   }
+  if (options.weightBytesOverride !== undefined) {
+    return { kind: 'unavailable', reason: 'fixed-artifact-precision' }
+  }
 
   for (const quantization of [...quantizations].sort((a, b) => b.bitsPerWeight - a.bitsPerWeight)) {
     const estimate = estimateAt(model, { ...options, quantization: quantization.id }, options.context)
-    if (!estimate) return { kind: 'unavailable', reason: 'missing-safe-geometry' }
-    if (estimate && estimate.totalGiB <= capacityGiB) {
+    if (estimate.totalGiB <= capacityGiB) {
       return { kind: 'available', quantization: quantization.id, estimate }
     }
   }
@@ -166,8 +160,9 @@ export function findHighestPrecisionFit(
 
 export function buildFitAdjustments(model: ModelSpec, options: FitAdjustmentOptions): FitAdjustment[] {
   const { capacityGiB, context, quantization, kvPrecision, ...estimateOptions } = options
+  if (safetyReason(model, estimateOptions, capacityGiB)) return []
   const baseline = estimateAt(model, { ...estimateOptions, quantization, kvPrecision }, context)
-  if (!baseline || baseline.totalGiB <= capacityGiB || safetyReason(model, estimateOptions, capacityGiB)) return []
+  if (baseline.totalGiB <= capacityGiB) return []
 
   const adjustments: FitAdjustment[] = []
   const contextFit = findMaximumSafeContext(model, { ...estimateOptions, quantization, kvPrecision }, capacityGiB)
@@ -180,18 +175,18 @@ export function buildFitAdjustments(model: ModelSpec, options: FitAdjustmentOpti
     : kvPrecision === 'q8_0' ? ['q4_0'] : []
   for (const nextKvPrecision of lowerKvPrecisions) {
     const estimate = estimateAt(model, { ...estimateOptions, quantization, kvPrecision: nextKvPrecision }, context)
-    if (estimate && estimate.totalGiB <= capacityGiB) {
+    if (estimate.totalGiB <= capacityGiB) {
       adjustments.push({ field: 'kvPrecision', value: nextKvPrecision, estimate })
       break
     }
   }
 
   const currentBits = quantizations.find((item) => item.id === quantization)?.bitsPerWeight
-  if (currentBits !== undefined) {
+  if (currentBits !== undefined && estimateOptions.weightBytesOverride === undefined) {
     for (const nextQuantization of [...quantizations].sort((a, b) => b.bitsPerWeight - a.bitsPerWeight)) {
       if (nextQuantization.bitsPerWeight >= currentBits) continue
       const estimate = estimateAt(model, { ...estimateOptions, quantization: nextQuantization.id, kvPrecision }, context)
-      if (estimate && estimate.totalGiB <= capacityGiB) {
+      if (estimate.totalGiB <= capacityGiB) {
         adjustments.push({ field: 'quantization', value: nextQuantization.id, estimate })
         break
       }

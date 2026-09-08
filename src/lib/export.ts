@@ -104,6 +104,7 @@ export function createSizingExport(input: SizingExportInput): SizingExportDocume
 }
 
 function flatten(value: unknown, prefix = ''): Array<[string, string | number]> {
+  if (typeof value === 'boolean') return [[prefix, String(value)]]
   if (typeof value === 'string' || typeof value === 'number') return [[prefix, value]]
   if (Array.isArray(value)) return value.flatMap((item, index) => flatten(item, `${prefix}[${index}]`))
   if (!value || typeof value !== 'object') return []

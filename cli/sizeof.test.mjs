@@ -10,6 +10,31 @@ const response = {
 }
 
 describe('sizeof CLI', () => {
+  it.each(['--help', '-h'])('shows %s without network access', async (flag) => {
+    const fetch = vi.fn()
+    const stdout = vi.fn()
+    expect(await runCli([flag], { fetch, stdout, stderr: vi.fn(), env: {} })).toBe(0)
+    expect(stdout.mock.calls.flat().join('')).toContain('Usage: sizeof owner/repository')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+  it.each([{}, { ...response, model: { id: 'Other/Model' } }, {
+    ...response, result: { state: 'estimate', estimate: { totalGiB: -1 } },
+  }])('rejects malformed successful API responses', async (body) => {
+    const stdout = vi.fn()
+    expect(await runCli(['Qwen/Qwen3.8-27B'], {
+      fetch: vi.fn().mockResolvedValue(Response.json(body)), stdout, stderr: vi.fn(), env: {},
+    })).toBe(1)
+    expect(stdout).not.toHaveBeenCalled()
+  })
+
+  it('removes terminal commands from successful human output', async () => {
+    const stdout = vi.fn()
+    await runCli(['Qwen/Qwen3.8-27B'], {
+      fetch: vi.fn().mockResolvedValue(Response.json({ ...response, disclaimer: '\u001b]0;title\u0007Estimate only.' })),
+      stdout, stderr: vi.fn(), env: {},
+    })
+    expect(stdout.mock.calls.flat().join('')).not.toContain('\u001b')
+  })
   it('parses bounded arguments and constructs the testnet API URL by default', () => {
     const parsed = parseArgs(['Qwen/Qwen3.8-27B', '--quant', 'q4_k_m', '--context', '8192', '--kv', 'q8_0', '--vram', '48', '--engine', 'vllm', '--concurrency', '4'])
     expect(parsed.baseUrl).toBe('https://testnet.sizeof.ai')

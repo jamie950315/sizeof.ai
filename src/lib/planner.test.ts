@@ -15,6 +15,11 @@ const model: ModelSpec = {
 const options = { quantization: 'q4_k_m' as const, kvPrecision: 'fp16' as const }
 
 describe('inverse fit planner', () => {
+  it('does not relabel a fixed artifact as a different precision', () => {
+    expect(findHighestPrecisionFit(model, {
+      context: 4096, kvPrecision: 'fp16', weightBytesOverride: 1024 ** 3,
+    }, 32)).toEqual({ kind: 'unavailable', reason: 'fixed-artifact-precision' })
+  })
   it('finds the exact greatest 1024-aligned context and respects native context', () => {
     const at4096 = findMaximumSafeContext(model, options, 1.142578125)
     const justOver = findMaximumSafeContext(model, options, 1.1425)

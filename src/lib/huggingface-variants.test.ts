@@ -7,6 +7,33 @@ import {
 } from './huggingface-variants'
 
 describe('parseHuggingFaceVariants', () => {
+  it('excludes importance-matrix calibration files from model weights', () => {
+    const variants = parseHuggingFaceVariants([{ revision: 'rev', label: 'main', entries: [
+      { type: 'file', path: 'Model-imatrix.gguf', size: 13_000_000 },
+      { type: 'file', path: 'Model-Q4_K_M.gguf', size: 10_000_000_000 },
+    ] }], ['gguf'])
+    expect(variants).toHaveLength(1)
+    expect(variants[0].path).toBe('Model-Q4_K_M.gguf')
+  })
+  it('never reports one shard as a complete GGUF or safetensors model', () => {
+    for (const extension of ['gguf', 'safetensors']) {
+      expect(parseHuggingFaceVariants([{ revision: 'rev', label: 'main', entries: [
+        { type: 'file', path: `Model-00001-of-00002.${extension}`, size: 100 },
+      ] }], ['mlx', 'gguf'])).toEqual([])
+    }
+  })
+
+  it('keeps nested variants separate and preserves case-sensitive artifact identity', () => {
+    const variants = parseHuggingFaceVariants([{ revision: 'rev', label: 'main', entries: [
+      { type: 'file', path: 'nested/4bit/model.safetensors', size: 100 },
+      { type: 'file', path: 'nested/8bit/model.safetensors', size: 200 },
+      { type: 'file', path: 'Q4.gguf', size: 300 },
+      { type: 'file', path: 'q4.gguf', size: 400 },
+    ] }], ['mlx'])
+    expect(variants).toHaveLength(4)
+    expect(new Set(variants.map((item) => item.id)).size).toBe(4)
+    expect(variants.find((item) => item.path === 'nested/4bit')?.weightSizeBytes).toBe(100)
+  })
   it('groups MLX weight shards by quantized directory', () => {
     const variants = parseHuggingFaceVariants([
       {

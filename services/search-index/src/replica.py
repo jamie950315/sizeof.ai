@@ -12,6 +12,7 @@ import time
 import urllib.request
 
 from .db import connect, get_meta, set_meta
+from .status import record_status
 
 
 def validate_manifest(manifest: dict) -> str:
@@ -105,11 +106,14 @@ def sync_once(source_url: str, token: str, db_path: str) -> bool:
 
 
 def main():
+    db_path = os.environ.get('SIZEOF_SEARCH_DB', '/data/models.sqlite')
     while True:
         try:
             sync_once(os.environ['SIZEOF_SEARCH_PRIMARY_URL'], os.environ['SIZEOF_SEARCH_TOKEN'],
-                      os.environ.get('SIZEOF_SEARCH_DB', '/data/models.sqlite'))
+                      db_path)
+            record_status(db_path, 'replica')
         except Exception as error:
+            record_status(db_path, 'replica', error)
             # Do not log URLs or headers containing credentials.
             print(json.dumps({'message': 'replica sync failed', 'errorType': type(error).__name__}), flush=True)
         time.sleep(60)

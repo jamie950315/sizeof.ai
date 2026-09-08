@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { fromJsonSchema, McpServer } from '@modelcontextprotocol/server'
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio'
 import { sanitizeRemoteError } from '../cli/sizeof.mjs'
+import { validateResponse } from '../cli/action-result.mjs'
 
 const DEFAULT_BASE_URL = 'https://testnet.sizeof.ai'
 const MODEL_PATTERN = '^[A-Za-z0-9][A-Za-z0-9._-]{0,95}/[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'
@@ -111,7 +112,9 @@ function estimateUrl(baseUrl, model, args) {
 async function requestEstimate(model, args, runtime) {
   let response
   try {
-    response = await runtime.fetch(estimateUrl(runtime.baseUrl, model, args), { headers: { Accept: 'application/json' } })
+    response = await runtime.fetch(estimateUrl(runtime.baseUrl, model, args), {
+      headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(30_000),
+    })
   } catch {
     return { ok: false, model, status: 502, error: 'Estimate service is temporarily unavailable' }
   }
@@ -123,7 +126,11 @@ async function requestEstimate(model, args, runtime) {
     const error = sanitizeRemoteError(body?.error) || `Request failed (${response.status})`
     return { ok: false, model, status: response.status, error }
   }
-  if (!record(body) || body.schema !== 'sizeof-estimate/v1') return { ok: false, model, status: 502, error: 'The estimate API returned an unreadable response' }
+  try {
+    validateResponse(body, model)
+  } catch {
+    return { ok: false, model, status: 502, error: 'The estimate API returned an unreadable response' }
+  }
   return { ok: true, value: body }
 }
 

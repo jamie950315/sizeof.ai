@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { pathToFileURL } from 'node:url'
+import { validateResponse } from './action-result.mjs'
 
 const DEFAULT_BASE_URL = 'https://testnet.sizeof.ai'
 const MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}\/[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/
@@ -118,10 +119,10 @@ function humanOutput(result) {
     ? result.evidence.slice(0, 3).map((item) => `${item.label} (${item.kind})`).join('; ')
     : 'Unavailable'
   return [
-    `${result?.model?.id ?? 'Unknown model'}`,
-    `${state}${fit}${total}`,
-    `Evidence: ${evidence}`,
-    result?.disclaimer ?? 'Estimate only.',
+    sanitizeRemoteError(result.model.id),
+    sanitizeRemoteError(`${state}${fit}${total}`),
+    `Evidence: ${sanitizeRemoteError(evidence, 1024)}`,
+    sanitizeRemoteError(result.disclaimer, 2048),
     '',
   ].join('\n')
 }
@@ -129,6 +130,10 @@ function humanOutput(result) {
 export async function runCli(argv, dependencies = {}) {
   const stdout = dependencies.stdout ?? ((value) => process.stdout.write(value))
   const stderr = dependencies.stderr ?? ((value) => process.stderr.write(value))
+  if (argv.length === 1 && (argv[0] === '--help' || argv[0] === '-h')) {
+    stdout('Usage: sizeof owner/repository [options]\n\nOptions:\n  --quant PRECISION   Weight precision (default: q4_k_m)\n  --context TOKENS    Context in 1024-token steps\n  --kv PRECISION      KV precision: fp16, q8_0, q4_0\n  --vram GIB          Available memory\n  --engine ENGINE     llama.cpp, mlx, or vllm\n  --concurrency N     Concurrent sequences (1-256)\n  --base-url URL      API base (default: https://testnet.sizeof.ai)\n  --json              Print JSON\n  --help, -h          Show this help\n')
+    return 0
+  }
   let options
   try {
     options = parseArgs(argv, dependencies.env ?? process.env)
@@ -140,6 +145,7 @@ export async function runCli(argv, dependencies = {}) {
   try {
     response = await (dependencies.fetch ?? fetch)(buildEstimateUrl(options), {
       headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(30_000),
     })
   } catch {
     stderr('sizeof: Request failed (network error)\n')
@@ -159,6 +165,7 @@ export async function runCli(argv, dependencies = {}) {
   }
   try {
     const result = await response.json()
+    validateResponse(result, options.model)
     stdout(options.json ? `${JSON.stringify(result, null, 2)}\n` : humanOutput(result))
     return 0
   } catch {

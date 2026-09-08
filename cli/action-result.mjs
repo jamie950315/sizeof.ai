@@ -9,7 +9,7 @@ function object(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-function validateResponse(value, expectedModel) {
+export function validateResponse(value, expectedModel) {
   if (!object(value) || value.schema !== 'sizeof-estimate/v1') throw new Error('schema is invalid')
   if (!MODEL_PATTERN.test(expectedModel ?? '')) throw new Error('expected model is invalid')
   if (!object(value.model) || !MODEL_PATTERN.test(value.model.id ?? '')

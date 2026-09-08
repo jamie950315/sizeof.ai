@@ -19,6 +19,7 @@ interface PlannerProps {
 type Props = PlannerProps | { model?: undefined; unavailableReason: string }
 
 const refusalLabels = {
+  'fixed-artifact-precision': 'The selected artifact has a fixed precision; choose another artifact to change it.',
   'invalid-capacity': 'Choose a positive usable memory capacity to plan a fit.',
   'runtime-specific': 'This runtime-specific model cannot guarantee a precise fit.',
   'weights-only': 'This model does not publish enough cache geometry for a safe fit plan.',

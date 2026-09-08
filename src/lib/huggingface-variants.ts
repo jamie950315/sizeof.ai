@@ -131,7 +131,7 @@ function safeFile(entry: HuggingFaceTreeEntry) {
 }
 
 function stableId(revision: string, path: string) {
-  return `${revision}:${path}`.toLowerCase().replace(/[^a-z0-9._:-]+/g, '-')
+  return `${revision}:${encodeURIComponent(path)}`
 }
 
 function precisionFromText(value: string) {
@@ -198,12 +198,14 @@ export function parseHuggingFaceVariants(
       const total = Number(match[3])
       if (!Number.isInteger(index) || !Number.isInteger(total) || index < 1 || total < 2 || index > total) continue
       const key = `${match[1]}:${total}`
-      shardGroups.set(key, [...(shardGroups.get(key) ?? []), {
+      const group = shardGroups.get(key) ?? []
+      group.push({
         entry,
         index,
         total,
         prefix: match[1],
-      }])
+      })
+      shardGroups.set(key, group)
     }
     for (const shards of shardGroups.values()) {
       if (shards.length !== shards[0].total
@@ -227,13 +229,17 @@ export function parseHuggingFaceVariants(
 
     for (const entry of files) {
       const lowerPath = entry.path.toLowerCase()
+      // Importance-matrix calibration data is not a model checkpoint.
+      if (/(?:^|[-_/])(?:imatrix|importance[-_]matrix)\.gguf$/.test(lowerPath)) continue
       const artifactFormat = lowerPath.endsWith('.gguf')
         ? 'gguf'
         : lowerPath.endsWith('.ninfer')
           ? 'ninfer'
           : null
       if (!artifactFormat) continue
-      if (artifactFormat === 'gguf' && completeShardPaths.has(entry.path)) continue
+      // An individual shard is never a complete model, even if other shards are missing.
+      if (artifactFormat === 'gguf' && (completeShardPaths.has(entry.path)
+        || /-\d{5}-of-\d{5}\.gguf$/i.test(entry.path))) continue
       variants.push({
         id: stableId(snapshot.revision, entry.path),
         label: artifactFormat === 'gguf' ? ggufLabel(entry.path) : 'NInfer',
@@ -253,11 +259,24 @@ export function parseHuggingFaceVariants(
     const groups = new Map<string, HuggingFaceTreeEntry[]>()
     for (const entry of weightFiles) {
       const parts = entry.path.split('/')
-      const group = parts.length > 1 ? parts[0] : '.'
-      groups.set(group, [...(groups.get(group) ?? []), entry])
+      const group = parts.length > 1 ? parts.slice(0, -1).join('/') : '.'
+      const items = groups.get(group) ?? []
+      items.push(entry)
+      groups.set(group, items)
     }
 
     for (const [group, weights] of groups) {
+      const shards = new Map<string, { total: number; indices: Set<number>; count: number }>()
+      for (const entry of weights) {
+        const match = entry.path.match(/^(.*)-(\d{5})-of-(\d{5})\.safetensors$/i)
+        if (!match) continue
+        const state = shards.get(match[1]) ?? { total: Number(match[3]), indices: new Set<number>(), count: 0 }
+        const index = Number(match[2])
+        state.count += 1
+        if (index >= 1 && index <= state.total && state.total === Number(match[3])) state.indices.add(index)
+        shards.set(match[1], state)
+      }
+      if ([...shards.values()].some(({ total, indices, count }) => total < 1 || indices.size !== total || count !== total)) continue
       const isBranch = snapshot.label !== 'main'
       const descriptor = isBranch ? snapshot.label : group === '.' ? snapshot.label : group
       const relatedFiles = group === '.'

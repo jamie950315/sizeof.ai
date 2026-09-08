@@ -2,6 +2,12 @@
 
 sizeof.ai is a fast reference tool for estimating the VRAM required to run large language models at different weight quantizations, context sizes, and KV-cache precisions. It also recommends the strongest catalog models that fit a selected VRAM budget.
 
+## Testnet review status
+
+The current roadmap and review fixes are deployed only to `testnet.sizeof.ai`; production is unchanged. Model cache namespace v4 invalidates earlier partial-artifact results. Configured search indexes fail explicitly instead of silently switching to Hugging Face. Validated stale model metadata is labeled on interactive pages only after transient upstream failure; malformed data never uses stale fallback, and public estimates/badges/embeds reject stale metadata with 503.
+
+Model listing reads are bounded and reject incomplete pagination. Incomplete weight shards and importance-matrix calibration files are not offered as complete model weights. Runtime-specific lower bounds never claim a verified fit. Copy/export/storage failures are visible rather than reported as success. See [REVIEW.md](REVIEW.md) for review coverage and validation boundaries.
+
 ## Features
 
 - VRAM calculator with separate weight, KV-cache, and runtime estimates

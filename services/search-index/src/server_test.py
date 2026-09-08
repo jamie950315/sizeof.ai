@@ -59,11 +59,12 @@ FIXTURES = [
 def loaded(models: list[dict]):
     indexes = build_indexes(models)
     with LOCK:
-        previous = {key: STATE[key] for key in ('models', 'indexes', 'count', 'updated_at')}
+        previous = dict(STATE)
         STATE['models'] = models
         STATE['indexes'] = indexes
         STATE['count'] = len(models)
         STATE['updated_at'] = 'test'
+        STATE['reload_error'] = None
     try:
         yield
     finally:
@@ -72,6 +73,11 @@ def loaded(models: list[dict]):
 
 
 class BuildIndexTests(unittest.TestCase):
+    def test_all_buckets_preserve_popularity_order(self):
+        for bucket in build_indexes(FIXTURES).values():
+            for items in bucket.values():
+                self.assertEqual(items, sorted(items, key=server_mod._popularity))
+
     def test_one_character_names_are_absent_from_two_character_buckets(self):
         indexes = build_indexes([model('someone/q'), model('Qwen/Qwen3-0.6B')])
         self.assertIn('q', indexes['name1'])
@@ -275,6 +281,39 @@ class SearchHttpTests(unittest.TestCase):
         self.assertTrue(payload['ok'])
         self.assertEqual(payload['host'], 'test-index')
         self.assertEqual(payload['models'], len(FIXTURES))
+
+    def test_health_reports_reload_failure_without_disabling_existing_search(self):
+        with LOCK:
+            STATE['reload_error'] = 'OSError'
+        status, payload, _ = self.get('/health', token=None)
+        self.assertEqual(status, 503)
+        self.assertFalse(payload['ok'])
+        self.assertEqual(payload['reloadError'], 'OSError')
+        self.assertEqual(self.get('/search?q=Qwen')[0], 200)
+
+    def test_empty_index_is_unavailable_not_a_successful_empty_search(self):
+        with loaded([]):
+            self.assertEqual(self.get('/health', token=None)[0], 503)
+            self.assertEqual(self.get('/search?q=Qwen')[0], 503)
+
+    def test_sync_failure_is_visible_while_last_snapshot_remains_searchable(self):
+        from .status import record_status
+        with tempfile.TemporaryDirectory() as directory, patch.object(server_mod, 'DB_PATH', str(Path(directory) / 'models.sqlite')), patch.dict(os.environ, {'SIZEOF_SEARCH_SERVE_SNAPSHOT': 'false'}):
+            record_status(server_mod.DB_PATH, 'replica', ValueError('checksum mismatch'))
+            status, payload, _ = self.get('/health', token=None)
+            self.assertEqual(status, 503)
+            self.assertTrue(payload['ready'])
+            self.assertTrue(payload['degraded'])
+            self.assertFalse(payload['syncHealthy'])
+            self.assertEqual(self.get('/search?q=Qwen')[0], 200)
+            record_status(server_mod.DB_PATH, 'replica')
+            self.assertEqual(self.get('/health', token=None)[0], 200)
+
+    def test_invalid_cursors_are_rejected_before_search(self):
+        for cursor in ('abc', '-1', '1.5', '99999999999999999999', '9999999', '%C2%B2'):
+            with self.subTest(cursor=cursor), patch.object(server_mod, 'search') as search_mock:
+                self.assertEqual(self.get('/search?q=Qwen&cursor=' + cursor)[0], 400)
+                search_mock.assert_not_called()
 
     def test_sizeof_index_prefix_is_stripped(self):
         status, payload, _ = self.get('/__sizeof_index/health', token=None)

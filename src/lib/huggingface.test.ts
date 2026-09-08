@@ -6,6 +6,18 @@ import {
 import type { HuggingFaceVariant } from './huggingface-variants'
 import { curatedHuggingFaceConfigs } from '../data/huggingface-configs'
 
+it('counts repeated layer patterns without allocating an array per declared layer', () => {
+  const value = normalizeHuggingFaceModel({ id: 'test/model' }, {
+    num_hidden_layers: 1_000_000_000,
+    layer_types: ['full_attention', 'linear_attention'],
+  })
+  expect(value.attentionProfile.fullLayers).toBe(500_000_000)
+  expect(value.attentionProfile.linearLayers).toBe(500_000_000)
+  expect(normalizeHuggingFaceModel({ id: 'test/model' }, {
+    num_hidden_layers: 3.5,
+  }).layers).toBeNull()
+})
+
 const metadata = {
   id: 'Qwen/Qwen3.8-27B',
   author: 'Qwen',

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -19,6 +19,74 @@ describe('sizeof.ai app', () => {
     clearSearchCacheForTests()
   })
 
+  it('aborts superseded searches immediately, even before the next debounce fires', async () => {
+    let finish!: (response: Response) => void
+    const fetcher = vi.fn((_url: string, _options?: RequestInit) => new Promise<Response>((resolve) => { finish = resolve }))
+    vi.stubGlobal('fetch', fetcher)
+    const { unmount } = render(<App />)
+    const input = screen.getByRole('searchbox', { name: 'Search Hugging Face models' })
+    fireEvent.change(input, { target: { value: 'Q' } })
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+    const signal = fetcher.mock.calls[0][1]?.signal
+    fireEvent.change(input, { target: { value: 'Qw' } })
+    expect(signal?.aborted).toBe(true)
+    await act(async () => finish(Response.json({ query: 'Q', models: [{ id: 'old/result', owner: 'old', name: 'result', downloads: 1, likes: 0, task: null, trendingScore: 0, gated: false }] })))
+    expect(screen.queryByRole('link', { name: 'Open old/result' })).not.toBeInTheDocument()
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+    const latestSignal = fetcher.mock.calls[1][1]?.signal
+    unmount()
+    expect(latestSignal?.aborted).toBe(true)
+  })
+
+  it('shows invalid search responses as an error instead of no matches', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ query: 'Q', models: [{ id: 'broken' }] })))
+    render(<App />)
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), { target: { value: 'Q' } })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Model search returned invalid data')
+    expect(screen.queryByText(/No Hugging Face models matched/)).not.toBeInTheDocument()
+  })
+
+  it('shows clipboard denial instead of claiming a copied share link', async () => {
+    const user = userEvent.setup()
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } })
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'COPY LINK' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not copy')
+    expect(screen.queryByText('COPIED')).not.toBeInTheDocument()
+  })
+
+  it('shows a bounded index failure reason without misattributing it to Hugging Face', async () => {
+    const detail = 'Search index unavailable: ' + '<script>'.repeat(40)
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: detail }, { status: 503 })))
+    render(<App />)
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), { target: { value: 'Q' } })
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(`Model search is unavailable (HTTP 503). ${detail.slice(0, 200)}`)
+    expect(alert).not.toHaveTextContent('Hugging Face search is unavailable')
+    expect(alert.querySelector('script')).toBeNull()
+    expect(alert.textContent).not.toContain(detail)
+  })
+
+  it('keeps the HTTP status when the failure response is not JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Bad gateway', { status: 502 })))
+    render(<App />)
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), { target: { value: 'Q' } })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Model search is unavailable (HTTP 502)')
+  })
+
+  it('preserves loaded rows and exposes the reason when the next page fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => String(input).includes('cursor=')
+      ? Response.json({ error: 'Search index unavailable' }, { status: 503 })
+      : Response.json({ query: 'Q', nextCursor: 'page2', models: [{ id: 'Qwen/One', owner: 'Qwen', name: 'One', downloads: 1, likes: 0, task: null, trendingScore: 0, gated: false }] })))
+    const user = userEvent.setup()
+    render(<App />)
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), { target: { value: 'Q' } })
+    await user.click(await screen.findByRole('button', { name: 'Load more models' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the next page. Model search is unavailable (HTTP 503). Search index unavailable')
+    expect(screen.getByRole('link', { name: 'Open Qwen/One' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load more models' })).toBeEnabled()
+  })
+
   it('opens directly into the model explorer without a marketing hero', () => {
     render(<App />)
 
@@ -37,7 +105,7 @@ describe('sizeof.ai app', () => {
     render(<App />)
 
     expect(screen.getByRole('combobox', { name: 'Your VRAM' })).toHaveValue('32')
-    expect(screen.getByText('COMFORTABLE ON 32 GB')).toBeInTheDocument()
+    expect(screen.getByText('FIT NOT VERIFIED ON 32 GB')).toBeInTheDocument()
   })
 
   it('offers the same workstation and multi-GPU VRAM capacities as model pages', () => {
@@ -159,7 +227,7 @@ describe('sizeof.ai app', () => {
     render(<App />)
 
     const calculator = screen.getByRole('region', { name: 'VRAM calculator' })
-    expect(within(calculator).getByText('Includes weights, KV cache, and runtime allowance. Actual use varies by engine and GPU offload.')).toBeInTheDocument()
+    expect(within(calculator).getByText('Lower bound only: some runtime memory is unknown, so fitting within this capacity is not guaranteed.')).toBeInTheDocument()
     expect(calculator).not.toHaveTextContent('10% workspace')
     expect(calculator).not.toHaveTextContent('0.5 GiB base runtime allowance')
   })
@@ -303,7 +371,7 @@ describe('sizeof.ai app', () => {
       'href',
       '/Qwen/Qwen3.8-27B',
     )
-    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN')
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN', { signal: expect.any(AbortSignal) })
     expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B')).toBeInTheDocument()
     fetcher.mockRestore()
   })
@@ -333,7 +401,7 @@ describe('sizeof.ai app', () => {
 
     await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN{enter}')
 
-    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN')
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN', { signal: expect.any(AbortSignal) })
     expect(await screen.findByRole('link', { name: 'Open Qwen/Qwen3.8-27B' })).toHaveAttribute(
       'href',
       '/Qwen/Qwen3.8-27B',
@@ -401,7 +469,7 @@ describe('sizeof.ai app', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by model type' }), 'text-generation')
 
     await waitFor(() => {
-      expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN&author=Qwen&type=text-generation')
+      expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN&author=Qwen&type=text-generation', { signal: expect.any(AbortSignal) })
     })
     fetcher.mockRestore()
   })
@@ -424,7 +492,7 @@ describe('sizeof.ai app', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN{enter}')
     await user.click(await screen.findByRole('button', { name: 'Load more models' }))
 
-    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/search/models?q=QWEN&cursor=next-page%3D%3D')
+    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/search/models?q=QWEN&cursor=next-page%3D%3D', { signal: expect.any(AbortSignal) })
     expect(await screen.findByRole('link', { name: 'Open Qwen/Qwen3.8-9B' })).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Open Qwen/Qwen3.8-27B' })).toHaveLength(1)
     fetcher.mockRestore()
@@ -500,7 +568,7 @@ describe('sizeof.ai app', () => {
     await user.type(searchbox, 'LLAMA{enter}')
 
     expect(await screen.findByText('No Hugging Face models matched “LLAMA”.')).toBeInTheDocument()
-    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=LLAMA')
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=LLAMA', { signal: expect.any(AbortSignal) })
     finishPage?.(Response.json({ query: 'QWEN', nextCursor: null, models: [] }))
     expect(screen.queryByText('No Hugging Face models matched “QWEN”.')).not.toBeInTheDocument()
     fetcher.mockRestore()
@@ -545,7 +613,7 @@ describe('sizeof.ai app', () => {
     await user.click(screen.getByRole('button', { name: 'Search Hugging Face' }))
 
     expect(fetcher).toHaveBeenCalledTimes(callsBeforeSubmit + 1)
-    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN')
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN', { signal: expect.any(AbortSignal) })
     expect(await screen.findByText('No Hugging Face models matched “QWEN”.')).toBeInTheDocument()
     fetcher.mockRestore()
   })

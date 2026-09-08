@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from .db import connect, count_models, get_meta, load_models
+from .status import read_status
 
 DB_PATH = os.environ.get('SIZEOF_SEARCH_DB', '/data/models.sqlite')
 TOKEN = os.environ.get('SIZEOF_SEARCH_TOKEN', '')
@@ -31,6 +32,7 @@ STATE = {
     'count': 0,
     'updated_at': None,
     'loaded_at': 0.0,
+    'reload_error': None,
 }
 LOCK = threading.Lock()
 
@@ -46,7 +48,9 @@ def build_indexes(models: list[dict]) -> dict[str, dict[str, list[dict]]]:
     owner2: dict[str, list[dict]] = defaultdict(list)
     name_exact: dict[str, list[dict]] = defaultdict(list)
     owner_exact: dict[str, list[dict]] = defaultdict(list)
-    for model in models:
+    # One ordering is shared by all buckets; sorting each bucket separately
+    # recomputes ranking keys up to six times for every model.
+    for model in sorted(models, key=_popularity):
         name = model['name'].lower()
         owner = model['owner'].lower()
         if name:
@@ -59,9 +63,6 @@ def build_indexes(models: list[dict]) -> dict[str, dict[str, list[dict]]]:
             owner_exact[owner].append(model)
             if len(owner) >= 2:
                 owner2[owner[:2]].append(model)
-    for bucket in (name1, name2, owner1, owner2, name_exact, owner_exact):
-        for items in bucket.values():
-            items.sort(key=_popularity)
     return {
         'name1': dict(name1),
         'name2': dict(name2),
@@ -72,45 +73,9 @@ def build_indexes(models: list[dict]) -> dict[str, dict[str, list[dict]]]:
     }
 
 
-def rank(model: dict, query: str) -> tuple:
-    q = query.lower()
-    ident = model['id'].lower()
-    owner = model['owner'].lower()
-    name = model['name'].lower()
-    if ident == q:
-        bucket = 0
-    elif owner == q and name.startswith(q):
-        bucket = 1
-    elif owner == q:
-        bucket = 2
-    elif len(q) > 1 and name == q:
-        bucket = 3
-    elif name.startswith(q):
-        bucket = 4
-    elif owner.startswith(q) or ident.startswith(q):
-        bucket = 5
-    else:
-        bucket = 6
-    return (bucket, -int(model.get('trending') or 0), -int(model.get('downloads') or 0), ident)
-
-
-def matches(model: dict, query: str, author: str, model_type: str) -> bool:
-    q = query.lower()
-    ident = model['id'].lower()
-    owner = model['owner'].lower()
-    name = model['name'].lower()
-    if author and owner != author.lower():
-        return False
-    if model_type and (model.get('task') or '') != model_type:
-        return False
-    return name.startswith(q) or owner.startswith(q) or ident.startswith(q)
-
-
 def _bucket(indexes: dict, kind: str, query: str) -> list[dict]:
     if len(query) >= 2:
-        items = indexes.get(f'{kind}2', {}).get(query[:2])
-        if items:
-            return items
+        return indexes.get(f'{kind}2', {}).get(query[:2], [])
     return indexes.get(f'{kind}1', {}).get(query[:1], [])
 
 
@@ -190,6 +155,8 @@ def reload_models() -> None:
         total = count_models(db)
         with LOCK:
             unchanged = total == STATE['count'] and updated == STATE['updated_at'] and generation == STATE.get('generation') and STATE['count'] > 0
+            if unchanged:
+                STATE['reload_error'] = None
         if unchanged:
             return
         models = load_models(db)
@@ -203,6 +170,7 @@ def reload_models() -> None:
         STATE['updated_at'] = updated
         STATE['generation'] = generation
         STATE['loaded_at'] = time.time()
+        STATE['reload_error'] = None
     print(json.dumps({'message': 'index ready', 'host': HOST_NAME, 'models': total}), flush=True)
 
 
@@ -212,6 +180,8 @@ def refresh_loop() -> None:
         try:
             reload_models()
         except Exception as error:
+            with LOCK:
+                STATE['reload_error'] = type(error).__name__
             print(json.dumps({'message': 'reload failed', 'error': str(error)}), flush=True)
 
 
@@ -240,14 +210,26 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith('/__sizeof_index'):
             path = path[len('/__sizeof_index'):] or '/'
         if path == '/health':
+            role = 'indexer' if os.environ.get('SIZEOF_SEARCH_SERVE_SNAPSHOT', '').lower() == 'true' else 'replica'
+            sync_status = read_status(DB_PATH, role)
             with LOCK:
-                self._json({
-                    'ok': True,
+                ready = STATE['count'] > 0
+                sync_healthy = not STATE.get('reload_error') and (sync_status is None or sync_status['ok'])
+                healthy = ready and sync_healthy
+                payload = {
+                    'ok': healthy,
+                    'ready': ready,
+                    'syncHealthy': bool(sync_healthy),
+                    'degraded': ready and not sync_healthy,
                     'host': HOST_NAME,
                     'models': STATE['count'],
                     'updatedAt': STATE['updated_at'],
                     'generation': STATE.get('generation'),
-                })
+                    'reloadError': STATE.get('reload_error'),
+                    'sync': sync_status,
+                }
+            # Never hold the search-state lock while writing to a slow client.
+            self._json(payload, 200 if healthy else 503)
             return
         auth = self.headers.get('Authorization', '')
         if not TOKEN or auth != f'Bearer {TOKEN}':
@@ -291,9 +273,19 @@ class Handler(BaseHTTPRequestHandler):
         if not query or len(query) > 80:
             self._json({'error': 'invalid query'}, 400)
             return
-        offset = 0
-        if cursor.isdigit():
-            offset = int(cursor)
+        if cursor and (not re.fullmatch(r'[0-9]{1,7}', cursor)):
+            self._json({'error': 'invalid cursor'}, 400)
+            return
+        offset = int(cursor) if cursor else 0
+        with LOCK:
+            count = STATE['count']
+        if not count:
+            self._json({'error': 'index not ready'}, 503)
+            return
+        # Out-of-range pages cannot match; avoid scanning the entire index.
+        if offset > count:
+            self._json({'error': 'cursor exceeds index size'}, 400)
+            return
         models, has_more = search(query, author, model_type, 12, offset)
         self._json({
             'query': query,

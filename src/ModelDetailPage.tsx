@@ -12,9 +12,10 @@ import {
 } from 'lucide-react'
 import { kvPrecisions, quantizations, type KvPrecisionId, type QuantizationId } from './data/quantizations'
 import { classifyFit, estimateVram, type Fit } from './lib/estimator'
-import { contextLevels, stepContext } from './lib/context-stepper'
+import { contextLevels, maximumContext, normalizedContext, stepContext } from './lib/context-stepper'
 import { getMemoryBarPartPercents, getMemoryBarUsage } from './lib/memory-bar'
 import { vramPresets } from './lib/vram-presets'
+import { useCopy } from './lib/use-copy'
 import type { HuggingFaceModel, HuggingFaceRoute } from './lib/huggingface'
 import type { HuggingFaceVariant } from './lib/huggingface-variants'
 import { parseDetailState, serializeDetailState } from './lib/detail-state'
@@ -169,12 +170,15 @@ function Brand() {
 export default function ModelDetailPage({ route }: Props) {
   const [model, setModel] = useState<HuggingFaceModel | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notFound, setNotFound] = useState(false)
+  const [staleMetadata, setStaleMetadata] = useState(false)
   const [quantization, setQuantization] = useState<QuantizationId>('q4_k_m')
   const [context, setContext] = useState(8192)
   const [kvPrecision, setKvPrecision] = useState<KvPrecisionId>('fp16')
   const [mlaCacheMode, setMlaCacheMode] = useState<'expanded' | 'latent'>('expanded')
   const [vram, setVram] = useState(32)
-  const [copied, setCopied] = useState(false)
+  const { copied, copyError, copy } = useCopy()
+  const [storageError, setStorageError] = useState<string | null>(null)
   const [selectedSource, setSelectedSource] = useState('estimated')
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
   const [selectedResourceOptionId, setSelectedResourceOptionId] = useState<string | null>(null)
@@ -184,13 +188,18 @@ export default function ModelDetailPage({ route }: Props) {
 
   useEffect(() => {
     let active = true
+    const controller = new AbortController()
     setModel(null)
     setError(null)
-    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=13`)
+    setNotFound(false)
+    setStaleMetadata(false)
+    fetch(`/api/models/${encodeURIComponent(route.owner)}/${encodeURIComponent(route.repo)}?schema=13`, { signal: controller.signal })
       .then(async (response) => {
+        if (active) setNotFound(response.status === 404)
         const body = await response.json() as HuggingFaceModel | { error?: string }
         if (!response.ok) throw new Error('error' in body && body.error ? body.error : 'Unable to load model')
         if (active) {
+          setStaleMetadata(response.headers.get('X-Sizeof-Model-Source') === 'kv-stale')
           const nextModel = body as HuggingFaceModel
           setModel(nextModel)
           const variants = nextModel.variants ?? []
@@ -239,7 +248,7 @@ export default function ModelDetailPage({ route }: Props) {
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : 'Unable to load model')
       })
-    return () => { active = false }
+    return () => { active = false; controller.abort() }
   }, [route.owner, route.repo])
 
   useEffect(() => {
@@ -355,16 +364,15 @@ export default function ModelDetailPage({ route }: Props) {
   } : null
 
   async function copyUrl() {
-    await navigator.clipboard.writeText(window.location.href)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1600)
+    await copy(window.location.href)
   }
 
   function applyHardwareProfile(profile: HardwareProfile) {
+    setStorageError(null)
     try {
       window.localStorage.setItem(hardwareStorageKey, serializeHardwareProfile(profile))
     } catch {
-      // Browser storage may be unavailable; retain this explicit session configuration.
+      setStorageError('Profile applied for this page only. Browser storage is unavailable; it was not saved.')
     }
     setSavedHardwareProfile(profile)
     setIsHardwareProfileApplied(true)
@@ -372,10 +380,11 @@ export default function ModelDetailPage({ route }: Props) {
   }
 
   function clearHardwareProfile() {
+    setStorageError(null)
     try {
       window.localStorage.removeItem(hardwareStorageKey)
     } catch {
-      // Clearing the in-memory profile must still restore the normal calculator capacity.
+      setStorageError('Could not remove the saved profile from browser storage. It may return after reloading.')
     }
     setSavedHardwareProfile(null)
     setIsHardwareProfileApplied(false)
@@ -424,7 +433,7 @@ export default function ModelDetailPage({ route }: Props) {
         <header className="site-header detail-header"><Brand /></header>
         <main className="detail-state">
           <span>HUGGING FACE LOOKUP / ERROR</span>
-          <h1>Model not found.</h1>
+          <h1>{notFound ? 'Model not found.' : 'Unable to load model.'}</h1>
           <p>{error}</p>
           <a href="/"><ArrowLeft size={18} /> Back to sizeof.ai</a>
         </main>
@@ -560,6 +569,7 @@ export default function ModelDetailPage({ route }: Props) {
         <section className="detail-hero" aria-label="Model navigation">
           <div className="detail-breadcrumb"><span className="pulse-dot" /> LIVE HUGGING FACE MODEL / {model.owner}</div>
           <h1>{model.name}</h1>
+          {staleMetadata && <p role="alert">Showing older saved model data because the latest metadata could not be refreshed. Values may be out of date.</p>}
           <div className="detail-hero-bottom">
             <button type="button" onClick={() => void copyUrl()}>
               {copied ? <Check size={16} /> : <Copy size={16} />}{copied ? 'COPIED' : 'COPY SIZEOF URL'}
@@ -568,6 +578,7 @@ export default function ModelDetailPage({ route }: Props) {
             <a className="compare-entry" href={comparePath(model.id)} aria-label={`Compare ${model.id}`}>COMPARE</a>
           </div>
           <div className="detail-tags">
+            {copyError && <p role="alert">{copyError}</p>}
             {model.license && <span>LICENSE / {model.license}</span>}
             {model.pipelineTag && <span>{model.pipelineTag}</span>}
             {model.libraryName && <span>{model.libraryName}</span>}
@@ -672,9 +683,10 @@ export default function ModelDetailPage({ route }: Props) {
                       id="detail-context"
                       type="number"
                       min="1024"
+                      max={maximumContext}
                       step="1"
                       value={context}
-                      onChange={(event) => setContext(Math.max(1024, Math.round(Number(event.target.value)) || 1024))}
+                      onChange={(event) => setContext(normalizedContext(Number(event.target.value)))}
                       onKeyDown={(event) => {
                         if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
                           event.preventDefault()
@@ -723,6 +735,7 @@ export default function ModelDetailPage({ route }: Props) {
                     </select>
                   </div>
                 </div>
+                {storageError && <p role="alert">{storageError}</p>}
                 <HardwareProfileControls
                   profile={savedHardwareProfile}
                   isApplied={isHardwareProfileApplied}
@@ -736,7 +749,7 @@ export default function ModelDetailPage({ route }: Props) {
               <div className="result-panel detail-result" role="region" aria-label="Memory summary">
                 <div className="result-topline">
                   <span>{estimate.isLowerBound ? 'ESTIMATED LOWER BOUND' : 'ESTIMATED VRAM'}</span>
-                  <span className={`fit-pill ${fit}`}>{fitLabels[fit]} ON {vram} GB</span>
+                  <span className={`fit-pill ${fit}`}>{estimate.isLowerBound && fit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[fit]} ON {vram} GB</span>
                 </div>
                 <div className="total-number"><span>{estimate.totalGiB.toFixed(2)}</span><small>GiB</small></div>
                 <div
@@ -805,7 +818,7 @@ export default function ModelDetailPage({ route }: Props) {
                 )}
                 <div className="detail-sticky-result" role="status" aria-label="Current memory result">
                   <strong>{estimate.isLowerBound ? `${estimate.totalGiB.toFixed(2)} GiB lower bound` : `${estimate.totalGiB.toFixed(2)} GiB`}</strong>
-                  <span>{fitLabels[fit]} · {vram} GiB capacity</span>
+                  <span>{estimate.isLowerBound && fit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[fit]} · {vram} GiB capacity</span>
                 </div>
               </div>
             </div>

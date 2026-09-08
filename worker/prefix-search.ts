@@ -1,3 +1,6 @@
+import { readUpstreamJson } from './upstream'
+import { parseHuggingFaceModelPath } from '../src/lib/huggingface'
+
 export interface PrefixSearchEnv {
   SIZEOF_SEARCH_JP_URL?: string
   SIZEOF_SEARCH_US_URL?: string
@@ -24,17 +27,45 @@ function searchPath(requestUrl: string) {
 }
 
 async function fetchIndex(base: string, token: string, requestUrl: string, signal: AbortSignal) {
+  const parsedBase = new URL(base)
+  if (parsedBase.protocol !== 'https:' || parsedBase.username || parsedBase.password || parsedBase.search || parsedBase.hash) {
+    throw new Error('index URL must be an HTTPS base without credentials or query')
+  }
   const response = await fetch(`${trimBase(base)}${searchPath(requestUrl)}`, {
     headers: {
       Accept: 'application/json',
       Authorization: `Bearer ${token}`,
     },
     signal,
+    redirect: 'manual',
   })
   if (!response.ok) throw new Error(`index ${response.status}`)
-  const payload = await response.json() as PrefixSearchResult
-  if (!Array.isArray(payload.models)) throw new Error('index unreadable')
-  if ((payload.indexSize ?? 0) <= 0 && payload.models.length === 0) throw new Error('index empty')
+  const payload = await readUpstreamJson(response) as PrefixSearchResult
+  const expectedQuery = new URL(requestUrl).searchParams.get('q')?.trim()
+  if (!payload || !Array.isArray(payload.models) || payload.models.length > 12
+    || payload.query !== expectedQuery || typeof payload.source !== 'string'
+    || !/^[a-z0-9_-]{1,32}$/i.test(payload.source)
+    || !Number.isSafeInteger(payload.indexSize) || payload.indexSize! < 0
+    || (payload.nextCursor != null && (typeof payload.nextCursor !== 'string' || !/^\d{1,7}$/.test(payload.nextCursor)))) {
+    throw new Error('index unreadable')
+  }
+  const ids = new Set<string>()
+  for (const raw of payload.models) {
+    if (!raw || typeof raw !== 'object' || !('id' in raw) || typeof raw.id !== 'string'
+      || !parseHuggingFaceModelPath(`/${raw.id}`) || ids.has(raw.id) || ('private' in raw && raw.private === true)) {
+      throw new Error('index returned invalid or duplicate model data')
+    }
+    ids.add(raw.id)
+    const row = raw as Record<string, unknown>
+    const route = parseHuggingFaceModelPath(`/${raw.id}`)!
+    if (row.owner !== route.owner || row.name !== route.repo || typeof row.gated !== 'boolean'
+      || (row.task !== null && typeof row.task !== 'string')
+      || ['downloads', 'likes', 'trendingScore'].some((key) => typeof row[key] !== 'number'
+        || !Number.isFinite(row[key]) || (row[key] as number) < 0)) {
+      throw new Error('index returned incomplete model data')
+    }
+  }
+  if ((payload.indexSize ?? 0) <= 0) throw new Error('index empty')
   return payload
 }
 

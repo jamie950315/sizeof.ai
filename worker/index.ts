@@ -38,6 +38,7 @@ import {
 } from './model-cache'
 import { createHfTokenPool, createRotatingHfFetcher } from './hf-token-pool'
 import { racePrefixSearch } from './prefix-search'
+import { fetchWithSafeRedirects, readBoundedBody, readUpstreamJson, UpstreamError } from './upstream'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 type GgufReader = (
@@ -126,12 +127,8 @@ export const readGguf: GgufReader = async (url, options) => {
     },
   })
   if (!response.ok) throw new Error('Unable to read GGUF metadata')
-  const contentLength = Number(response.headers.get('Content-Length'))
-  if (Number.isFinite(contentLength) && contentLength > 1_048_576) {
-    throw new Error('GGUF server ignored bounded Range request')
-  }
   return {
-    metadata: parseGgufMetadataPrefix(await response.arrayBuffer()),
+    metadata: parseGgufMetadataPrefix((await readBoundedBody(response, 1_048_576)).buffer as ArrayBuffer),
     parameterCount: null,
   }
 }
@@ -189,13 +186,14 @@ function hasPackedWeightEncoding(metadata: Record<string, unknown>, tags: string
 }
 
 function treeEntries(value: unknown): HuggingFaceTreeEntry[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((entry) => {
-    if (typeof entry !== 'object' || entry === null) return []
+  if (!Array.isArray(value)) throw new UpstreamError('Repository file listing is invalid')
+  return value.map((entry) => {
+    if (typeof entry !== 'object' || entry === null) throw new UpstreamError('Repository file entry is invalid')
     const item = entry as Record<string, unknown>
     if ((item.type !== 'file' && item.type !== 'directory')
-      || typeof item.path !== 'string' || typeof item.size !== 'number') return []
-    return [{ type: item.type, path: item.path, size: item.size }]
+      || typeof item.path !== 'string' || typeof item.size !== 'number'
+      || !Number.isSafeInteger(item.size) || item.size < 0) throw new UpstreamError('Repository file entry is invalid')
+    return { type: item.type, path: item.path, size: item.size }
   })
 }
 
@@ -205,34 +203,40 @@ async function fetchRepoTree(
   headers: Record<string, string>,
 ) {
   const entries: HuggingFaceTreeEntry[] = []
+  const seen = new Map<string, number>()
   const expectedPath = url.pathname
   let nextUrl: URL | null = url
 
   for (let page = 0; page < 10 && nextUrl && entries.length < 1_000; page += 1) {
-    let response: Response
-    try {
-      response = await fetcher(nextUrl.toString(), { headers })
-    } catch {
-      break
+    const response = await fetcher(nextUrl.toString(), { headers })
+    if (page === 0 && [401, 403, 404].includes(response.status)) return []
+    if (!response.ok) throw new UpstreamError('Repository file listing failed', response.status)
+    const value = await readUpstreamJson(response)
+    if (!Array.isArray(value)) throw new UpstreamError('Repository file listing is invalid')
+    for (const entry of treeEntries(value)) {
+      if (seen.has(entry.path)) {
+        if (seen.get(entry.path) !== entry.size) throw new UpstreamError('Inconsistent repository file sizes')
+        continue
+      }
+      seen.set(entry.path, entry.size)
+      entries.push(entry)
     }
-    if (!response.ok) break
-
-    try {
-      entries.push(...treeEntries(await response.json()))
-    } catch {
-      break
-    }
-    const nextLink = response.headers.get('Link')
+    const linkHeader = response.headers.get('Link')
+    const nextLink = linkHeader
       ?.match(/<([^>]+)>\s*;\s*rel="?next"?/i)?.[1]
-    if (!nextLink) break
+    if (!nextLink && linkHeader && /rel\s*=\s*["']?next\b/i.test(linkHeader)) {
+      throw new UpstreamError('Repository file listing has a malformed continuation')
+    }
+    if (!nextLink) return entries
 
     const candidate = new URL(nextLink, nextUrl)
-    nextUrl = candidate.origin === 'https://huggingface.co' && candidate.pathname === expectedPath
-      ? candidate
-      : null
+    if (candidate.origin !== 'https://huggingface.co' || candidate.pathname !== expectedPath) {
+      throw new UpstreamError('Repository file listing has an invalid continuation')
+    }
+    nextUrl = candidate
   }
 
-  return entries.slice(0, 1_000)
+  throw new UpstreamError('Repository file listing exceeds the safe listing limit; no partial weights returned')
 }
 
 async function fetchTargetWeightSize(
@@ -262,12 +266,10 @@ async function fetchTargetWeightSize(
 }
 
 async function fetchJson(fetcher: Fetcher, url: string, headers: Record<string, string>) {
-  try {
-    const response = await fetcher(url, { headers })
-    return response.ok ? await response.json() : null
-  } catch {
-    return null
-  }
+  const response = await fetcher(url, { headers })
+  if ([401, 403, 404].includes(response.status)) return null
+  if (!response.ok) throw new UpstreamError('Hugging Face metadata request failed', response.status)
+  return readUpstreamJson(response)
 }
 
 async function discoverRepoVariants(
@@ -391,8 +393,10 @@ async function discoverCommunityVariants(
           repositoryId: candidate.id,
           sourceUrl,
         }))
-    } catch {
-      return []
+    } catch (error) {
+      console.error(JSON.stringify({ message: 'Community artifact discovery failed', repository: candidate.id,
+        error: error instanceof Error ? error.message : String(error) }))
+      throw error
     }
   }))
   return discoveredByRepository.flat()
@@ -538,6 +542,17 @@ function isValidSearchCursor(value: string) {
   return value.length <= 4096 && /^[a-z0-9+/_=-]+$/i.test(value)
 }
 
+function searchValidationError(url: URL) {
+  const query = url.searchParams.get('q')?.trim() ?? ''
+  const author = url.searchParams.get('author')?.trim() ?? ''
+  const type = url.searchParams.get('type')?.trim() ?? ''
+  const cursor = url.searchParams.get('cursor')?.trim() ?? ''
+  if (query.length < 1 || query.length > 80) return 'Search query must contain between 1 and 80 characters'
+  if ((author && !isValidSearchAuthor(author)) || (type && !SEARCH_MODEL_TYPES.has(type))
+    || (cursor && !isValidSearchCursor(cursor))) return 'Invalid model search filter'
+  return null
+}
+
 function getNextSearchCursor(linkHeader: string | null) {
   if (!linkHeader) return null
   const match = linkHeader.match(/<([^>]+)>\s*;\s*rel="?next"?/i)
@@ -578,14 +593,8 @@ export async function handleModelSearchApi(
   const author = url.searchParams.get('author')?.trim() ?? ''
   const modelType = url.searchParams.get('type')?.trim() ?? ''
   const cursor = url.searchParams.get('cursor')?.trim() ?? ''
-  if (query.length < 1 || query.length > 80) {
-    return json({ error: 'Search query must contain between 1 and 80 characters' }, 400)
-  }
-  if ((author && !isValidSearchAuthor(author))
-    || (modelType && !SEARCH_MODEL_TYPES.has(modelType))
-    || (cursor && !isValidSearchCursor(cursor))) {
-    return json({ error: 'Invalid model search filter' }, 400)
-  }
+  const invalid = searchValidationError(url)
+  if (invalid) return json({ error: invalid }, 400)
 
   const upstreamUrl = new URL('https://huggingface.co/api/models')
   upstreamUrl.searchParams.set('search', query)
@@ -607,7 +616,7 @@ export async function handleModelSearchApi(
       return json({ error: 'Hugging Face search is temporarily unavailable' }, 502)
     }
 
-    const value = await response.json()
+    const value = await readUpstreamJson(response)
     if (!Array.isArray(value)) {
       return json({ error: 'Hugging Face returned an unreadable search response' }, 502)
     }
@@ -656,6 +665,14 @@ export async function handleModelApi(
   ggufReader: GgufReader = readGguf,
   token?: string,
 ): Promise<Response> {
+  const upstreamFetch = fetcher
+  fetcher = async (input, init) => {
+    try { return await upstreamFetch(input, init) }
+    catch (error) {
+      if (error instanceof UpstreamError) throw error
+      throw new UpstreamError('Hugging Face connection failed', 503)
+    }
+  }
   const route = apiRoute(new URL(request.url).pathname)
   if (!route) return json({ error: 'Invalid Hugging Face model path' }, 400)
 
@@ -695,7 +712,8 @@ export async function handleModelApi(
       model: `${route.owner}/${route.repo}`,
       error: error instanceof Error ? error.message : String(error),
     }))
-    return json({ error: 'Hugging Face is temporarily unavailable' }, 502)
+    return json({ error: 'Hugging Face is temporarily unavailable' }, 502,
+      error instanceof UpstreamError && error.status === undefined ? undefined : { 'X-Sizeof-Retryable': '1' })
   }
 
   if ([401, 403, 404].includes(metadataResponse.status)) {
@@ -705,13 +723,18 @@ export async function handleModelApi(
     return json(
       { error: 'Hugging Face rate limit reached. Try again shortly.' },
       503,
-      { 'Retry-After': metadataResponse.headers.get('Retry-After') ?? '60' },
+      { 'Retry-After': metadataResponse.headers.get('Retry-After') ?? '60', 'X-Sizeof-Retryable': '1' },
     )
   }
-  if (!metadataResponse.ok) return json({ error: 'Hugging Face is temporarily unavailable' }, 502)
+  if (!metadataResponse.ok) return json({ error: 'Hugging Face is temporarily unavailable' }, 502,
+    metadataResponse.status >= 500 ? { 'X-Sizeof-Retryable': '1' } : undefined)
 
   try {
-    const metadata: unknown = await metadataResponse.json()
+    const metadata: unknown = await readUpstreamJson(metadataResponse)
+    if (typeof metadata !== 'object' || metadata === null || !('id' in metadata)
+      || typeof metadata.id !== 'string' || !parseHuggingFaceModelPath(`/${metadata.id}`)) {
+      throw new UpstreamError('Hugging Face returned invalid model identity')
+    }
     if (isPrivateModelMetadata(metadata)) {
       return json({ error: 'Model not found or private' }, 404)
     }
@@ -722,7 +745,13 @@ export async function handleModelApi(
       `https://huggingface.co/${owner}/${repo}/resolve/${encodeURIComponent(revision)}/config.json`,
       { headers },
     )
-    let config: unknown = configResponse.ok ? await configResponse.json() : {}
+    if (!configResponse.ok && ![401, 403, 404].includes(configResponse.status)) {
+      throw new UpstreamError('Hugging Face model configuration request failed', configResponse.status)
+    }
+    let config: unknown = configResponse.ok ? await readUpstreamJson(configResponse) : {}
+    if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+      throw new UpstreamError('Hugging Face returned an invalid configuration')
+    }
     let configSourceId: string | undefined
     let allowEstimate = true
     let estimateReason: 'adapter-only' | 'parameter-mismatch' | 'unverified-base' | undefined
@@ -893,8 +922,11 @@ export async function handleModelApi(
             }
             try {
               const targetResponse = await fetcher(targetUrl.toString(), { headers })
+              if (!targetResponse.ok && ![401, 403, 404].includes(targetResponse.status)) {
+                throw new UpstreamError('Speculative target metadata request failed', targetResponse.status)
+              }
               if (targetResponse.ok) {
-                const targetMetadata = await targetResponse.json() as Record<string, unknown>
+                const targetMetadata = await readUpstreamJson(targetResponse) as Record<string, unknown>
                 const canonicalTargetId = typeof targetMetadata.id === 'string'
                   && targetMetadata.id.toLowerCase() === speculativeTargetId.toLowerCase()
                   ? targetMetadata.id
@@ -947,6 +979,7 @@ export async function handleModelApi(
                 target: speculativeTargetId,
                 error: error instanceof Error ? error.message : String(error),
               }))
+              throw error
             }
           }
         }
@@ -1014,12 +1047,15 @@ export async function handleModelApi(
             baseMetadataUrl.searchParams.set('revision', discovered.ninfer.baseRevision)
           }
           const baseMetadataResponse = await fetcher(baseMetadataUrl.toString(), { headers })
+          if (!baseMetadataResponse.ok && ![401, 403, 404].includes(baseMetadataResponse.status)) {
+            throw new UpstreamError('Base model metadata request failed', baseMetadataResponse.status)
+          }
           if (!baseMetadataResponse.ok) {
             allowEstimate = false
             estimateReason = 'unverified-base'
             break
           }
-          const baseMetadata = await baseMetadataResponse.json() as Record<string, unknown>
+          const baseMetadata = await readUpstreamJson(baseMetadataResponse) as Record<string, unknown>
           if (isPrivateModelMetadata(baseMetadata)) {
             allowEstimate = false
             estimateReason = 'unverified-base'
@@ -1125,8 +1161,11 @@ export async function handleModelApi(
                 `https://huggingface.co/${encodeURIComponent(nodeRoute.owner)}/${encodeURIComponent(nodeRoute.repo)}/resolve/${encodeURIComponent(nodeSha)}/config.json`,
                 { headers },
               )
-              if (!baseConfigResponse.ok) continue
-              const candidateConfig = await baseConfigResponse.json()
+              if (!baseConfigResponse.ok) {
+                if ([401, 403, 404].includes(baseConfigResponse.status)) continue
+                throw new UpstreamError('Base model configuration request failed', baseConfigResponse.status)
+              }
+              const candidateConfig = await readUpstreamJson(baseConfigResponse)
               const candidate = normalizeHuggingFaceModel(metadata, candidateConfig, {
                 parameterCountOverride,
               })
@@ -1170,7 +1209,12 @@ export async function handleModelApi(
       model: `${route.owner}/${route.repo}`,
       error: error instanceof Error ? error.message : String(error),
     }))
-    return json({ error: 'Hugging Face returned an unreadable response' }, 502)
+    const upstream = error instanceof UpstreamError || error instanceof SyntaxError
+    return json({ error: error instanceof UpstreamError ? error.message
+      : upstream ? 'Hugging Face returned incomplete or unreadable model data' : 'Internal model processing error' },
+      upstream ? 502 : 500,
+      error instanceof UpstreamError && error.status !== undefined && (error.status >= 500 || error.status === 429)
+        ? { 'X-Sizeof-Retryable': '1' } : undefined)
   }
 }
 
@@ -1190,7 +1234,25 @@ interface WorkerBindings {
 }
 
 function huggingFaceFetcher(env: WorkerBindings): Fetcher {
-  return createRotatingHfFetcher(fetch, createHfTokenPool(env))
+  const boundedFetch: Fetcher = (input, init) => {
+    const signals = [AbortSignal.timeout(20_000)]
+    const original = init?.signal ?? (input instanceof Request ? input.signal : undefined)
+    if (original) signals.push(original)
+    return fetchWithSafeRedirects(fetch, input, { ...init, signal: AbortSignal.any(signals) })
+  }
+  return createRotatingHfFetcher(boundedFetch, createHfTokenPool(env))
+}
+
+function staleOnTransientError(cached: Awaited<ReturnType<typeof readModelResponse>>, response: Response) {
+  if (cached?.state !== 'stale' || response.headers.get('X-Sizeof-Retryable') !== '1') return response
+  console.warn(JSON.stringify({ message: 'Serving stale model metadata after upstream failure',
+    upstreamStatus: response.status, ageSeconds: Math.floor(cached.ageMs / 1000) }))
+  const stale = modelResponseFromCache(cached)
+  stale.headers.set('Warning', '110 - "Model metadata is stale; upstream refresh failed"')
+  stale.headers.set('X-Sizeof-Upstream-Status', String(response.status))
+  stale.headers.set('Cache-Control', 'no-store')
+  stale.headers.set('Cloudflare-CDN-Cache-Control', 'no-store')
+  return stale
 }
 
 const publicEstimateCorsHeaders = {
@@ -1238,8 +1300,7 @@ async function loadPublicModelResponse(
     response.headers.set('X-Sizeof-Model-Source', 'huggingface')
     queueModelResponseWrite(env.MODEL_CACHE, key, response.clone(), ctx)
   }
-  if (cached?.state === 'stale' && response.status >= 500) return modelResponseFromCache(cached)
-  return response
+  return staleOnTransientError(cached, response)
 }
 
 type PublicEstimateResolution =
@@ -1256,6 +1317,9 @@ async function resolvePublicEstimate(
   const route = parseHuggingFaceModelPath(`/${parsed.value.model}`)
   if (!route) return { ok: false, status: 400, error: 'Invalid Hugging Face model path' }
   const modelResponse = await loadPublicModelResponse(route, env, ctx)
+  if (modelResponse.headers.get('X-Sizeof-Model-Source') === 'kv-stale') {
+    return { ok: false, status: 503, error: 'Only stale model metadata is available; retry when the upstream service recovers' }
+  }
   if (!modelResponse.ok) {
     let error = modelResponse.status === 404 ? 'Model not found or private' : 'Model metadata is temporarily unavailable'
     try {
@@ -1273,9 +1337,11 @@ async function resolvePublicEstimate(
   } catch (error) {
     const isInvalidInput = error instanceof Error
       && (error.message.startsWith('Selected artifact') || error.message.startsWith('Serving scenario inputs'))
+    console.error(JSON.stringify({ message: 'Public estimate failed', model: parsed.value.model,
+      error: error instanceof Error ? error.message : String(error) }))
     return {
       ok: false,
-      status: isInvalidInput ? 400 : 502,
+      status: isInvalidInput ? 400 : 500,
       error: isInvalidInput && error instanceof Error
         ? error.message
         : 'Model metadata could not be converted into a safe estimate',
@@ -1396,6 +1462,14 @@ export async function handleWorkerRequest(
     return staticResponse(sitemap(host), 'application/xml; charset=utf-8', 'public, max-age=3600')
   }
   if (url.pathname === '/api/search/models') {
+    if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405, { Allow: 'GET' })
+    const invalid = searchValidationError(url)
+    if (invalid) return json({ error: invalid }, 400)
+    const hasIndexes = Boolean(env.SIZEOF_SEARCH_JP_URL?.trim() || env.SIZEOF_SEARCH_US_URL?.trim())
+    const cursor = url.searchParams.get('cursor')?.trim()
+    if (hasIndexes && cursor && (!/^\d{1,7}$/.test(cursor) || Number(cursor) > 10_000)) {
+      return json({ error: 'Invalid index cursor; refine the search to browse more results' }, 400)
+    }
     const indexed = await racePrefixSearch(env, request.url)
     if (indexed.result) {
       const response = json({
@@ -1408,6 +1482,10 @@ export async function handleWorkerRequest(
       })
       response.headers.set('X-Sizeof-Search-Source', indexed.result.source)
       return response
+    }
+    if (hasIndexes) {
+      return json({ error: 'Model search index is unavailable. Please retry shortly.', code: 'SEARCH_INDEX_UNAVAILABLE' },
+        503, { 'Retry-After': '5', 'X-Sizeof-Search-Source': 'unavailable' })
     }
     const fallback = await handleModelSearchApi(request, huggingFaceFetcher(env))
     fallback.headers.set('X-Sizeof-Search-Source', 'huggingface')
@@ -1428,29 +1506,9 @@ export async function handleWorkerRequest(
   }
 
   const route = apiRoute(url.pathname)
-  let cachedModel: Awaited<ReturnType<typeof readModelResponse>> = null
-  if (route) {
-    cachedModel = await readModelResponse(
-      env.MODEL_CACHE,
-      createModelKvKey(route.owner, route.repo),
-    )
-    if (cachedModel?.state === 'fresh') return modelResponseFromCache(cachedModel)
-  }
-
-  const response = await handleModelApi(request, huggingFaceFetcher(env), readGguf)
-  if (route && response.ok) {
-    response.headers.set('X-Sizeof-Model-Source', 'huggingface')
-    queueModelResponseWrite(
-      env.MODEL_CACHE,
-      createModelKvKey(route.owner, route.repo),
-      response.clone(),
-      ctx,
-    )
-  }
-  if (cachedModel?.state === 'stale' && response.status >= 500) {
-    return modelResponseFromCache(cachedModel)
-  }
-  return response
+  if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405, { Allow: 'GET' })
+  if (!route) return json({ error: 'Invalid Hugging Face model path' }, 400)
+  return loadPublicModelResponse(route, env, ctx)
 }
 
 export default {

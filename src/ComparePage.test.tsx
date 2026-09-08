@@ -49,6 +49,25 @@ describe('model comparison workspace', () => {
 
   afterEach(() => vi.unstubAllGlobals())
 
+  it('does not silently estimate hypothetical weights for a missing shared artifact', async () => {
+    window.history.replaceState(null, '', compareUrl('Qwen/One', 'Meta/Two').replace('estimated~none', 'unsloth~removed-artifact'))
+    const user = userEvent.setup()
+    render(<ComparePage />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('selected artifact is unavailable')
+    const card = screen.getByRole('region', { name: 'Comparison for Qwen/One' })
+    expect(within(card).queryByRole('img', { name: /Memory usage/ })).not.toBeInTheDocument()
+    await user.selectOptions(within(card).getByRole('combobox', { name: 'Artifact source for Qwen/One' }), 'estimated')
+    expect(within(card).queryByRole('alert')).not.toBeInTheDocument()
+    expect(within(card).getByRole('img', { name: /Memory usage/ })).toBeInTheDocument()
+  })
+
+  it('discloses stale cached model data on the relevant comparison cards', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(safeModel('Qwen/One'), { headers: { 'X-Sizeof-Model-Source': 'kv-stale' } })))
+    render(<ComparePage />)
+    expect(await screen.findAllByRole('alert')).toHaveLength(2)
+    expect(screen.getAllByRole('alert')[0]).toHaveTextContent('older saved model data')
+  })
+
   it('shows two successful public models in URL and DOM order', async () => {
     render(<ComparePage />)
 

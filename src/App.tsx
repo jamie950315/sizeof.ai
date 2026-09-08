@@ -16,6 +16,7 @@ import {
   Search,
 } from 'lucide-react'
 import { models } from './data/models'
+import { useCopy } from './lib/use-copy'
 import ModelDetailPage from './ModelDetailPage'
 import ComparePage from './ComparePage'
 import {
@@ -25,7 +26,7 @@ import {
   type QuantizationId,
 } from './data/quantizations'
 import { estimateVram, rankModelsForVram, type Fit } from './lib/estimator'
-import { contextLevels, stepContext } from './lib/context-stepper'
+import { contextLevels, maximumContext, normalizedContext, stepContext } from './lib/context-stepper'
 import { getMemoryBarPartPercents, getMemoryBarUsage } from './lib/memory-bar'
 import { vramPresets } from './lib/vram-presets'
 import { searchSizingStatusForTask } from './lib/model-task'
@@ -40,8 +41,8 @@ import {
   createSearchCacheKey,
   readSearchCache,
   writeSearchCache,
+  isSearchResponse,
   type HuggingFaceSearchModel,
-  type HuggingFaceSearchResponse,
 } from './lib/model-search-cache'
 
 const contextPresets = contextLevels
@@ -144,9 +145,11 @@ function HomePage() {
   const [nextSearchCursor, setNextSearchCursor] = useState<string | null>(null)
   const [searchState, setSearchState] = useState<'idle' | 'loading' | 'loading-more' | 'error'>('idle')
   const [searchLoadMoreError, setSearchLoadMoreError] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const searchRequestId = useRef(0)
   const searchTimer = useRef(0)
-  const [copied, setCopied] = useState(false)
+  const searchController = useRef<AbortController | null>(null)
+  const { copied, copyError, copy } = useCopy()
 
   const model = models.find((item) => item.id === modelId) ?? models[0]
   const estimate = estimateVram(model, { quantization, context, kvPrecision })
@@ -169,24 +172,24 @@ function HomePage() {
         context,
         quantization,
         kvPrecision,
-      }).filter((item) => item.fit !== 'too-large'),
+      }).filter((item) => item.fit !== 'too-large' && !item.estimate.isLowerBound),
     [context, kvPrecision, quantization, vramBudget],
   )
 
   async function copyShareLink() {
-    await navigator.clipboard.writeText(window.location.href)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1600)
+    await copy(window.location.href)
   }
 
   function clearSearchResults() {
     searchRequestId.current += 1
+    searchController.current?.abort()
     setSubmittedCatalogQuery('')
     setSubmittedSearchAuthor('')
     setSubmittedSearchModelType('')
     setSearchResults(null)
     setNextSearchCursor(null)
     setSearchLoadMoreError(false)
+    setSearchError(null)
     setSearchState('idle')
   }
 
@@ -199,12 +202,14 @@ function HomePage() {
     if (query.length < 1 || query.length > 80) return
     const requestId = searchRequestId.current + 1
     searchRequestId.current = requestId
+    searchController.current?.abort()
     const cursor = options.cursor ?? ''
     const cacheKey = createSearchCacheKey({ query, author, modelType, cursor })
     setSubmittedCatalogQuery(query)
     setSubmittedSearchAuthor(author)
     setSubmittedSearchModelType(modelType)
     setSearchLoadMoreError(false)
+    setSearchError(null)
 
     if (!cursor && !options.refresh) {
       const cached = readSearchCache(cacheKey)
@@ -218,20 +223,33 @@ function HomePage() {
 
     if (cursor) setSearchState('loading-more')
     else {
+      setSearchResults(null)
       setNextSearchCursor(null)
       setSearchState('loading')
     }
 
+    const controller = new AbortController()
+    searchController.current = controller
+    let failureMessage = 'Model search is unavailable. Check your connection and try again.'
     try {
       const params = new URLSearchParams({ q: query })
       if (author) params.set('author', author)
       if (modelType) params.set('type', modelType)
       if (cursor) params.set('cursor', cursor)
-      const response = await fetch(`/api/search/models?${params.toString()}`)
-      if (!response.ok) throw new Error('Search request failed')
-      const payload = await response.json() as HuggingFaceSearchResponse
+      const response = await fetch(`/api/search/models?${params.toString()}`, { signal: controller.signal })
+      if (!response.ok) {
+        failureMessage = `Model search is unavailable (HTTP ${response.status}).`
+        const body: unknown = await response.json()
+        if (typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string' && body.error.trim()) {
+          failureMessage += ` ${body.error.trim().slice(0, 200)}`
+        }
+        throw new Error(failureMessage)
+      }
+      failureMessage = 'Model search returned invalid data. Try again or report this problem.'
+      const payload: unknown = await response.json()
+      if (!isSearchResponse(payload)) throw new Error('Invalid search response')
       if (searchRequestId.current !== requestId) return
-      const incoming = Array.isArray(payload.models) ? payload.models : []
+      const incoming = payload.models
       const nextCursor = typeof payload.nextCursor === 'string' ? payload.nextCursor : null
       writeSearchCache(cacheKey, { query, models: incoming, nextCursor })
       setSearchResults((current) => {
@@ -243,7 +261,8 @@ function HomePage() {
       setNextSearchCursor(nextCursor)
       setSearchState('idle')
     } catch {
-      if (searchRequestId.current !== requestId) return
+      if (controller.signal.aborted || searchRequestId.current !== requestId) return
+      setSearchError(failureMessage)
       if (cursor) {
         setSearchLoadMoreError(true)
         setSearchState('idle')
@@ -257,6 +276,8 @@ function HomePage() {
   useEffect(() => {
     const query = catalogQuery.trim()
     window.clearTimeout(searchTimer.current)
+    searchRequestId.current += 1
+    searchController.current?.abort()
     if (!query) {
       clearSearchResults()
       return
@@ -264,7 +285,11 @@ function HomePage() {
     searchTimer.current = window.setTimeout(() => {
       void executeSearch(query, searchAuthor.trim(), searchModelType)
     }, 80)
-    return () => window.clearTimeout(searchTimer.current)
+    return () => {
+      window.clearTimeout(searchTimer.current)
+      searchRequestId.current += 1
+      searchController.current?.abort()
+    }
   }, [catalogQuery, searchAuthor, searchModelType])
 
   async function searchHuggingFace(event: FormEvent<HTMLFormElement>) {
@@ -384,7 +409,7 @@ function HomePage() {
                 <div className="catalog-state" role="status"><span className="pulse-dot" /> Searching Hugging Face for “{submittedCatalogQuery}”…</div>
               )}
               {searchState === 'error' && (
-                <div className="catalog-state catalog-error" role="alert">Hugging Face search is unavailable. Your curated model index is unchanged.</div>
+                <div className="catalog-state catalog-error" role="alert">{searchError} Your curated model index is unchanged.</div>
               )}
               {searchState === 'idle' && searchResults?.length === 0 && (
                 <div className="catalog-state">No Hugging Face models matched “{submittedCatalogQuery}”.</div>
@@ -411,7 +436,7 @@ function HomePage() {
                 </article>
               ))}
               {searchLoadMoreError && (
-                <div className="catalog-state catalog-error" role="alert">Could not load the next page. Try Load More again.</div>
+                <div className="catalog-state catalog-error" role="alert">Could not load the next page. {searchError} Try Load More again.</div>
               )}
             </div>
             {nextSearchCursor && searchResults && (
@@ -537,9 +562,10 @@ function HomePage() {
                     id="context-input"
                     type="number"
                     min="1024"
+                    max={maximumContext}
                     step="1"
                     value={context}
-                    onChange={(event) => setContext(Math.max(1024, Math.round(Number(event.target.value)) || 1024))}
+                    onChange={(event) => setContext(normalizedContext(Number(event.target.value)))}
                     onKeyDown={(event) => {
                       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
                         event.preventDefault()
@@ -603,8 +629,8 @@ function HomePage() {
 
             <div className="result-panel">
               <div className="result-topline">
-                <span>ESTIMATED VRAM</span>
-                <span className={`fit-pill ${currentFit}`}>{fitLabels[currentFit]} ON {vramBudget} GB</span>
+                  <span>{estimate.isLowerBound ? 'VRAM LOWER BOUND' : 'ESTIMATED VRAM'}</span>
+                <span className={`fit-pill ${currentFit}`}>{estimate.isLowerBound && currentFit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[currentFit]} ON {vramBudget} GB</span>
               </div>
               <div className="total-number">
                 <span>{estimate.totalGiB.toFixed(2)}</span>
@@ -654,8 +680,9 @@ function HomePage() {
                   {copied ? 'COPIED' : 'COPY LINK'}
                 </button>
               </div>
+              {copyError && <p role="alert">{copyError}</p>}
               <p className="estimate-note">
-                <Info size={15} /> Includes weights, KV cache, and runtime allowance. Actual use varies by engine and GPU offload.
+                <Info size={15} /> {estimate.isLowerBound ? 'Lower bound only: some runtime memory is unknown, so fitting within this capacity is not guaranteed.' : 'Includes weights, KV cache, and runtime allowance. Actual use varies by engine and GPU offload.'}
               </p>
             </div>
           </div>
@@ -712,7 +739,7 @@ function HomePage() {
               </article>
             ))}
             {recommendations.length === 0 && (
-              <div className="empty-recommendation">No catalog model fits this setup. Try a smaller quantization or context.</div>
+              <div className="empty-recommendation">No catalog model has a verified fit for this setup. Models with incomplete runtime memory are excluded.</div>
             )}
           </div>
         </section>

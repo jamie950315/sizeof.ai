@@ -97,6 +97,14 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Network/page failures now retry with bounded backoff, then retry the crawl after five minutes; repeated cursors never count as completed backfills. Only successful crawls update the success timestamp or publish. The existing five-known-pages discovery cutoff is still heuristic: two matching replicas do not prove full live-Hub completeness or automatic removal of every deleted/private/renamed model. Pre-reconciliation database backups are retained on both VPS hosts under `/data/before-reconciliation-20260908.sqlite`.
 - Verification covers 392 website tests, 52 search-index/snapshot tests, build/typecheck, authenticated replica downloads, unauthenticated snapshot rejection, and real primary-to-replica refreshes. Search tests use fresh Response objects per fetch and wait for asynchronous URL serialization to avoid false failures.
 
+## Current review release (2026-09-08)
+
+- Testnet Worker `9d76eb15-ff4b-43cf-a8d7-e60420b4599a` contains the comprehensive correctness/error-visibility review. Production is unchanged. Full findings and remaining boundaries are in `REVIEW.md`.
+- Model KV namespace v4 rejects earlier partial-artifact results. Upstream bodies/deadlines/redirects are bounded; cross-origin artifact redirects strip credentials. Incomplete listings/shards and imatrix calibration data cannot produce full-model weight estimates. Configured index outages return explicit 503 rather than HF fallback; invalid requests fail before network/cache access.
+- Interactive stale metadata is visibly labeled, no-store, and permitted only for transient upstream failures. Public estimate/badge/embed reject stale results. Invalid calculations are not relabeled as missing metadata. Runtime-specific models show lower bounds with no safe-fit claim; copied/saved/exported actions report actual failures.
+- Osaka and San Jose run reviewed service code: one shared ranking order, incremental SQLite row loading, explicit reload/sync health, validated cursors and continuation links. Verified both served generation `fa0beb204b96a19a7fff5578d671ec93f2e39151375a7fbdfef87021dd9cb27f`, 3,054,836 models at review time. Existing old-model completeness limitations remain.
+- Verification: 462 JS/TS tests and 61 Python tests, Node 24.10.0 build/typecheck, local Worker smoke, desktop/mobile browser search/detail/comparison and simulated failure feedback, live public API/CLI, and unchanged production homepage hash. Browser artifacts remain ignored under `output/playwright/`.
+
 ## Commands
 
 - `npm run dev`: local Vite development server

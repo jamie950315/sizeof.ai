@@ -59,7 +59,7 @@ def upsert_models(db: sqlite3.Connection, rows: list[dict]) -> tuple[int, int]:
         rows,
     )
     db.commit()
-    inserted = sum(1 for row in rows if row['id'] not in existing)
+    inserted = len({row['id'] for row in rows} - existing)
     return inserted, len(rows) - inserted
 
 def set_meta(db: sqlite3.Connection, key: str, value: str) -> None:
@@ -77,5 +77,5 @@ def count_models(db: sqlite3.Connection) -> int:
 def load_models(db: sqlite3.Connection) -> list[dict]:
     rows = db.execute(
         'SELECT id, owner, name, downloads, likes, task, trending, gated FROM models',
-    ).fetchall()
+    )
     return [dict(row) for row in rows]

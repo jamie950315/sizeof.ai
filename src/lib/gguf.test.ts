@@ -35,6 +35,14 @@ function ggufMetadataFixture(entries: Array<[string, string | number]>) {
 }
 
 describe('deriveGgufModelFacts', () => {
+  it('bounds layer allocations even for a tiny malicious metadata prefix', () => {
+    expect(deriveGgufModelFacts({
+      'general.architecture': 'llama', 'general.type': 'model',
+      'llama.block_count': 4_294_967_295,
+      'llama.attention.head_count': 32, 'llama.attention.head_count_kv': 8,
+      'llama.attention.key_length': 128, 'llama.context_length': 8192,
+    }, 8_000_000_000)).toBeNull()
+  })
   it('reads calculator metadata from a bounded GGUF prefix', () => {
     const metadata = parseGgufMetadataPrefix(ggufMetadataFixture([
       ['general.architecture', 'qwen35'],

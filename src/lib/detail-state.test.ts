@@ -38,6 +38,11 @@ describe('detail calculator URL state', () => {
     expect(serializeDetailState(parsed)).toBe('state=1&quant=q4_k_m&ctx=16384&kv=fp16&mla=expanded&vram=32&source=estimated&variant=none')
   })
 
+  it('preserves manually entered non-preset context in shared links', () => {
+    const state = { ...defaults, context: 5000 }
+    expect(parseDetailState(serializeDetailState(state), defaults)).toEqual(state)
+  })
+
   it('clears stale estimated variants without carrying profile metadata', () => {
     const defaultsWithOptionalState: DetailCalculatorState = {
       ...defaults,
