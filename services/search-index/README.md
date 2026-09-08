@@ -33,6 +33,21 @@ Snapshots contain only public model-list data. Latest and previous immutable sna
 
 Stop with `docker compose down`.
 
+## San Jose public ingress
+
+Testnet uses `https://sizeof-search-us.0ruka.dev`, served by the dedicated `sizeof-search-us` Cloudflare Tunnel (`a6b59d6b-b12a-4130-811e-0c3435a957b6`). Only A1-US should connect this tunnel. The API remains bound to loopback port 8788; search and snapshot endpoints still require the search bearer credential. No Hugging Face credentials are involved in the tunnel.
+
+The checked-in `cloudflared.us.yml` and `cloudflared-sizeof-search.service` install to `/etc/cloudflared/sizeof-search-us.yml` and `/etc/systemd/system/cloudflared-sizeof-search.service`. Provision the tunnel-specific credential separately at `/etc/cloudflared/sizeof-search-us.json` (root-owned, mode 600); never commit it or copy account-wide certificates to this host. Metrics bind only to `127.0.0.1:20243`.
+
+```bash
+sudo cloudflared tunnel --config /etc/cloudflared/sizeof-search-us.yml ingress validate
+sudo systemd-analyze verify /etc/systemd/system/cloudflared-sizeof-search.service
+sudo systemctl enable --now cloudflared-sizeof-search
+sudo systemctl status cloudflared-sizeof-search
+```
+
+Verify `/api/status` from the deployed testnet Worker, not only SSH: MagicDNS resolves the old Tailscale hostname to a private address inside the tailnet, which can hide public Funnel failure. In the incident, public Funnel IPs timed out before TCP connection while private requests succeeded. A separate DERP process owns wildcard port 443 and causes Tailscale listener warnings; it was not stopped or modified, and its role in the public timeout is unproven. The old Funnel configuration remains for independent investigation, but is not used by testnet. The dedicated tunnel does not restart or reconfigure the unrelated Mullvad-map tunnel.
+
 ## Test
 
 From the repository root:

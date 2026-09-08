@@ -1,0 +1,8 @@
+# Dedicated San Jose tunnel; do not attach Osaka or unrelated services.
+tunnel: a6b59d6b-b12a-4130-811e-0c3435a957b6
+credentials-file: /etc/cloudflared/sizeof-search-us.json
+metrics: 127.0.0.1:20243
+ingress:
+  - hostname: sizeof-search-us.0ruka.dev
+    service: http://127.0.0.1:8788
+  - service: http_status:404

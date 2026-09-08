@@ -32,7 +32,7 @@
         "ENVIRONMENT": "testnet",
         "HF_ENTERPRISE_KEYS_ENABLED": "true",
         "SIZEOF_SEARCH_JP_URL": "https://ccsearch.0ruka.dev/__sizeof_index",
-        "SIZEOF_SEARCH_US_URL": "https://a1-us.tail19030f.ts.net"
+        "SIZEOF_SEARCH_US_URL": "https://sizeof-search-us.0ruka.dev"
       },
       "kv_namespaces": [
         { "binding": "MODEL_CACHE", "id": "0a07ede1f0744dd696857d5bea6d2441" }
