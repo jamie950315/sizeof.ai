@@ -53,6 +53,7 @@ export function buildDeploymentPlan(input: DeploymentInput): DeploymentPlan {
   const windows = input.os === 'windows'
   const host = `http://127.0.0.1:${port}`
   const warnings = ['These are reviewed command templates, not a verified deployment. Model architecture, format, license, runtime version, free memory, and GPU drivers must be checked on your machine.', 'First launch may download many gigabytes. This website neither downloads weights nor executes these commands.', 'Local access only. Do not expose this unauthenticated server to the internet or change its binding without an authentication and TLS plan.']
+  warnings.push('This template prepares text-chat requests only. Vision/audio companion files and pipelines are not configured. Model and runtime versions are not pinned by these commands; record and verify them separately.')
   let launch: string
   if (input.engine === 'llama-cpp') {
     const file = input.file.trim()

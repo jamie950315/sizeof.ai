@@ -114,6 +114,15 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Static resource exclusions are enabled only for testnet/docs (`run_worker_first` negative asset rules), preserving main production config. Platform/docs deployment commands are distinct; do not deploy production without explicit permission.
 - Verified 552 JS/TS tests + 61 Python tests, Node 24 build/typecheck and both deployment dry-runs. Live checks include docs HTML/Markdown/404, search, deployment templates, model prefill, library reload, desktop/mobile layouts and unchanged production homepage hash. Runtime inference for generated runbooks is not tested on every target platform.
 
+## Current workflow release (2026-09-08)
+
+- Testnet version `70a30a91-0936-43de-8ac1-4a986e5c39ac`; docs version `e03158d1-bcec-4b48-a86a-2e6cb7d578c9`. Production untouched; existing deployment/domain boundaries remain.
+- `/deploy` now has user-triggered public single-file GGUF selection using the existing metadata API. It validates identity, full-model classification, actual publisher/path/revision/size, bounds responses and rejects stale data. Split GGUF variants are explained and omitted; no weights are downloaded. Selecting a file updates the actual repository and filename, with observed revision disclosed separately from unpinned commands.
+- `/runs` adds browser-local deployment records (100 entries, 2 MB backups): immutable configuration snapshots, observed artifact facts, user-entered environment/version/outcome/notes. Merge/import preserves existing content, recovery is explicit, and reopened commands are regenerated rather than claimed to be version-pinned. Changes to settings or observed revision reset unsaved record form state.
+- `/troubleshoot` adds 6 stages/12 symptom paths, evidence checks and safe next actions without inference calls or command execution. Notes are page-memory only and never appear in share links or exported checklists. New routes are lazy-loaded and linked in platform navigation.
+- Docs figures in `src/docs/figures.ts` render on both the client and documentation HTML/Markdown. `public/assets/docs/local-workstation.png` is explicitly AI-generated generic imagery; `memory-pools.svg` is an inspected non-scale memory-ownership diagram. Prompt/provenance: `src/docs/IMAGE-SOURCES.md`.
+- Verified 644 JS/TS tests plus 61 Python tests, Node 24 build/typecheck, local Worker smoke, live artifact selection to saved record, diagnostics, desktop/mobile visuals, figure assets/Markdown, matching deployed asset builds, and unchanged production homepage hash. No model inference, driver installation or claimed hardware benchmark was performed.
+
 ## Commands
 
 - `npm run dev`: local Vite development server

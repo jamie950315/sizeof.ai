@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
+<title id="title">Dedicated GPU memory and Apple unified memory</title><desc id="desc">Dedicated GPU systems have separate system RAM and GPU VRAM. Apple unified memory is a physical pool shared by CPU and GPU. Both need room for weights, model state, workspaces, and other applications. Boxes are not to scale.</desc>
+<rect width="1100" height="620" rx="16" fill="#111923"/>
+<g font-family="system-ui,sans-serif" fill="#edf3ff">
+<text x="40" y="52" font-size="24" font-weight="700">Where does model memory live?</text>
+<text x="40" y="81" font-size="15" fill="#acbbce">Conceptual ownership of memory · not to scale</text>
+<text x="42" y="136" font-size="21" font-weight="650">Dedicated GPU</text>
+<text x="602" y="136" font-size="21" font-weight="650">Apple unified memory</text>
+<rect x="40" y="162" width="460" height="110" rx="8" fill="#202d40" stroke="#5a7394"/>
+<text x="62" y="193" font-size="18" font-weight="650">System RAM · CPU</text><text x="62" y="226" font-size="15" fill="#becae0">OS, applications, loading and optional offload</text>
+<path d="M270 278V309" stroke="#91abc9" stroke-width="2"/><path d="m262 301 8 8 8-8" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="291" y="298" font-size="13" fill="#afc0d7">Data transfers</text>
+<rect x="40" y="322" width="460" height="210" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="62" y="355" font-size="18" font-weight="650">GPU VRAM · separate capacity</text>
+<rect x="62" y="378" width="416" height="34" rx="4" fill="#275fac"/><text x="77" y="401" font-size="15">Resident model weights</text>
+<rect x="62" y="422" width="416" height="34" rx="4" fill="#59488d"/><text x="77" y="445" font-size="15">KV cache / architecture-specific state</text>
+<rect x="62" y="466" width="416" height="34" rx="4" fill="#256665"/><text x="77" y="489" font-size="15">Runtime workspaces and other allocations</text>
+<rect x="600" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="685" y="195" font-size="18">CPU</text>
+<rect x="845" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="930" y="195" font-size="18">GPU</text>
+<path d="M708 219V250H950V219M830 250V257M830 282V294" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="627" y="276" font-size="13" fill="#afc0d7">Access the same physical memory pool</text>
+<rect x="600" y="294" width="460" height="238" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="622" y="325" font-size="18" font-weight="650">Shared capacity · leave system headroom</text>
+<rect x="622" y="344" width="416" height="32" rx="4" fill="#35445d"/><text x="637" y="366" font-size="15">OS and other applications</text>
+<rect x="622" y="386" width="416" height="32" rx="4" fill="#275fac"/><text x="637" y="408" font-size="15">Resident model weights</text>
+<rect x="622" y="428" width="416" height="32" rx="4" fill="#59488d"/><text x="637" y="450" font-size="15">KV cache / architecture-specific state</text>
+<rect x="622" y="470" width="416" height="32" rx="4" fill="#256665"/><text x="637" y="492" font-size="15">Runtime workspaces and other allocations</text>
+<text x="40" y="572" font-size="15" fill="#bfcee2">Disk space is separate from both diagrams. A model fitting on disk does not prove that it fits in memory.</text>
+<text x="40" y="598" font-size="13" fill="#91a5c1">Runtime limits, offload, sharing and peak allocations depend on the device, engine and workload.</text>
+</g></svg>

@@ -20,6 +20,13 @@ Model listing reads are bounded and reject incomplete pagination. Incomplete wei
 
 Workspaces and docs are loaded on demand. Static assets bypass the application Worker on testnet and docs. The docs Worker has no Hugging Face secrets or model-cache binding. Model-detail pages link directly to deployment planning and saving a shortlist.
 
+### Deployment follow-through
+
+- The deployment workbench now queries the existing model metadata API on demand to pick a published single-file GGUF, including its actual community repository, path, size and observed revision. Split files are explicitly omitted, not mistaken for complete single files. This is metadata validation, not a weight download or runtime compatibility test.
+- `/runs` stores up to 100 browser-local deployment snapshots with 2 MB backup limits, observed artifact facts, user-entered runtime/hardware details, and planned/succeeded/failed outcomes. Outcomes are user reports. Reopening regenerates current templates; commands do not pin model/runtime versions even though the record preserves an observed revision. Changes to launch settings reset unsaved record fields.
+- `/troubleshoot` provides 6 failure stages and 12 symptom paths with evidence checks, possible causes, safe next steps and stopping conditions. Private notes exist only in page memory and are excluded from links, copied checklists and exports. No diagnostic input is uploaded or executed.
+- Documentation includes a labeled AI-generated generic workstation illustration and a manually checked memory-pool diagram. Full image paths and the built-in generation prompt are recorded in `src/docs/IMAGE-SOURCES.md`. Neither image is a hardware specification or performance measurement.
+
 - VRAM calculator with separate weight, KV-cache, and runtime estimates
 - Eight weight-precision estimates from 16 bits through 1 bit per weight
 - Configurable context window and KV-cache precision

@@ -1,10 +1,11 @@
 import { docsArticles, DOCS_REVIEWED_AT, type DocArticle } from '../src/docs/content'
+import { docFigures } from '../src/docs/figures'
 
 const host = 'https://docs.sizeof.ai'
 const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')
 
 export function articleMarkdown(article: DocArticle) {
-  return `# ${article.title}\n\n${article.description}\n\nReviewed: ${DOCS_REVIEWED_AT}\n\n` + article.sections.map((section) =>
+  return `# ${article.title}\n\n${article.description}\n\nReviewed: ${DOCS_REVIEWED_AT}\n\n` + docFigures(article.slug).map(figure => `![${figure.alt}](${host}${figure.src})\n\n${figure.caption}\n\n`).join('') + article.sections.map((section) =>
     `## ${section.title}\n\n${section.paragraphs.join('\n\n')}\n\n${section.bullets?.map((item) => `- ${item}`).join('\n') ?? ''}\n${section.code ? `\n\`\`\`text\n${section.code}\n\`\`\`\n` : ''}`,
   ).join('\n') + '\n## Sources\n\n' + article.sources.map((source) => `- [${source.label}](${source.url})`).join('\n') + '\n'
 }
@@ -48,7 +49,7 @@ export async function handleDocsRequest(request: Request, env: DocsBindings): Pr
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${escape(title)}</title>`)
     .replace(/<meta\s+name=["']description["'][^>]*>/i, `<meta name="description" content="${escape(description)}" />`)
     .replace(/<link\s+rel=["']canonical["'][^>]*>/i, `<link rel="canonical" href="${escape(canonical)}" />`)
-    .replace('<div id="root"></div>', `<div id="root">${staticDocument(article, missing)}</div>`)
+    .replace('<div id="root"></div>', `<div id="root">${staticDocument(article, missing).replace('</h1>', `</h1>${article ? docFigures(article.slug).map(figure => `<figure><img src="${figure.src}" width="${figure.width}" height="${figure.height}" alt="${escape(figure.alt)}" style="max-width:100%;height:auto" loading="lazy"/><figcaption>${escape(figure.caption)}</figcaption></figure>`).join('') : ''}`)}</div>`)
   return send(html, 'text/html', missing ? 404 : 200)
 }
 

@@ -6,6 +6,18 @@ import { docHref, docsArticles, docsBasePath, findDocArticle, searchDocs } from 
 
 afterEach(() => vi.restoreAllMocks())
 
+it('labels generated imagery as illustration, not hardware evidence', () => {
+  render(<DocsPage basePath="/docs" pathname="/docs/getting-started" />)
+  expect(screen.getByRole('img', { name: /AI-generated illustration/ })).toHaveAttribute('src', '/assets/docs/local-workstation.png')
+  expect(screen.getByText(/AI-generated editorial illustration, not a photograph/)).toBeInTheDocument()
+})
+
+it('provides an accessible, explicitly non-proportional memory diagram', () => {
+  render(<DocsPage basePath="/docs" pathname="/docs/hardware" />)
+  expect(screen.getByRole('img', { name: /Separate system RAM/ })).toHaveAttribute('src', '/assets/docs/memory-pools.svg')
+  expect(screen.getByText(/Manually checked conceptual diagram, not to scale/)).toBeInTheDocument()
+})
+
 describe('documentation content integrity', () => {
   it('contains substantive source-linked articles with unique routes, sections and valid related links', () => {
     expect(docsArticles.length).toBeGreaterThanOrEqual(16)

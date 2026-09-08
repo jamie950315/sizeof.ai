@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { ArrowUpRight, Check, Copy, Download, Terminal } from 'lucide-react'
 import { buildDeploymentPlan, DEPLOYMENT_DEFAULTS, DEPLOYMENT_SOURCES, deploymentCompatibility, deploymentMarkdown, deploymentSearch, restoreDeployment, type DeploymentInput } from './deployment'
 import './deploy.css'
+import ArtifactPicker from './ArtifactPicker'
+import type { DeploymentArtifact } from './artifact-picker'
+import SaveRunForm from './SaveRunForm'
 
 export default function DeployPage() {
   const [restored] = useState(() => {
@@ -12,10 +15,12 @@ export default function DeployPage() {
   const [linkError, setLinkError] = useState(restored.error)
   const [feedback, setFeedback] = useState({ error: false, text: '' })
   const [checked, setChecked] = useState<number[]>([])
+  const [artifact, setArtifact] = useState<DeploymentArtifact | undefined>()
   const update = (key: keyof DeploymentInput, value: string) => {
     setInput(previous => ({ ...previous, [key]: value }))
     setFeedback({ error: false, text: '' })
     setChecked([])
+    if (key === 'model' || key === 'file' || key === 'engine') setArtifact(undefined)
   }
   let validation = ''
   let plan: ReturnType<typeof buildDeploymentPlan> | undefined
@@ -51,6 +56,11 @@ export default function DeployPage() {
         <label>Model ID or URL<input value={input.model} onChange={event => update('model', event.target.value)} placeholder="owner/model or Hugging Face URL" autoComplete="off" spellCheck={false} maxLength={500} /></label>
         <p className="deploy-hint">Choose a full-model repository supported by your engine. We do not infer compatibility from its name.</p>
         {input.engine === 'llama-cpp' && <label>Exact GGUF filename<input value={input.file} onChange={event => update('file', event.target.value)} placeholder="model-Q4_K_M.gguf" autoComplete="off" spellCheck={false} maxLength={240} /><span className="deploy-hint">Copy the filename from the repository’s Files tab. This is not a quantization estimate.</span></label>}
+        {input.engine === 'llama-cpp' && <ArtifactPicker modelInput={input.model} onSelect={(selected) => {
+          setInput(previous => ({ ...previous, model: selected.repositoryId, file: selected.path }))
+          setArtifact(selected); setChecked([]); setFeedback({ error: false, text: 'Actual repository and file selected. Review the observed revision and runtime requirements.' })
+        }} />}
+        {artifact && <div className="deploy-note"><strong>Selected file evidence</strong><p>{artifact.repositoryId} / {artifact.path}</p><p>{(artifact.sizeBytes / 2 ** 30).toFixed(2)} GiB · observed revision <code>{artifact.revision}</code></p><a href={`https://huggingface.co/${artifact.repositoryId}/blob/${artifact.revision}/${artifact.path}`} target="_blank" rel="noreferrer">Inspect this exact version ↗</a><p>The command below follows the repository’s default revision. The saved record preserves this observed revision; re-check files before rerunning.</p></div>}
         <div className="deploy-pair"><label>{input.engine === 'mlx' ? 'Planning context (tokens)' : 'Context limit (tokens)'}<input inputMode="numeric" value={input.context} onChange={event => update('context', event.target.value)} maxLength={7} /></label><label>Local port<input inputMode="numeric" value={input.port} onChange={event => update('port', event.target.value)} maxLength={5} /></label></div>
         <div className="deploy-note">Local address only: <code>127.0.0.1</code>. No account, key, or paid compute is needed to prepare a plan.</div>
         <p className="deploy-hint" style={{ marginTop: 14 }}><a href={`/docs/${input.engine}`}>Read the {input.engine === 'llama-cpp' ? 'llama.cpp' : input.engine === 'mlx' ? 'MLX' : 'vLLM'} setup guide →</a></p>
@@ -64,6 +74,9 @@ export default function DeployPage() {
           {[['Start the server', plan.launch], ['Check the API · second terminal', plan.probe], ['Request a first reply · second terminal', plan.client]].map(([title, command], index) => <section className="deploy-command" key={title}><div><h3><span>0{index + 1}</span>{title}</h3><button aria-label={`Copy ${title.toLowerCase()}`} onClick={() => void copy(command, 'Command copied. Review it before running.')}><Copy size={15} aria-hidden="true" /> Copy</button></div><pre><code>{command}</code></pre></section>)}
           <div className="deploy-actions"><button onClick={() => void copy(deploymentMarkdown(input), 'Runbook copied.')}><Copy size={15} aria-hidden="true" /> Copy runbook</button><button onClick={download}><Download size={15} aria-hidden="true" /> Download .md</button><button onClick={() => void copy(`${window.location.origin}/deploy?${deploymentSearch(input)}`, 'Plan link copied. It contains settings, never API keys.')}><ArrowUpRight size={15} aria-hidden="true" /> Share plan</button></div>
           <div className="deploy-limits"><h3>Know the limits</h3>{plan.warnings.map(warning => <p key={warning}>{warning}</p>)}<p><a href="/docs/troubleshooting">Troubleshoot a failed launch →</a> · <a href="/docs/serving-security">Before exposing an API →</a></p></div>
+          <p className="deploy-hint"><a href="/troubleshoot">Open interactive troubleshooting →</a></p>
+          <p className="deploy-hint">Changing launch settings resets unsaved record notes and the reported outcome. Save the current record first if you want to keep it.</p>
+          <SaveRunForm key={`${JSON.stringify(input)}:${artifact?.revision ?? ''}`} input={input} artifact={artifact} />
         </>}
         {feedback.text && <p role={feedback.error ? 'alert' : 'status'} className={feedback.error ? 'deploy-error' : 'deploy-success'}>{!feedback.error && <Check size={15} aria-hidden="true" />} {feedback.text}</p>}
       </section>

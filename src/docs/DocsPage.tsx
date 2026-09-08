@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ArrowRight, BookOpen, Check, Copy, Search } from 'lucide-react'
 import { DOCS_REVIEWED_AT, docHref, docsArticles, docsBasePath, findDocArticle, searchDocs } from './content'
 import './docs.css'
+import { docFigures } from './figures'
 
 function CodeExample({ code }: { code: string }) {
   const [feedback, setFeedback] = useState('')
@@ -53,6 +54,8 @@ export default function DocsPage({ basePath, pathname }: { basePath?: string; pa
     <div className="docs-main">
       {slug && !article ? <section className="docs-missing"><span className="docs-eyebrow">404 / GUIDE NOT FOUND</span><h1>This page is not in the field guide.</h1><p>The link may be incorrect. Browse the guides or search for a topic.</p><a href={base || '/'}>Back to documentation <ArrowRight size={16} /></a></section> : article ? <>
         <header className="docs-article-header"><a href={base || '/'} className="docs-eyebrow">FIELD GUIDE</a><span className="docs-eyebrow"> / {article.category}</span><h1>{article.title}</h1><p>{article.description}</p><div className="docs-meta"><span>{article.level}</span><span>Reviewed {DOCS_REVIEWED_AT}</span><span>{Math.max(1, Math.ceil(article.sections.map((s) => s.paragraphs.join(' ') + (s.bullets ?? []).join(' ')).join(' ').split(/\s+/).length / 200))} min read</span><a href={`https://docs.sizeof.ai/${article.slug}.md`}>Read as Markdown ↗</a></div></header>
+        {docFigures(article.slug).map((figure) => <figure className="docs-figure" key={figure.src}><img src={figure.src} width={figure.width} height={figure.height} alt={figure.alt} loading="lazy" decoding="async" /><figcaption>{figure.caption} <a href={figure.src} target="_blank" rel="noreferrer">Open full-size image ↗</a></figcaption></figure>)}
+        {article.slug === 'troubleshooting' && <p className="docs-workflow-link"><a href={`${platformOrigin}/troubleshoot`}>Walk through an interactive diagnosis →</a></p>}
         <div className="docs-reading-layout"><article className="docs-prose">
           {article.sections.map((section, index) => <section id={section.id} key={section.id}><h2><span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>{section.title}</h2>{section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}{section.bullets && <ul>{section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul>}{section.code && <CodeExample code={section.code} />}</section>)}
           <section className="docs-sources" id="sources"><h2>Sources & verification</h2><p>Primary references reviewed on {DOCS_REVIEWED_AT}. Upstream commands and requirements can change. Check the documentation for your installed release; examples are not a guarantee of compatibility with every model or device.</p><ul>{article.sources.map((source) => <li key={source.url}><a href={source.url} target="_blank" rel="noreferrer">{source.label} ↗</a></li>)}</ul></section>
