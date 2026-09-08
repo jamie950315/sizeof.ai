@@ -7,6 +7,7 @@ services:
       SIZEOF_SEARCH_TOKEN: ${SIZEOF_SEARCH_TOKEN}
       SIZEOF_SEARCH_HOST: ${SIZEOF_SEARCH_HOST}
       SIZEOF_SEARCH_DB: /data/models.sqlite
+      SIZEOF_SEARCH_SERVE_SNAPSHOT: ${SIZEOF_SEARCH_SERVE_SNAPSHOT:-false}
     volumes:
       - ./data:/data
     ports:
@@ -17,11 +18,13 @@ services:
       timeout: 3s
       retries: 5
   indexer:
+    profiles: [primary]
     build: .
     command: python -m src.indexer
     restart: unless-stopped
     environment:
       SIZEOF_SEARCH_DB: /data/models.sqlite
+      SIZEOF_SEARCH_PUBLISH_SNAPSHOT: ${SIZEOF_SEARCH_PUBLISH_SNAPSHOT:-false}
       HF_TOKEN: ${HF_TOKEN:-}
       HF_TOKEN_ENTERPRISE_1: ${HF_TOKEN_ENTERPRISE_1:-}
       HF_TOKEN_ENTERPRISE_2: ${HF_TOKEN_ENTERPRISE_2:-}
@@ -31,3 +34,14 @@ services:
       - ./data:/data
     depends_on:
       - api
+  replica:
+    profiles: [replica]
+    build: .
+    command: python -m src.replica
+    restart: unless-stopped
+    environment:
+      SIZEOF_SEARCH_DB: /data/models.sqlite
+      SIZEOF_SEARCH_PRIMARY_URL: ${SIZEOF_SEARCH_PRIMARY_URL:-}
+      SIZEOF_SEARCH_TOKEN: ${SIZEOF_SEARCH_TOKEN}
+    volumes:
+      - ./data:/data

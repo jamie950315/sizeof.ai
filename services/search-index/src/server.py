@@ -3,6 +3,10 @@ from collections import defaultdict
 import os
 import threading
 import time
+from pathlib import Path
+import re
+import shutil
+import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -169,12 +173,23 @@ def public_model(model: dict) -> dict:
 
 
 def reload_models() -> None:
-    db = connect(DB_PATH)
+    generation = None
+    if os.environ.get('SIZEOF_SEARCH_SERVE_SNAPSHOT', '').lower() == 'true':
+        manifest = json.loads((Path(DB_PATH).parent / 'snapshot.json').read_text())
+        generation = manifest['generation']
+        if not re.fullmatch(r'[a-f0-9]{64}', generation):
+            raise ValueError('Invalid published generation')
+        db = sqlite3.connect(f'file:{Path(DB_PATH).parent / ("snapshot-" + generation + ".sqlite")}?mode=ro&immutable=1', uri=True)
+        db.row_factory = sqlite3.Row
+    else:
+        db = connect(DB_PATH)
     try:
+        db.execute('BEGIN')
+        generation = generation or get_meta(db, 'snapshot_generation')
         updated = get_meta(db, 'updated_at')
         total = count_models(db)
         with LOCK:
-            unchanged = total == STATE['count'] and updated == STATE['updated_at'] and STATE['count'] > 0
+            unchanged = total == STATE['count'] and updated == STATE['updated_at'] and generation == STATE.get('generation') and STATE['count'] > 0
         if unchanged:
             return
         models = load_models(db)
@@ -186,6 +201,7 @@ def reload_models() -> None:
         STATE['indexes'] = indexes
         STATE['count'] = total
         STATE['updated_at'] = updated
+        STATE['generation'] = generation
         STATE['loaded_at'] = time.time()
     print(json.dumps({'message': 'index ready', 'host': HOST_NAME, 'models': total}), flush=True)
 
@@ -230,11 +246,39 @@ class Handler(BaseHTTPRequestHandler):
                     'host': HOST_NAME,
                     'models': STATE['count'],
                     'updatedAt': STATE['updated_at'],
+                    'generation': STATE.get('generation'),
                 })
             return
         auth = self.headers.get('Authorization', '')
         if not TOKEN or auth != f'Bearer {TOKEN}':
             self._unauthorized()
+            return
+        if path == '/snapshot' or path.startswith('/snapshot/'):
+            if os.environ.get('SIZEOF_SEARCH_SERVE_SNAPSHOT', '').lower() != 'true':
+                self._json({'error': 'not found'}, 404)
+                return
+            if path == '/snapshot':
+                try:
+                    self._json(json.loads((Path(DB_PATH).parent / 'snapshot.json').read_text()))
+                except FileNotFoundError:
+                    self._json({'error': 'snapshot not ready'}, 503)
+                return
+            match = re.fullmatch(r'/snapshot/([a-f0-9]{64})\.sqlite\.gz', path)
+            if not match:
+                self._json({'error': 'not found'}, 404)
+                return
+            try:
+                stream = (Path(DB_PATH).parent / f'snapshot-{match[1]}.sqlite.gz').open('rb')
+            except FileNotFoundError:
+                self._json({'error': 'snapshot expired'}, 404)
+                return
+            with stream:
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/octet-stream')
+                self.send_header('Cache-Control', 'no-store')
+                self.send_header('Content-Length', str(os.fstat(stream.fileno()).st_size))
+                self.end_headers()
+                shutil.copyfileobj(stream, self.wfile)
             return
         if path != '/search':
             self._json({'error': 'not found'}, 404)

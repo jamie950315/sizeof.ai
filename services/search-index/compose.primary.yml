@@ -1,0 +1,7 @@
+services:
+  api:
+    environment:
+      SIZEOF_SEARCH_SERVE_SNAPSHOT: 'true'
+  indexer:
+    environment:
+      SIZEOF_SEARCH_PUBLISH_SNAPSHOT: 'true'

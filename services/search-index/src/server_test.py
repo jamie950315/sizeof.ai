@@ -1,10 +1,15 @@
 import json
+import hashlib
+import os
+from pathlib import Path
+import tempfile
 import threading
 import unittest
 from contextlib import contextmanager
 from http.server import ThreadingHTTPServer
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from unittest.mock import patch
 
 from . import server as server_mod
 from .server import (
@@ -214,6 +219,22 @@ class ReloadTests(unittest.TestCase):
 
 
 class SearchHttpTests(unittest.TestCase):
+    @contextmanager
+    def published_snapshot(self):
+        from . import db
+        from .indexer import normalize
+        from .snapshot import publish_snapshot
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / 'models.sqlite')
+            conn = db.connect(path)
+            db.upsert_models(conn, [normalize({'id': 'org/published'})])
+            db.set_meta(conn, 'updated_at', '2026-09-08T00:00:00Z')
+            conn.close()
+            manifest = publish_snapshot(path)
+            with patch.object(server_mod, 'DB_PATH', path), \
+                 patch.dict(os.environ, {'SIZEOF_SEARCH_SERVE_SNAPSHOT': 'true'}):
+                yield manifest
+
     def setUp(self):
         self.previous_token = server_mod.TOKEN
         self.previous_host = server_mod.HOST_NAME
@@ -298,3 +319,40 @@ class SearchHttpTests(unittest.TestCase):
         status, payload, _ = self.get('/nope')
         self.assertEqual(status, 404)
         self.assertEqual(payload, {'error': 'not found'})
+
+    def test_snapshot_requires_auth_and_download_matches_manifest(self):
+        with self.published_snapshot() as expected:
+            archive_path = f"/snapshot/{expected['generation']}.sqlite.gz"
+            for path in ('/snapshot', archive_path):
+                for token in (None, 'incorrect-token'):
+                    self.assertEqual(self.get(path, token=token)[0], 401)
+            status, manifest, _headers = self.get('/__sizeof_index/snapshot')
+            self.assertEqual(status, 200)
+            self.assertEqual(manifest, expected)
+            request = Request(self.base + '/__sizeof_index' + archive_path,
+                              headers={'Authorization': 'Bearer secret-token'})
+            with urlopen(request, timeout=2) as response:
+                archive = response.read()
+                self.assertEqual(int(response.headers['Content-Length']), len(archive))
+            self.assertEqual(len(archive), manifest['bytes'])
+            self.assertEqual(hashlib.sha256(archive).hexdigest(), manifest['sha256'])
+
+    def test_snapshot_disabled_even_when_files_exist(self):
+        with self.published_snapshot() as manifest, \
+             patch.dict(os.environ, {'SIZEOF_SEARCH_SERVE_SNAPSHOT': 'false'}):
+            self.assertEqual(self.get('/snapshot')[0], 404)
+            self.assertEqual(self.get(f"/snapshot/{manifest['generation']}.sqlite.gz")[0], 404)
+
+    def test_snapshot_rejects_invalid_paths_and_unknown_generation(self):
+        with self.published_snapshot():
+            for path in ('/snapshot/../../models.sqlite', '/snapshot/%2e%2e/models.sqlite',
+                         '/snapshot/not-a-hash.sqlite.gz', '/snapshot/' + 'A' * 64 + '.sqlite.gz',
+                         '/snapshot/' + '0' * 64 + '.sqlite.gz'):
+                with self.subTest(path=path):
+                    self.assertEqual(self.get(path)[0], 404)
+
+    def test_snapshot_not_ready_returns_503(self):
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.object(server_mod, 'DB_PATH', str(Path(directory) / 'models.sqlite')), \
+             patch.dict(os.environ, {'SIZEOF_SEARCH_SERVE_SNAPSHOT': 'true'}):
+            self.assertEqual(self.get('/snapshot')[0], 503)

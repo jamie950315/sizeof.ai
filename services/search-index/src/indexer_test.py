@@ -130,8 +130,8 @@ class CrawlOnceTests(unittest.TestCase):
         fake_request, urls = self.fake_pages({
             'downloads': [
                 (200, [{'id': 'org/a', 'private': False}], '<https://huggingface.co/api/models?cursor=abc>; rel="next"'),
-                (200, [{'id': 'org/b', 'private': False}], '<https://huggingface.co/api/models?cursor=abc>; rel="next"'),
-                (200, [{'id': 'org/c', 'private': False}], '<https://huggingface.co/api/models?cursor=def>; rel="next"'),
+                (200, [{'id': 'org/b', 'private': False}], '<https://huggingface.co/api/models?cursor=def>; rel="next"'),
+                (200, [{'id': 'org/c', 'private': False}], None),
             ],
             'createdAt': [
                 (200, [{'id': 'org/old-miss', 'private': False}], None),
@@ -147,8 +147,8 @@ class CrawlOnceTests(unittest.TestCase):
         ids = {row['id'] for row in conn.execute('SELECT id FROM models')}
         flag = db.get_meta(conn, indexer.META_FULL_BACKFILL)
         conn.close()
-        self.assertEqual(total, 4)
-        self.assertEqual(ids, {'org/a', 'org/b', 'org/old-miss', 'org/touched-miss'})
+        self.assertEqual(total, 5)
+        self.assertEqual(ids, {'org/a', 'org/b', 'org/c', 'org/old-miss', 'org/touched-miss'})
         self.assertEqual(flag, 'true')
         self.assertTrue(any('sort=downloads' in url for url in urls))
         self.assertTrue(any('sort=createdAt' in url for url in urls))
@@ -234,17 +234,16 @@ class CrawlOnceTests(unittest.TestCase):
 
     def test_page_zero_failure_does_not_mark_backfill_complete(self):
         fake_request, _urls = self.fake_pages({
-            'downloads': [(500, None, None)],
-            'createdAt': [(500, None, None)],
-            'lastModified': [(500, None, None)],
+            sort: [(500, None, None)] * indexer.PAGE_MAX_ATTEMPTS
+            for sort in indexer.BACKFILL_SORTS
         })
         with patch.object(indexer, 'request_json', side_effect=fake_request), \
              patch.object(indexer, 'tokens', return_value=['hf_test']):
-            total = indexer.crawl_once()
+            with self.assertRaises(indexer.CrawlIncompleteError):
+                indexer.crawl_once()
         conn = db.connect(self.db_path)
         flag = db.get_meta(conn, indexer.META_FULL_BACKFILL)
         conn.close()
-        self.assertEqual(total, 0)
         self.assertIsNone(flag)
 
     def test_drops_private_rows_and_retries_after_429(self):
@@ -271,3 +270,72 @@ class CrawlOnceTests(unittest.TestCase):
         self.assertEqual(total, 1)
         self.assertEqual(ids, ['org/public'])
         self.assertEqual(flag, 'true')
+
+    def test_network_error_retries_the_same_page_then_continues(self):
+        conn = db.connect(self.db_path)
+        responses = [
+            (200, [{'id': 'org/a'}], '<https://huggingface.co/api/models?cursor=next>; rel="next"'),
+            OSError('connection reset'),
+            ValueError('truncated JSON'),
+            (200, [{'id': 'org/b'}], None),
+        ]
+        with patch.object(indexer, 'request_json', side_effect=responses) as request:
+            result = indexer.crawl_pages(conn, indexer.TokenCursor([]), 'createdAt')
+        conn.close()
+        self.assertTrue(result['complete'])
+        self.assertEqual(result['inserted'], 2)
+        self.assertEqual(request.call_args_list[1], request.call_args_list[2])
+        self.assertEqual(request.call_args_list[2], request.call_args_list[3])
+
+    def test_persistent_failure_on_later_page_is_bounded_and_incomplete(self):
+        for failure in ((503, None, None), (429, None, None), OSError('reset')):
+            with self.subTest(failure=type(failure).__name__):
+                conn = db.connect(self.db_path)
+                responses = [
+                    (200, [{'id': 'org/a'}], '<https://huggingface.co/api/models?cursor=next>; rel="next"'),
+                ] + [failure] * indexer.PAGE_MAX_ATTEMPTS
+                with patch.object(indexer, 'request_json', side_effect=responses) as request:
+                    result = indexer.crawl_pages(conn, indexer.TokenCursor([]), 'createdAt')
+                conn.close()
+                self.assertFalse(result['complete'])
+                self.assertEqual(result['stop'], 'error')
+                self.assertEqual(result['pages'], 1)
+                self.assertEqual(request.call_count, 1 + indexer.PAGE_MAX_ATTEMPTS)
+
+    def test_repeated_cursor_never_marks_full_backfill_complete(self):
+        fake_request, _urls = self.fake_pages({
+            'downloads': [
+                (200, [{'id': 'org/a'}], '<https://huggingface.co/api/models?cursor=same>; rel="next"'),
+                (200, [{'id': 'org/b'}], '<https://huggingface.co/api/models?cursor=same>; rel="next"'),
+            ],
+        })
+        with patch.object(indexer, 'request_json', side_effect=fake_request):
+            with self.assertRaises(indexer.CrawlIncompleteError):
+                indexer.crawl_once()
+        conn = db.connect(self.db_path)
+        self.assertIsNone(db.get_meta(conn, indexer.META_FULL_BACKFILL))
+        conn.close()
+
+    def test_failed_refresh_preserves_success_time_and_does_not_publish(self):
+        self.mark_backfill_done()
+        conn = db.connect(self.db_path)
+        db.set_meta(conn, 'updated_at', 'previous-success')
+        conn.close()
+        with patch.object(indexer, 'request_json', return_value=(503, None, None)), \
+             patch.object(indexer, 'publish_snapshot') as publish, \
+             patch.dict(os.environ, {'SIZEOF_SEARCH_PUBLISH_SNAPSHOT': 'true'}):
+            with self.assertRaises(indexer.CrawlIncompleteError):
+                indexer.crawl_once()
+            publish.assert_not_called()
+        conn = db.connect(self.db_path)
+        self.assertEqual(db.get_meta(conn, 'updated_at'), 'previous-success')
+        conn.close()
+
+    def test_successful_crawl_publishes_only_when_enabled(self):
+        self.mark_backfill_done()
+        for enabled in ('false', 'true'):
+            with patch.object(indexer, 'request_json', return_value=(200, [{'id': 'org/a'}], None)), \
+                 patch.object(indexer, 'publish_snapshot', return_value={}) as publish, \
+                 patch.dict(os.environ, {'SIZEOF_SEARCH_PUBLISH_SNAPSHOT': enabled}):
+                indexer.crawl_once()
+                self.assertEqual(publish.call_count, int(enabled == 'true'))

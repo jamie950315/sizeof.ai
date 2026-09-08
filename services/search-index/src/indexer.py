@@ -1,4 +1,5 @@
 import json
+import http.client
 import os
 import time
 import urllib.error
@@ -6,9 +7,11 @@ import urllib.parse
 import urllib.request
 
 from .db import connect, count_models, get_meta, set_meta, upsert_models
+from .snapshot import publish_snapshot
 
 DB_PATH = os.environ.get('SIZEOF_SEARCH_DB', '/data/models.sqlite')
 USER_AGENT = 'sizeof.ai-search-indexer/1.0 (+https://sizeof.ai)'
+PAGE_MAX_ATTEMPTS = 5
 
 
 def tokens() -> list[str]:
@@ -122,17 +125,24 @@ def crawl_pages(
         url = f'https://huggingface.co/api/models?limit=1000&sort={sort}&direction=-1'
         if cursor:
             url += '&cursor=' + urllib.parse.quote(cursor)
-        status, body, link = request_json(url, token_cursor.next())
-        if status == 429:
-            time.sleep(20)
-            continue
-        if status != 200 or not isinstance(body, list):
-            print(json.dumps({'message': 'page failed', 'sort': sort, 'status': status, 'page': page}), flush=True)
-            time.sleep(5)
-            if page == 0:
-                stop_reason = 'error'
+        for attempt in range(PAGE_MAX_ATTEMPTS):
+            try:
+                status, body, link = request_json(url, token_cursor.next())
+            except (OSError, http.client.HTTPException, ValueError):
+                # Retry the same page after transport/truncated JSON failures.
+                # Do not log exception text: it may contain request details.
+                status, body, link = 0, None, None
+            if status == 200 and isinstance(body, list):
                 break
-            continue
+            print(json.dumps({'message': 'page failed', 'sort': sort, 'status': status,
+                              'page': page, 'attempt': attempt + 1}), flush=True)
+            retryable = status in (0, 200, 408, 429) or status >= 500
+            if not retryable or attempt + 1 == PAGE_MAX_ATTEMPTS:
+                break
+            time.sleep(min(60, (20 if status == 429 else 2) * 2 ** attempt))
+        if status != 200 or not isinstance(body, list):
+            stop_reason = 'error'
+            break
         rows = [row for item in body if isinstance(item, dict) for row in [normalize(item)] if row]
         inserted = 0
         if rows:
@@ -149,7 +159,6 @@ def crawl_pages(
             stagnant_count = 0
             last_total = current_total
         if page % 10 == 0:
-            set_meta(db, 'updated_at', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
             print(json.dumps({
                 'message': 'indexed',
                 'sort': sort,
@@ -185,7 +194,7 @@ def crawl_pages(
         'pages': page,
         'accepted': accepted,
         'inserted': inserted_total,
-        'complete': stop_reason in ('end', 'repeat'),
+        'complete': stop_reason == 'end',
         'stop': stop_reason,
     }
 
@@ -193,6 +202,10 @@ def crawl_pages(
 BACKFILL_SORTS = ('downloads', 'createdAt', 'lastModified')
 FULL_BACKFILL_MAX_PAGES = 10_000
 META_FULL_BACKFILL = 'full_backfill_done'
+
+
+class CrawlIncompleteError(RuntimeError):
+    pass
 
 
 def crawl_once() -> int:
@@ -214,7 +227,11 @@ def crawl_once() -> int:
     else:
         passes['downloads'] = crawl_pages(db, token_cursor, 'downloads', max_pages=30)
         passes['createdAt'] = crawl_pages(db, token_cursor, 'createdAt', new_id_stagnant=5)
-    set_meta(db, 'updated_at', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
+    successful = all(result['stop'] not in ('error', 'repeat') for result in passes.values())
+    if not backfill_done:
+        successful = successful and complete
+    if successful:
+        set_meta(db, 'updated_at', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
     total = count_models(db)
     db.close()
     print(json.dumps({
@@ -223,16 +240,23 @@ def crawl_once() -> int:
         'passes': passes,
         'total': total,
     }), flush=True)
+    if not successful:
+        raise CrawlIncompleteError('Crawl incomplete; retry scheduled without publishing')
+    if os.environ.get('SIZEOF_SEARCH_PUBLISH_SNAPSHOT', '').strip().lower() in ('1', 'true', 'yes'):
+        manifest = publish_snapshot(DB_PATH)
+        print(json.dumps({'message': 'snapshot published', **manifest}), flush=True)
     return total
 
 
 def main() -> None:
     while True:
+        delay = 6 * 60 * 60
         try:
             crawl_once()
         except Exception as error:
             print(json.dumps({'message': 'crawl error', 'error': str(error)}), flush=True)
-        time.sleep(6 * 60 * 60)
+            delay = 5 * 60
+        time.sleep(delay)
 
 
 if __name__ == '__main__':

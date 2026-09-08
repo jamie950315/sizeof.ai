@@ -1,0 +1,4 @@
+services:
+  replica:
+    environment:
+      SIZEOF_SEARCH_PRIMARY_URL: https://ccsearch.0ruka.dev/__sizeof_index
