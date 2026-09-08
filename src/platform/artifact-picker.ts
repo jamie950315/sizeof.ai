@@ -1,4 +1,4 @@
-import { deploymentModelId } from './deployment'
+import { deploymentModelId, validateShardFiles } from './deployment'
 
 export interface DeploymentArtifact {
   repositoryId: string
@@ -8,6 +8,7 @@ export interface DeploymentArtifact {
   label: string
   sourceModelId: string
   checkedAt: string
+  files?: Array<{ path: string; sizeBytes: number }>
 }
 export interface ArtifactChoices { artifacts: DeploymentArtifact[]; omittedSplitFiles: number }
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -27,14 +28,23 @@ export function parseArtifactChoices(value: unknown, requestedId: string, checke
     if (typeof variant.path !== 'string' || variant.path.length > 240 || !/^[A-Za-z0-9][A-Za-z0-9_./-]*\.gguf$/i.test(variant.path) || variant.path.split('/').some(part => !part || part === '.' || part === '..')) throw new Error('Unsafe or unsupported artifact filename. Review the repository files directly.')
     if (typeof variant.revision !== 'string' || !/^[a-f0-9]{40}$/i.test(variant.revision) || typeof variant.weightSizeBytes !== 'number' || !Number.isSafeInteger(variant.weightSizeBytes) || variant.weightSizeBytes <= 0 || typeof variant.label !== 'string' || !variant.label.trim() || variant.label.length > 500) throw new Error('Incomplete artifact revision or size. Retry the lookup.')
     if (/(?:imatrix|calibration|mmproj|projector)/i.test(variant.path)) continue
-    if (/-\d{5}-of-\d{5}\.gguf$/i.test(variant.path)) { omittedSplitFiles++; continue }
+    let files: DeploymentArtifact['files']
+    if (/-\d{5}-of-\d{5}\.gguf$/i.test(variant.path)) {
+      if (variant.files === undefined) { omittedSplitFiles++; continue }
+      if (!Array.isArray(variant.files) || variant.files.some(file => !record(file) || typeof file.path !== 'string' || typeof file.sizeBytes !== 'number' || !Number.isSafeInteger(file.sizeBytes) || file.sizeBytes <= 0)) throw new Error('Incomplete shard sizes or filenames.')
+      const members = variant.files as Array<{ path: string; sizeBytes: number }>
+      validateShardFiles(members.map(file => file.path), variant.path)
+      const total = members.reduce((sum, file) => sum + file.sizeBytes, 0)
+      if (!Number.isSafeInteger(total) || total !== variant.weightSizeBytes) throw new Error('Shard sizes do not match the published total.')
+      files = members.map(file => ({ path: file.path, sizeBytes: file.sizeBytes }))
+    } else if (variant.files !== undefined) throw new Error('Unexpected manifest on a single-file artifact.')
     if (variant.provenance === 'community' && typeof variant.repositoryId !== 'string') throw new Error('Community artifact publisher is missing. No file can be selected safely.')
     const repositoryId = variant.repositoryId === undefined ? sourceModelId : typeof variant.repositoryId === 'string' ? deploymentModelId(variant.repositoryId) : ''
     if (!repositoryId) throw new Error('Invalid artifact repository.')
     const key = `${repositoryId}/${variant.revision}/${variant.path}`
     if (seen.has(key)) continue
     seen.add(key)
-    artifacts.push({ repositoryId, path: variant.path, revision: variant.revision, sizeBytes: variant.weightSizeBytes, label: variant.label, sourceModelId, checkedAt })
+    artifacts.push({ repositoryId, path: variant.path, revision: variant.revision, sizeBytes: variant.weightSizeBytes, label: variant.label, sourceModelId, checkedAt, ...(files ? { files } : {}) })
   }
   return { artifacts, omittedSplitFiles }
 }

@@ -4,7 +4,7 @@ import './platform.css'
 export default function PlatformNav() {
   const docsHost = window.location.hostname === 'docs.sizeof.ai'
   const base = docsHost ? 'https://testnet.sizeof.ai' : ''
-  const links = [['Start', '/start'], ['Models', '/'], ['Compare', '/compare'], ['Deploy', '/deploy'], ['Hardware', '/hardware'], ['My library', '/library'], ['Records', '/runs'], ['Measurements', '/benchmarks'], ['Troubleshoot', '/troubleshoot']]
+  const links = [['Start', '/start'], ['Models', '/'], ['Compare', '/compare'], ['Deploy', '/deploy'], ['Hardware', '/hardware'], ['Compatibility', '/compatibility'], ['Context', '/context'], ['My library', '/library'], ['Records', '/runs'], ['Measurements', '/benchmarks'], ['Changes', '/model-changes'], ['Status', '/status'], ['Troubleshoot', '/troubleshoot']]
   return <nav className="platform-strip" aria-label="Platform navigation">
     {links.map(([label, path]) => <a key={path} href={`${base}${path}`} aria-current={!docsHost && window.location.pathname === path ? 'page' : undefined}>{label}</a>)}
     <a href={docsHost ? '/' : '/docs'} aria-current={docsHost || window.location.pathname.startsWith('/docs') ? 'page' : undefined}>Docs <span aria-hidden="true">↗</span></a>

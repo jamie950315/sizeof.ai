@@ -4,6 +4,17 @@ import ArtifactPicker from './ArtifactPicker'
 const payload = { id: 'Owner/Model', componentKind: 'model', modelKind: 'language', variants: [{ format: 'gguf', role: 'model', path: 'Q4.gguf', label: 'Q4', revision: 'a'.repeat(40), weightSizeBytes: 1024 ** 3, repositoryId: 'Publisher/GGUF', provenance: 'community' }] }
 afterEach(() => vi.unstubAllGlobals())
 describe('artifact picker', () => {
+  it('shows every required shard and passes the complete group to the deployment form', async () => {
+    const files = [{ path: 'Q4-00001-of-00002.gguf', sizeBytes: 512 * 1024 ** 2 }, { path: 'Q4-00002-of-00002.gguf', sizeBytes: 512 * 1024 ** 2 }]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...payload, variants: [{ ...payload.variants[0], path: files[0].path, files }] }))))
+    const onSelect = vi.fn()
+    render(<ArtifactPicker modelInput="Owner/Model" onSelect={onSelect} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Find GGUF files' }))
+    expect(await screen.findByText('2 required shards · total 1.00 GiB')).toBeInTheDocument()
+    expect(screen.getByText(files[1].path)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: `Use Publisher/GGUF/${files[0].path}` }))
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ files, sizeBytes: 1024 ** 3 }))
+  })
   it('waits for explicit lookup, filters results and selects actual publisher with revision', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload)))
     vi.stubGlobal('fetch', fetcher)

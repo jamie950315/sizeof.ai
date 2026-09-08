@@ -2,6 +2,31 @@ import { describe, expect, it } from 'vitest'
 import { buildDeploymentPlan, DEPLOYMENT_DEFAULTS, deploymentMarkdown, deploymentModelId, deploymentSearch, restoreDeployment, type DeploymentInput } from './deployment'
 
 const input: DeploymentInput = { ...DEPLOYMENT_DEFAULTS, model: 'example/model-GGUF', file: 'model-Q4_K_M.gguf' }
+describe('complete pinned shard plans', () => {
+  const shardFiles = ['q/model-00001-of-00002.gguf', 'q/model-00002-of-00002.gguf']
+  const split = { ...input, file: shardFiles[0], revision: 'a'.repeat(40), shardFiles }
+  it('downloads only all named shards and launches first, with v3 round trip', () => {
+    const plan = buildDeploymentPlan(split)
+    expect(plan.download).toContain("'q/model-00001-of-00002.gguf' 'q/model-00002-of-00002.gguf'")
+    expect(plan.launch).toContain(shardFiles[0])
+    expect(plan.launch).not.toContain(shardFiles[1])
+    const query = deploymentSearch(split)
+    expect(query).toContain('v=3')
+    expect(restoreDeployment(query)).toEqual(split)
+    for (const v of ['1', '2']) expect(() => restoreDeployment(query.replace('v=3', `v=${v}`))).toThrow()
+  })
+  it.each([[], [shardFiles[0]], [shardFiles[0], shardFiles[0]], [...shardFiles].reverse(), [shardFiles[0], 'other-00002-of-00002.gguf'], [shardFiles[0], 'q/model-00002-of-00003.gguf']].map(files => ({ files })))('rejects incomplete or mismatched manifest $files', ({ files }) => {
+    expect(() => buildDeploymentPlan({ ...split, shardFiles: files })).toThrow()
+  })
+  it('fails closed for missing pin, unsupported engine or malformed link', () => {
+    expect(() => buildDeploymentPlan({ ...split, revision: undefined })).toThrow()
+    expect(() => buildDeploymentPlan({ ...split, engine: 'mlx' })).toThrow()
+    const query = deploymentSearch(split)
+    expect(() => restoreDeployment(`${query}&shardFiles=[]`)).toThrow()
+    expect(() => restoreDeployment(query.replace(/shardFiles=[^&]+/, 'shardFiles=garbage'))).toThrow()
+    expect(() => restoreDeployment('x'.repeat(8193))).toThrow()
+  })
+})
 describe('deployment runbooks', () => {
   it('uses a fixed loopback host and exact quoted model and artifact', () => {
     const plan = buildDeploymentPlan(input)

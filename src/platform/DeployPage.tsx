@@ -17,7 +17,7 @@ export default function DeployPage() {
   const [checked, setChecked] = useState<number[]>([])
   const [artifact, setArtifact] = useState<DeploymentArtifact | undefined>()
   const update = (key: keyof DeploymentInput, value: string) => {
-    setInput(previous => ({ ...previous, [key]: value, ...((key === 'model' || key === 'file') ? { revision: undefined } : {}) }))
+    setInput(previous => ({ ...previous, [key]: value, ...((key === 'model' || key === 'file') ? { revision: undefined } : {}), ...(['model', 'file', 'revision', 'engine'].includes(key) ? { shardFiles: undefined } : {}) }))
     setFeedback({ error: false, text: '' })
     setChecked([])
     if (key === 'model' || key === 'file' || key === 'engine' || key === 'revision') setArtifact(undefined)
@@ -44,6 +44,10 @@ export default function DeployPage() {
     } catch { setFeedback({ error: true, text: 'Could not prepare the download. Use Copy runbook instead.' }) }
     finally { if (url) { const objectUrl = url; window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000) } }
   }
+  async function sharePlan() {
+    try { await copy(`${window.location.origin}/deploy?${deploymentSearch(input)}`, 'Plan link copied. It contains settings, never API keys.') }
+    catch (reason) { setFeedback({ error: true, text: reason instanceof Error ? reason.message : 'This plan could not be shared.' }) }
+  }
   return <main className="deploy-workbench">
     <header className="deploy-heading"><div><p className="deploy-eyebrow">LOCAL DEPLOYMENT / WORKBENCH</p><h1>From model to first reply.</h1><p>Build a local-only launch plan. Understand each step before you run it.</p></div><span className="deploy-local"><span /> Nothing runs in your browser</span></header>
     {linkError && <div role="alert" className="deploy-error">{linkError} <button onClick={() => { window.history.replaceState(null, '', '/deploy'); setLinkError('') }}>Reset invalid link</button></div>}
@@ -57,15 +61,17 @@ export default function DeployPage() {
         <p className="deploy-hint">Choose a full-model repository supported by your engine. We do not infer compatibility from its name.</p>
         {input.engine === 'llama-cpp' && <label>Exact GGUF filename<input value={input.file} onChange={event => update('file', event.target.value)} placeholder="model-Q4_K_M.gguf" autoComplete="off" spellCheck={false} maxLength={240} /><span className="deploy-hint">Copy the filename from the repository’s Files tab. This is not a quantization estimate.</span></label>}
         {input.engine === 'llama-cpp' && <ArtifactPicker modelInput={input.model} onSelect={(selected) => {
-          setInput(previous => ({ ...previous, model: selected.repositoryId, file: selected.path, revision: selected.revision.toLowerCase() }))
+          setInput(previous => ({ ...previous, model: selected.repositoryId, file: selected.path, revision: selected.revision.toLowerCase(), shardFiles: selected.files?.map(file => file.path) }))
           setArtifact(selected); setChecked([]); setFeedback({ error: false, text: 'Actual repository and file selected. Review the observed revision and runtime requirements.' })
         }} />}
         {artifact && <div className="deploy-note"><strong>Selected file evidence</strong><p>{artifact.repositoryId} / {artifact.path}</p><p>{(artifact.sizeBytes / 2 ** 30).toFixed(2)} GiB · observed revision <code>{artifact.revision}</code></p><a href={`https://huggingface.co/${artifact.repositoryId}/blob/${artifact.revision}/${artifact.path}`} target="_blank" rel="noreferrer">Inspect this exact version ↗</a><p>The download step targets this model revision. Runtime versions and drivers still need to be recorded separately.</p></div>}
         <label>Model commit (optional)<input aria-label="Model commit" value={input.revision ?? ''} onChange={event => update('revision', event.target.value)} placeholder="40-character commit; blank follows default branch" maxLength={40} spellCheck={false} autoComplete="off" /><span className="deploy-hint">Select a published file to fill its commit automatically. A branch name or tag is not an immutable model version.</span></label>
         {input.revision && <button type="button" onClick={() => update('revision', '')}>Use unpinned model instead</button>}
+        {input.shardFiles && <details className="deploy-note" open><summary>Complete download manifest · {input.shardFiles.length} files</summary><ol>{input.shardFiles.map(path => <li key={path}><code>{path}</code></li>)}</ol><p>Every listed file must download successfully at the fixed revision. The engine opens the first shard and reads the remaining set.</p></details>}
         <div className="deploy-pair"><label>{input.engine === 'mlx' ? 'Planning context (tokens)' : 'Context limit (tokens)'}<input inputMode="numeric" value={input.context} onChange={event => update('context', event.target.value)} maxLength={7} /></label><label>Local port<input inputMode="numeric" value={input.port} onChange={event => update('port', event.target.value)} maxLength={5} /></label></div>
         <div className="deploy-note">Local address only: <code>127.0.0.1</code>. No account, key, or paid compute is needed to prepare a plan.</div>
         <p className="deploy-hint" style={{ marginTop: 14 }}><a href={`/docs/${input.engine}`}>Read the {input.engine === 'llama-cpp' ? 'llama.cpp' : input.engine === 'mlx' ? 'MLX' : 'vLLM'} setup guide →</a></p>
+        <p className="deploy-hint"><a href="/compatibility">Review compatibility evidence →</a> · <a href="/context">Budget the whole request →</a></p>
         {compatibility && <p role="alert" className="deploy-error">{compatibility}</p>}
       </section>
       <section className="deploy-panel deploy-output" aria-labelledby="deploy-plan-title">
@@ -75,7 +81,7 @@ export default function DeployPage() {
           <p className="deploy-note">{plan.modelRevision ? <>Fixed model revision: <code>{plan.modelRevision}</code>. Run the download step first, then launch from <code>{plan.localModelPath}</code>.</> : 'Unpinned model: upstream files may change. Fill a full model commit for a repeatable download.'}</p>
           <details className="deploy-checklist" open><summary>Before you start · {checked.length}/{plan.checklist.length} checked</summary>{plan.checklist.map((item, index) => <label key={item}><input type="checkbox" checked={checked.includes(index)} onChange={() => setChecked(previous => previous.includes(index) ? previous.filter(value => value !== index) : [...previous, index])} /><span>{item}</span></label>)}</details>
           {[...(plan.download ? [['Download fixed model revision', plan.download]] : []), ['Start the server', plan.launch], ['Check the API · second terminal', plan.probe], ['Request a first reply · second terminal', plan.client]].map(([title, command], index) => <section className="deploy-command" key={title}><div><h3><span>0{index + 1}</span>{title}</h3><button aria-label={`Copy ${title.toLowerCase()}`} onClick={() => void copy(command, 'Command copied. Review it before running.')}><Copy size={15} aria-hidden="true" /> Copy</button></div><pre><code>{command}</code></pre></section>)}
-          <div className="deploy-actions"><button onClick={() => void copy(deploymentMarkdown(input), 'Runbook copied.')}><Copy size={15} aria-hidden="true" /> Copy runbook</button><button onClick={download}><Download size={15} aria-hidden="true" /> Download .md</button><button onClick={() => void copy(`${window.location.origin}/deploy?${deploymentSearch(input)}`, 'Plan link copied. It contains settings, never API keys.')}><ArrowUpRight size={15} aria-hidden="true" /> Share plan</button></div>
+          <div className="deploy-actions"><button onClick={() => void copy(deploymentMarkdown(input), 'Runbook copied.')}><Copy size={15} aria-hidden="true" /> Copy runbook</button><button onClick={download}><Download size={15} aria-hidden="true" /> Download .md</button><button onClick={() => void sharePlan()}><ArrowUpRight size={15} aria-hidden="true" /> Share plan</button></div>
           <div className="deploy-limits"><h3>Know the limits</h3>{plan.warnings.map(warning => <p key={warning}>{warning}</p>)}<p><a href="/docs/troubleshooting">Troubleshoot a failed launch →</a> · <a href="/docs/serving-security">Before exposing an API →</a></p></div>
           <p className="deploy-hint"><a href="/troubleshoot">Open interactive troubleshooting →</a></p>
           <p className="deploy-hint">Changing launch settings resets unsaved record notes and the reported outcome. Save the current record first if you want to keep it.</p>

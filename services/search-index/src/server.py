@@ -152,6 +152,8 @@ def reload_models() -> None:
         db.execute('BEGIN')
         generation = generation or get_meta(db, 'snapshot_generation')
         updated = get_meta(db, 'updated_at')
+        backfill_done = get_meta(db, 'full_backfill_done')
+        backfill_at = get_meta(db, 'full_backfill_completed_at')
         total = count_models(db)
         with LOCK:
             unchanged = total == STATE['count'] and updated == STATE['updated_at'] and generation == STATE.get('generation') and STATE['count'] > 0
@@ -168,6 +170,8 @@ def reload_models() -> None:
         STATE['indexes'] = indexes
         STATE['count'] = total
         STATE['updated_at'] = updated
+        STATE['initial_backfill_complete'] = None if backfill_done is None else backfill_done == 'true'
+        STATE['last_full_backfill_at'] = backfill_at
         STATE['generation'] = generation
         STATE['loaded_at'] = time.time()
         STATE['reload_error'] = None
@@ -225,6 +229,8 @@ class Handler(BaseHTTPRequestHandler):
                     'models': STATE['count'],
                     'updatedAt': STATE['updated_at'],
                     'generation': STATE.get('generation'),
+                    'initialBackfillComplete': STATE.get('initial_backfill_complete'),
+                    'lastFullBackfillAt': STATE.get('last_full_backfill_at'),
                     'reloadError': STATE.get('reload_error'),
                     'sync': sync_status,
                 }

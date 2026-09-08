@@ -15,6 +15,8 @@ export function compareRuns(left: DeploymentRun, right: DeploymentRun): RunDiffR
   }
   for (const [key, label] of [['model', 'Requested repository'], ['engine', 'Engine'], ['os', 'Operating system'], ['hardware', 'Hardware target'], ['file', 'Requested file'], ['context', 'Context target (tokens)'], ['port', 'Local port']] as const) add(`input.${key}`, label, 'Configuration', left.input[key], right.input[key])
   add('input.revision', 'Requested download revision', 'Configuration', (left.input as typeof left.input & { revision?: string }).revision, (right.input as typeof right.input & { revision?: string }).revision)
+  add('input.shardFiles', 'Requested shard manifest', 'Configuration', left.input.shardFiles ? JSON.stringify(left.input.shardFiles) : null, right.input.shardFiles ? JSON.stringify(right.input.shardFiles) : null)
+  add('artifact.files', 'Observed shard files and sizes', 'Observed artifact', left.artifact?.files ? JSON.stringify(left.artifact.files) : null, right.artifact?.files ? JSON.stringify(right.artifact.files) : null)
   for (const [key, label] of [['repositoryId', 'Observed repository'], ['sourceModelId', 'Source model'], ['path', 'Observed file'], ['revision', 'Observed revision'], ['sizeBytes', 'Observed file size (bytes)']] as const) add(`artifact.${key}`, label, 'Observed artifact', left.artifact?.[key], right.artifact?.[key])
   for (const [key, label] of [['runtimeVersion', 'Reported runtime version'], ['hardwareLabel', 'Reported hardware'], ['outcome', 'Reported outcome'], ['notes', 'Private notes'], ['firstError', 'First error summary']] as const) add(key, label, 'User report', left[key], right[key])
   add('id', 'Record ID', 'Record metadata', left.id, right.id)

@@ -6,6 +6,14 @@ const variant = { format: 'gguf', role: 'model', path: 'model-Q4_K_M.gguf', revi
 const payload = (variants: unknown[] = [variant]) => ({ id: 'Owner/Model', componentKind: 'model', modelKind: 'language', variants })
 afterEach(() => vi.unstubAllGlobals())
 describe('published artifact validation', () => {
+  it('accepts complete exact shard manifests and rejects incomplete, misordered, duplicate or invalid-size groups', () => {
+    const files = [{ path: 'model-00001-of-00002.gguf', sizeBytes: 600 }, { path: 'model-00002-of-00002.gguf', sizeBytes: 424 }]
+    const split = { ...variant, path: files[0].path, files }
+    expect(parseArtifactChoices(payload([split]), 'Owner/Model').artifacts[0].files).toEqual(files)
+    for (const invalid of [files.slice(0, 1), [...files].reverse(), [files[0], files[0]], [files[0], { ...files[1], sizeBytes: 425 }], [files[0], { ...files[1], sizeBytes: 0 }], [files[0], { ...files[1], path: 'other-00002-of-00002.gguf' }]]) {
+      expect(() => parseArtifactChoices(payload([{ ...split, files: invalid }]), 'Owner/Model')).toThrow()
+    }
+  })
   it('accepts canonical casing and pins actual community repository, not base model', () => {
     const result = parseArtifactChoices(payload([{ ...variant, provenance: 'community', repositoryId: 'publisher/model-GGUF' }]), 'owner/model', '2026-09-08T00:00:00.000Z')
     expect(result.artifacts[0]).toEqual({ repositoryId: 'publisher/model-GGUF', path: variant.path, revision, sizeBytes: 1024, label: 'Q4_K_M', sourceModelId: 'Owner/Model', checkedAt: '2026-09-08T00:00:00.000Z' })

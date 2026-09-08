@@ -279,6 +279,8 @@ class SearchHttpTests(unittest.TestCase):
         status, payload, _ = self.get('/health', token=None)
         self.assertEqual(status, 200)
         self.assertTrue(payload['ok'])
+        self.assertIn('initialBackfillComplete', payload)
+        self.assertIn('lastFullBackfillAt', payload)
         self.assertEqual(payload['host'], 'test-index')
         self.assertEqual(payload['models'], len(FIXTURES))
 

@@ -7,6 +7,14 @@ import {
 } from './huggingface-variants'
 
 describe('parseHuggingFaceVariants', () => {
+  it('exports actual complete shard paths and sizes in launch order', () => {
+    const variants = parseHuggingFaceVariants([{ revision: 'a'.repeat(40), label: 'main', entries: [
+      { type: 'file', path: 'model-00002-of-00002.gguf', size: 20_000_000 },
+      { type: 'file', path: 'model-00001-of-00002.gguf', size: 30_000_000 },
+    ] }], ['gguf'])
+    expect(variants[0].files).toEqual([{ path: 'model-00001-of-00002.gguf', sizeBytes: 30_000_000 }, { path: 'model-00002-of-00002.gguf', sizeBytes: 20_000_000 }])
+    expect(variants[0].weightSizeBytes).toBe(50_000_000)
+  })
   it('excludes importance-matrix calibration files from model weights', () => {
     const variants = parseHuggingFaceVariants([{ revision: 'rev', label: 'main', entries: [
       { type: 'file', path: 'Model-imatrix.gguf', size: 13_000_000 },

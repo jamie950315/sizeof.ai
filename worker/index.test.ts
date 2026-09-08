@@ -70,8 +70,8 @@ function primePublicModel(cache: MemoryModelCache) {
     architectures: ['Qwen3_5ForCausalLM'], model_type: 'qwen3_5', num_hidden_layers: 64,
     num_key_value_heads: 4, head_dim: 256, max_position_embeddings: 262_144,
   })
-  cache.values.set('model-response-v4:Qwen/Qwen3.8-27B', JSON.stringify({
-    version: 4, fetchedAt: Date.now(), body: JSON.stringify(model),
+  cache.values.set('model-response-v5:Qwen/Qwen3.8-27B', JSON.stringify({
+    version: 5, fetchedAt: Date.now(), body: JSON.stringify(model),
   }))
   return model
 }
@@ -855,8 +855,8 @@ describe('Hugging Face model API', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
     const cache = new MemoryModelCache()
-    cache.values.set('model-response-v4:Qwen/Qwen3.8-27B', JSON.stringify({
-      version: 4,
+    cache.values.set('model-response-v5:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 5,
       fetchedAt: Date.now() - 23 * 60 * 60 * 1_000,
       body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'kv' }),
     }))
@@ -881,7 +881,7 @@ describe('Hugging Face model API', () => {
         'public, max-age=3600, stale-while-revalidate=604800, stale-if-error=604800',
       )
       expect(cache.reads).toEqual([{
-        key: 'model-response-v4:Qwen/Qwen3.8-27B',
+        key: 'model-response-v5:Qwen/Qwen3.8-27B',
         options: { type: 'json', cacheTtl: 60 },
       }])
       expect(fetcher).not.toHaveBeenCalled()
@@ -925,9 +925,9 @@ describe('Hugging Face model API', () => {
       }
       await flush()
 
-      const key = 'model-response-v4:Qwen/Qwen3.8-27B'
+      const key = 'model-response-v5:Qwen/Qwen3.8-27B'
       expect(JSON.parse(cache.values.get(key)!)).toMatchObject({
-        version: 4,
+        version: 5,
         fetchedAt: Date.parse('2026-08-22T12:00:00Z'),
       })
       expect(cache.options.get(key)).toEqual({ expirationTtl: 2_592_000 })
@@ -941,8 +941,8 @@ describe('Hugging Face model API', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
     const cache = new MemoryModelCache()
-    cache.values.set('model-response-v4:Qwen/Qwen3.8-27B', JSON.stringify({
-      version: 4,
+    cache.values.set('model-response-v5:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 5,
       fetchedAt: Date.now() - 2 * 24 * 60 * 60 * 1_000,
       body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'stale-kv' }),
     }))
@@ -976,8 +976,8 @@ describe('Hugging Face model API', () => {
 
   it('does not serve stale KV data when a model is private or missing', async () => {
     const cache = new MemoryModelCache()
-    cache.values.set('model-response-v4:Qwen/Qwen3.8-27B', JSON.stringify({
-      version: 4,
+    cache.values.set('model-response-v5:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 5,
       fetchedAt: Date.now() - 2 * 24 * 60 * 60 * 1_000,
       body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'stale-kv' }),
     }))
@@ -1010,8 +1010,8 @@ describe('Hugging Face model API', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
     const cache = new MemoryModelCache()
-    cache.values.set('model-response-v4:Qwen/Qwen3.8-27B', JSON.stringify({
-      version: 4,
+    cache.values.set('model-response-v5:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 5,
       fetchedAt: Date.now() - 8 * 24 * 60 * 60 * 1_000,
       body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'expired-kv' }),
     }))
@@ -1041,10 +1041,10 @@ describe('Hugging Face model API', () => {
   it('refreshes stale KV data after a successful Hugging Face lookup', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
-    const key = 'model-response-v4:Qwen/Qwen3.8-27B'
+    const key = 'model-response-v5:Qwen/Qwen3.8-27B'
     const cache = new MemoryModelCache()
     cache.values.set(key, JSON.stringify({
-      version: 4,
+      version: 5,
       fetchedAt: Date.now() - 2 * 24 * 60 * 60 * 1_000,
       body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'stale-kv' }),
     }))
@@ -1124,8 +1124,8 @@ describe('Hugging Face model API', () => {
 
   it('uses the same model key for different API query strings', async () => {
     const cache = new MemoryModelCache()
-    cache.values.set('model-response-v4:Qwen/Qwen3.8-27B', JSON.stringify({
-      version: 4,
+    cache.values.set('model-response-v5:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 5,
       fetchedAt: Date.now(),
       body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'kv' }),
     }))
@@ -1151,8 +1151,8 @@ describe('Hugging Face model API', () => {
       expect(first.status).toBe(200)
       expect(second.status).toBe(200)
       expect(cache.reads.map((read) => read.key)).toEqual([
-        'model-response-v4:Qwen/Qwen3.8-27B',
-        'model-response-v4:Qwen/Qwen3.8-27B',
+        'model-response-v5:Qwen/Qwen3.8-27B',
+        'model-response-v5:Qwen/Qwen3.8-27B',
       ])
       expect(fetcher).not.toHaveBeenCalled()
     } finally {

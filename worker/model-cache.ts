@@ -1,6 +1,6 @@
 import { readBoundedBody } from './upstream'
 
-const MODEL_CACHE_VERSION = 4
+const MODEL_CACHE_VERSION = 5
 const MODEL_CACHE_FRESH_MS = 24 * 60 * 60 * 1_000
 const MODEL_CACHE_STALE_MS = 7 * 24 * 60 * 60 * 1_000
 const MODEL_CACHE_MAX_AGE_MS = MODEL_CACHE_FRESH_MS + MODEL_CACHE_STALE_MS
@@ -14,7 +14,7 @@ export const modelResponseHeaders = {
 }
 
 export interface ModelCacheEntry {
-  version: 4
+  version: 5
   fetchedAt: number
   body: string
 }
@@ -42,7 +42,7 @@ function isModelCacheEntry(value: unknown): value is ModelCacheEntry {
 }
 
 function cachedBodyMatchesKey(body: string, key: string) {
-  const match = /^model-response-v4:([^/]+)\/(.+)$/.exec(key)
+  const match = /^model-response-v5:([^/]+)\/(.+)$/.exec(key)
   if (!match) return false
   try {
     const parsed: unknown = JSON.parse(body)
@@ -56,7 +56,7 @@ function cachedBodyMatchesKey(body: string, key: string) {
 }
 
 export function createModelKvKey(owner: string, repo: string) {
-  return `model-response-v4:${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
+  return `model-response-v5:${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
 }
 
 export async function readModelResponse(

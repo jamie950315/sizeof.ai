@@ -4,6 +4,14 @@ import { DOCS_REVIEWED_AT, docHref, docsArticles, docsBasePath, findDocArticle, 
 import './docs.css'
 import { docFigures } from './figures'
 
+const evidenceTools: Record<string, Array<[string, string]>> = {
+  evidence: [['View data status and completeness limits', '/status']],
+  'choose-model': [['Review compatibility evidence', '/compatibility']],
+  'kv-cache': [['Plan a complete context budget', '/context']],
+  'model-files': [['Review model revision changes', '/model-changes'], ['Prepare a complete download', '/deploy']],
+  benchmarking: [['Import raw benchmark tool results', '/benchmarks#tool-result-import']],
+}
+
 function CodeExample({ code }: { code: string }) {
   const [feedback, setFeedback] = useState('')
   async function copy() {
@@ -57,6 +65,7 @@ export default function DocsPage({ basePath, pathname }: { basePath?: string; pa
         {docFigures(article.slug).map((figure) => <figure className="docs-figure" key={figure.src}><img src={figure.src} width={figure.width} height={figure.height} alt={figure.alt} loading="lazy" decoding="async" /><figcaption>{figure.caption} <a href={figure.src} target="_blank" rel="noreferrer">Open full-size image ↗</a></figcaption></figure>)}
         {article.slug === 'troubleshooting' && <p className="docs-workflow-link"><a href={`${platformOrigin}/troubleshoot`}>Walk through an interactive diagnosis →</a></p>}
         {article.slug === 'benchmarking' && <p className="docs-workflow-link"><a href={`${platformOrigin}/benchmarks`}>Record measured results in your local notebook →</a></p>}
+        {evidenceTools[article.slug] && <p className="docs-workflow-link">{evidenceTools[article.slug].map(([label, href]) => <a key={href} href={`${platformOrigin}${href}`} style={{ marginRight: 18 }}>{label} →</a>)}</p>}
         {article.slug === 'reproducible-deployments' && <p className="docs-workflow-link"><a href={`${platformOrigin}/deploy`}>Prepare a fixed model revision →</a> · <a href={`${platformOrigin}/runs`}>Compare saved configurations →</a></p>}
         <div className="docs-reading-layout"><article className="docs-prose">
           {article.sections.map((section, index) => <section id={section.id} key={section.id}><h2><span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>{section.title}</h2>{section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}{section.bullets && <ul>{section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul>}{section.code && <CodeExample code={section.code} />}</section>)}

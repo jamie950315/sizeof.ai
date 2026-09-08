@@ -5,6 +5,18 @@ const input = { ...DEPLOYMENT_DEFAULTS, model: 'org/model', file: 'model.gguf' }
 const details = { runtimeVersion: '1.0', hardwareLabel: 'Laptop', outcome: 'planned' as const, notes: '', firstError: '' }
 const make = () => createRun(input, details)
 
+it('preserves a complete shard manifest and rejects old wrappers or wrong totals', () => {
+  localStorage.clear()
+  const paths = ['model-00001-of-00002.gguf', 'model-00002-of-00002.gguf']
+  const shardInput = { ...input, file: paths[0], revision: 'a'.repeat(40), shardFiles: paths }
+  const run = createRun(shardInput, details, { repositoryId: input.model, path: paths[0], revision: 'a'.repeat(40), sizeBytes: 30,
+    sourceModelId: input.model, checkedAt: new Date().toISOString(), files: paths.map((path, index) => ({ path, sizeBytes: (index + 1) * 10 })) })
+  mergeRuns([run]); expect(readRuns()[0].input.shardFiles).toEqual(paths)
+  expect(readRuns()[0].artifact?.files).toHaveLength(2)
+  expect(() => parseRuns({ version: 2, items: [run] })).toThrow(/version 3/)
+  expect(() => createRun(shardInput, details, { ...run.artifact!, sizeBytes: 31 })).toThrow(/total/)
+})
+
 it('preserves pinned revisions and upgrades backup format without discarding legacy records', () => {
   localStorage.clear()
   const old = make()
@@ -13,7 +25,7 @@ it('preserves pinned revisions and upgrades backup format without discarding leg
   mergeRuns([pinned])
   expect(readRuns()).toEqual([old, pinned])
   expect(readRuns()[1].input.revision).toBe('a'.repeat(40))
-  expect(JSON.parse(localStorage.getItem(runStorageKey)!).version).toBe(2)
+  expect(JSON.parse(localStorage.getItem(runStorageKey)!).version).toBe(3)
   expect(() => parseRuns({ version: 1, items: [pinned] })).toThrow(/version 2/)
 })
 
@@ -39,7 +51,7 @@ it('does not overwrite valid existing data on malformed imports or full storage'
   writeRuns(rows)
   expect(() => mergeRuns([make()])).toThrow(/100/)
   expect(readRuns()).toEqual(rows)
-  expect(() => parseRuns({ version: 3, items: [] })).toThrow()
+  expect(() => parseRuns({ version: 4, items: [] })).toThrow()
   expect(() => parseRuns({ version: 1, items: [{ ...make(), notes: 'a'.repeat(3001) }] })).toThrow()
 })
 it('preserves both different versions of an ID collision and deduplicates exact copies', () => {

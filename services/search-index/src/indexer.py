@@ -218,6 +218,7 @@ def _crawl_once(db) -> int:
             complete = complete and bool(result.get('complete'))
         if complete:
             set_meta(db, META_FULL_BACKFILL, 'true')
+            set_meta(db, 'full_backfill_completed_at', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
         print(json.dumps({'message': 'full backfill', 'complete': complete, 'passes': {key: value['inserted'] for key, value in passes.items()}}), flush=True)
     else:
         passes['downloads'] = crawl_pages(db, token_cursor, 'downloads', max_pages=30)

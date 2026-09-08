@@ -11,7 +11,7 @@ const modelRequest = () => new Request(`https://testnet.sizeof.ai/api/models/${i
 
 function environment(stale = false) {
   const get = vi.fn().mockResolvedValue(stale ? {
-    version: 4, fetchedAt: Date.now() - 2 * 86_400_000,
+    version: 5, fetchedAt: Date.now() - 2 * 86_400_000,
     body: JSON.stringify(normalizeHuggingFaceModel(metadata, config)),
   } : null)
   return { MODEL_CACHE: { get, put: vi.fn().mockResolvedValue(undefined) }, ASSETS: { fetch: vi.fn() } }

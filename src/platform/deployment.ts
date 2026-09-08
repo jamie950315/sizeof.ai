@@ -8,6 +8,7 @@ export interface DeploymentInput {
   context: string
   port: string
   revision?: string
+  shardFiles?: string[]
 }
 export const DEPLOYMENT_DEFAULTS: DeploymentInput = {
   os: 'mac', hardware: 'apple', engine: 'llama-cpp', model: '', file: '', context: '4096', port: '8080',
@@ -43,6 +44,20 @@ export function deploymentCompatibility(input: DeploymentInput): string | null {
 
 export interface DeploymentPlan { modelId: string; shell: string; launch: string; download?: string; modelRevision?: string; localModelPath?: string; probe: string; client: string; warnings: string[]; checklist: string[] }
 
+export function validateShardFiles(value: unknown, first: string): string[] {
+  if (!Array.isArray(value) || value.length < 2 || value.length > 64) throw new Error('A split GGUF requires a complete manifest of 2–64 shards.')
+  const match = first.match(/^(.*)-00001-of-(\d{5})\.gguf$/i)
+  if (!match || Number(match[2]) !== value.length) throw new Error('The first shard and manifest count do not match.')
+  const paths = value.map((path, index) => {
+    if (typeof path !== 'string' || path.length > 240 || !/^[A-Za-z0-9][A-Za-z0-9_./-]*\.gguf$/i.test(path) || path.split('/').some(part => !part || part === '.' || part === '..')) throw new Error('Unsafe shard filename.')
+    const member = path.match(/^(.*)-(\d{5})-of-(\d{5})\.gguf$/i)
+    if (!member || member[1] !== match[1] || Number(member[2]) !== index + 1 || member[3] !== match[2]) throw new Error('Shard manifest must contain every member exactly once, in order, from the same group.')
+    return path
+  })
+  if (paths[0] !== first || JSON.stringify(paths).length > 6000) throw new Error('The shard manifest is mismatched or too large to share safely.')
+  return paths
+}
+
 function modelRevision(raw: string | undefined): string | undefined {
   if (raw === undefined || raw === '') return undefined
   if (typeof raw !== 'string') throw new Error('Model revision must be a full 40-character commit hash.')
@@ -65,6 +80,8 @@ export function buildDeploymentPlan(input: DeploymentInput): DeploymentPlan {
   if (compatibility) throw new Error(compatibility)
   const modelId = deploymentModelId(input.model)
   const revision = modelRevision(input.revision)
+  const shardFiles = input.shardFiles === undefined ? undefined : validateShardFiles(input.shardFiles, input.file.trim())
+  if (shardFiles && (!revision || input.engine !== 'llama-cpp')) throw new Error('A shard manifest requires llama.cpp and a fixed model revision.')
   const directory = revision ? pinnedDirectory(modelId, revision) : undefined
   for (const [name, value, min, max] of [['Context', input.context, 512, 1048576], ['Port', input.port, 1024, 65535]] as const) {
     if (!/^\d+$/.test(value) || Number(value) < min || Number(value) > max) throw new Error(`${name} must be a whole number between ${min} and ${max}.`)
@@ -83,10 +100,10 @@ export function buildDeploymentPlan(input: DeploymentInput): DeploymentPlan {
   if (input.engine === 'llama-cpp') {
     const file = input.file.trim()
     if (file.length > 240 || !/^[A-Za-z0-9][A-Za-z0-9_./-]*\.gguf$/i.test(file) || file.split('/').some(part => !part || part === '..' || part === '.')) throw new Error('Enter the exact GGUF filename from the repository; only letters, digits, dots, underscores, hyphens, and subfolders are accepted.')
-    if (revision && /-\d+-of-\d+\.gguf$/i.test(file)) throw new Error('Pinned downloads support single-file GGUF only. Split GGUF requires a complete, verified shard list; choose an unsplit file.')
+    if (revision && /-\d+-of-\d+\.gguf$/i.test(file) && !shardFiles) throw new Error('Split GGUF requires a complete, verified shard list; choose a published group or an unsplit file.')
     if (directory) {
       localModelPath = `${directory}/${file}`
-      download = `hf download ${quote(modelId)} ${quote(file)} --revision ${quote(revision!)} --local-dir ${quote(directory)}`
+      download = `hf download ${quote(modelId)} ${(shardFiles ?? [file]).map(quote).join(' ')} --revision ${quote(revision!)} --local-dir ${quote(directory)}`
       if (windows && file.split('/').some(part => /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part) || part.endsWith('.'))) throw new Error('The GGUF path contains a filename unsupported on Windows.')
     }
     launch = `${windows ? '.\\llama-server.exe' : 'llama-server'} ${localModelPath ? `-m ${quote(localModelPath)}` : `--hf-repo ${quote(modelId)} --hf-file ${quote(file)}`} --ctx-size ${context} --parallel 1 --gpu-layers ${input.hardware === 'cpu' ? '0' : '99'} --host 127.0.0.1 --port ${port} --alias local-model`
@@ -122,11 +139,14 @@ export function buildDeploymentPlan(input: DeploymentInput): DeploymentPlan {
 
 export function deploymentSearch(input: DeploymentInput): string {
   const plan = buildDeploymentPlan(input)
-  const { revision: _revision, ...settings } = input
-  return new URLSearchParams({ ...settings, ...(plan.modelRevision ? { revision: plan.modelRevision } : {}), model: plan.modelId, file: input.engine === 'llama-cpp' ? input.file.trim() : '', v: plan.modelRevision ? '2' : '1' }).toString()
+  const { revision: _revision, shardFiles, ...settings } = input
+  const search = new URLSearchParams({ ...settings, ...(plan.modelRevision ? { revision: plan.modelRevision } : {}), ...(shardFiles ? { shardFiles: JSON.stringify(shardFiles) } : {}), model: plan.modelId, file: input.engine === 'llama-cpp' ? input.file.trim() : '', v: shardFiles ? '3' : plan.modelRevision ? '2' : '1' }).toString()
+  if (search.length > 8192) throw new Error('The deployment link exceeds the safe sharing limit.')
+  return search
 }
 
 export function restoreDeployment(search: string): DeploymentInput {
+  if (search.length > 8192) throw new Error('The deployment link exceeds the safe sharing limit.')
   const params = new URLSearchParams(search)
   if (!search || !params.size) return { ...DEPLOYMENT_DEFAULTS }
   // A detail-page link may seed just the model. It is not a complete shared runbook.
@@ -134,11 +154,12 @@ export function restoreDeployment(search: string): DeploymentInput {
     return { ...DEPLOYMENT_DEFAULTS, model: deploymentModelId(params.get('model') ?? '') }
   }
   const version = params.get('v')
-  if (!['1', '2'].includes(version ?? '') || params.getAll('v').length !== 1) throw new Error('This deployment link has an unsupported, missing, or duplicate version. Reset it to start a new plan.')
+  if (!['1', '2', '3'].includes(version ?? '') || params.getAll('v').length !== 1) throw new Error('This deployment link has an unsupported, missing, or duplicate version. Reset it to start a new plan.')
+  if (version !== '3' && params.has('shardFiles')) throw new Error('Shard manifests require a version 3 link.')
   if (params.getAll('revision').length > 1) throw new Error('The deployment link has a duplicate revision field.')
   if (version === '1' && params.has('revision')) throw new Error('A version 1 deployment link cannot contain a model revision. Use a version 2 pinned link.')
   const revision = modelRevision(params.get('revision') ?? undefined)
-  if (version === '2' && !revision) throw new Error('A version 2 deployment link requires a full model revision.')
+  if ((version === '2' || version === '3') && !revision) throw new Error('A version 2 or 3 deployment link requires a full model revision.')
   const input = { ...DEPLOYMENT_DEFAULTS }
   for (const key of Object.keys(input) as (keyof DeploymentInput)[]) {
     const value = params.get(key)
@@ -146,6 +167,12 @@ export function restoreDeployment(search: string): DeploymentInput {
     Object.assign(input, { [key]: value })
   }
   if (revision) input.revision = revision
+  if (version === '3') {
+    if (params.getAll('shardFiles').length !== 1) throw new Error('Version 3 requires one complete shard manifest.')
+    let manifest: unknown
+    try { manifest = JSON.parse(params.get('shardFiles')!) } catch { throw new Error('Invalid shard manifest JSON.') }
+    input.shardFiles = validateShardFiles(manifest, input.file.trim())
+  }
   buildDeploymentPlan(input)
   return input
 }

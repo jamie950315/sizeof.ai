@@ -27,6 +27,7 @@ export interface HuggingFaceVariant {
   publisher?: string
   repositoryId?: string
   sourceUrl?: string
+  files?: Array<{ path: string; sizeBytes: number }>
 }
 
 export interface NInferManifestFacts {
@@ -224,6 +225,7 @@ export function parseHuggingFaceVariants(
         bitsPerWeight: precisionFromText(sorted[0].prefix),
         weightSizeBytes,
         totalSizeBytes: weightSizeBytes,
+        files: sorted.map(shard => ({ path: shard.entry.path, sizeBytes: shard.entry.size })),
       })
     }
 

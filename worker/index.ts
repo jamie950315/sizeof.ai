@@ -38,6 +38,8 @@ import {
 } from './model-cache'
 import { createHfTokenPool, createRotatingHfFetcher } from './hf-token-pool'
 import { racePrefixSearch } from './prefix-search'
+import { handleServiceStatus } from './service-status'
+import { handleModelChanges } from './model-changes'
 import { docsArticles } from '../src/docs/content'
 import { fetchWithSafeRedirects, readBoundedBody, readUpstreamJson, UpstreamError } from './upstream'
 
@@ -431,6 +433,10 @@ function pageMetadata(pathname: string, host: string) {
     '/library': { title: 'My model library', description: 'Save a local model shortlist and notes in your browser.' },
     '/runs': { title: 'Deployment records', description: 'Keep deployment settings, observed artifact versions and your own test outcomes together.' },
     '/benchmarks': { title: 'Measurement notebook', description: 'Record actual local-model timings, memory observations and failures without inventing performance claims.' },
+    '/status': { title: 'Data status', description: 'Search-route availability, data age, synchronization and catalog completeness boundaries.' },
+    '/compatibility': { title: 'Compatibility evidence', description: 'Review documented engine, platform and model-format support with source dates and unknowns.' },
+    '/context': { title: 'Context budget', description: 'Plan actual token counts across instructions, conversation, retrieval, tools and output.' },
+    '/model-changes': { title: 'Model revision changes', description: 'Compare published files, architecture facts and license declarations between model revisions.' },
     '/troubleshoot': { title: 'Troubleshooting workbench', description: 'Find the next safe check from the first failing stage of a local model deployment.' },
     '/docs': { title: 'Local model field guide', description: 'Practical local-model deployment guides for beginners and advanced users.' },
   }
@@ -527,7 +533,7 @@ function svgCardInput(url: URL): ShareCardInput | null {
 }
 
 function sitemap(host: string) {
-  const routes = ['/', '/start', '/deploy', '/hardware', '/benchmarks', '/troubleshoot', '/compare', '/docs', ...docsArticles.map((article) => `/docs/${article.slug}`), ...models.map((model) => new URL(model.sourceUrl).pathname)]
+  const routes = ['/', '/start', '/deploy', '/hardware', '/benchmarks', '/troubleshoot', '/status', '/compatibility', '/context', '/model-changes', '/compare', '/docs', ...docsArticles.map((article) => `/docs/${article.slug}`), ...models.map((model) => new URL(model.sourceUrl).pathname)]
   const locations = [...new Set(routes)].map((route) => `<url><loc>${escapeHtml(`${host}${route}`)}</loc></url>`).join('')
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${locations}</urlset>`
 }
@@ -1406,6 +1412,8 @@ export async function handleWorkerRequest(
 ): Promise<Response> {
   const url = new URL(request.url)
   const host = publicHost(env.ENVIRONMENT)
+  if (url.pathname === '/api/status') return handleServiceStatus(request, env)
+  if (url.pathname === '/api/model-changes') return handleModelChanges(request, huggingFaceFetcher(env))
   const estimateApi = url.pathname === '/api/v1/estimate'
   const estimateBadge = url.pathname === '/badge/v1/estimate.svg'
   const estimateEmbed = url.pathname === '/embed/v1/estimate'
