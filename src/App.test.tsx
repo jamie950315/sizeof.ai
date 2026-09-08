@@ -286,7 +286,7 @@ describe('sizeof.ai app', () => {
 
   it('searches as the query is typed without pressing Enter', async () => {
     const user = userEvent.setup()
-    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
       query: 'QWEN',
       nextCursor: null,
       models: [{
@@ -320,7 +320,7 @@ describe('sizeof.ai app', () => {
 
   it('searches on Enter and links each result to its sizeof.ai model page', async () => {
     const user = userEvent.setup()
-    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
       query: 'QWEN',
       nextCursor: null,
       models: [{
@@ -343,7 +343,7 @@ describe('sizeof.ai app', () => {
 
   it('labels live search rows conservatively without another model request', async () => {
     const user = userEvent.setup()
-    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
       query: 'QWEN', nextCursor: null, models: [
         { id: 'Qwen/Text', owner: 'Qwen', name: 'Text', downloads: 1, likes: 1, task: 'text-generation', trendingScore: 1, gated: false },
         { id: 'Lab/Image', owner: 'Lab', name: 'Image', downloads: 1, likes: 1, task: 'text-to-image', trendingScore: 1, gated: false },
@@ -375,7 +375,7 @@ describe('sizeof.ai app', () => {
       'text-to-image', 'image-to-image', 'image-generation', 'unconditional-image-generation', 'image-classification', 'mask-generation', 'image-segmentation', 'object-detection', 'depth-estimation', 'diffusers',
       'visual-document-retrieval', 'sentence-similarity', 'feature-extraction', 'fill-mask', 'masked-lm', 'bidirectional', 'document-retrieval', 'embedding',
     ]
-    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ query: 'TASK', nextCursor: null, models: [
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({ query: 'TASK', nextCursor: null, models: [
       ...checkTasks.map((task, index) => ({ id: `Org/Check${index}`, owner: 'Org', name: `Check${index}`, downloads: 1, likes: 1, task, trendingScore: 1, gated: false })),
       ...resourceTasks.map((task, index) => ({ id: `Org/Resource${index}`, owner: 'Org', name: `Resource${index}`, downloads: 1, likes: 1, task, trendingScore: 1, gated: false })),
     ] }))
@@ -390,7 +390,7 @@ describe('sizeof.ai app', () => {
 
   it('applies author and model-type filters as they change', async () => {
     const user = userEvent.setup()
-    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
       query: 'QWEN', nextCursor: null, models: [],
     }))
     render(<App />)
@@ -467,7 +467,7 @@ describe('sizeof.ai app', () => {
       id: 'Qwen/Qwen3-0.6B', owner: 'Qwen', name: 'Qwen3-0.6B',
       downloads: 2_000_000, likes: 12_000, task: 'text-generation', trendingScore: 2_200, gated: false,
     }
-    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
       query: 'Qw', nextCursor: null, models: [exact, popular],
     }))
     render(<App />)
@@ -508,7 +508,7 @@ describe('sizeof.ai app', () => {
 
   it('reuses the local name cache when the same query is typed again', async () => {
     const user = userEvent.setup()
-    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
       query: 'QWEN',
       nextCursor: null,
       models: [{
@@ -531,15 +531,20 @@ describe('sizeof.ai app', () => {
 
   it('searches when the user clicks the search button', async () => {
     const user = userEvent.setup()
-    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
       query: 'QWEN',
       models: [],
     }))
     render(<App />)
 
     await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN')
+    // Explicit submit refreshes even when typeahead has already returned.
+    // Each fetch needs its own consumable response body.
+    expect(await screen.findByText('No Hugging Face models matched “QWEN”.')).toBeInTheDocument()
+    const callsBeforeSubmit = fetcher.mock.calls.length
     await user.click(screen.getByRole('button', { name: 'Search Hugging Face' }))
 
+    expect(fetcher).toHaveBeenCalledTimes(callsBeforeSubmit + 1)
     expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN')
     expect(await screen.findByText('No Hugging Face models matched “QWEN”.')).toBeInTheDocument()
     fetcher.mockRestore()

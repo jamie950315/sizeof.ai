@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -984,7 +984,7 @@ describe('Hugging Face-style model detail route', () => {
     const variants = await screen.findByRole('region', { name: 'Detected model variants' })
     expect(within(variants).getByLabelText('Repository variant')).toHaveValue('mtp')
     expect(window.location.search).toContain('source=repository')
-    expect(window.location.search).toContain('variant=mtp')
+    await waitFor(() => expect(window.location.search).toContain('variant=mtp'))
   })
 
   it('guards browser storage failures and rejects invalid hardware form values before applying', async () => {
