@@ -123,6 +123,15 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Docs figures in `src/docs/figures.ts` render on both the client and documentation HTML/Markdown. `public/assets/docs/local-workstation.png` is explicitly AI-generated generic imagery; `memory-pools.svg` is an inspected non-scale memory-ownership diagram. Prompt/provenance: `src/docs/IMAGE-SOURCES.md`.
 - Verified 644 JS/TS tests plus 61 Python tests, Node 24 build/typecheck, local Worker smoke, live artifact selection to saved record, diagnostics, desktop/mobile visuals, figure assets/Markdown, matching deployed asset builds, and unchanged production homepage hash. No model inference, driver installation or claimed hardware benchmark was performed.
 
+## Current reproducibility release (2026-09-08)
+
+- Testnet Worker `4f9dcee9-e095-4528-8b56-fdf87bad07a1`; docs Worker `cc7f8c8d-c529-4092-bf87-eb662db300c2`. Production unchanged.
+- `/benchmarks` adds a lazy, browser-local manual measurement notebook (200 rows/2 MB): real prompt counts, matching decode counts/times, TTFT/total/peak memory, failures, import/export/recovery and same-recorded-condition medians. Unknown version/prompt fields isolate samples; failed attempts never yield success metrics. Canonical `loadState` accepts legacy cold/warm `temperature` imports. This is not an inference runner or verified benchmark service.
+- `/deploy` accepts a full immutable model revision; picker selection fills it automatically. Pinned mode emits an official HF CLI download step and local-path-only launch for llama.cpp/MLX/vLLM. Full-repo downloads can be large; pinned GGUF supports single files only. Runtime/driver/dependency versions remain unpinned and local contents must not be modified.
+- Pinned plan links use v2 and require a revision; v1 retains unpinned compatibility and rejects revision fields. Run backups now write v2 and read legacy unpinned v1, preserving requested/observed revisions distinctly and rejecting mismatches. Old clients fail closed instead of dropping pinning.
+- `/runs` compares two selected snapshots, separates metadata from meaningful changes, warns that outcome changes do not imply performance gains, and links settings into measurements. Exports remain private user-initiated files. Docs include a 17th guide, `reproducible-deployments`.
+- Verified 715 JS/TS + 61 Python tests, Node 24 build/typecheck, isolated shell-command harness using dummy local downloader/server fixtures (no network/inference), live picker-to-pin-to-record/reopen/diff/measurement prefill, synthetic measurement import statistics, desktop/mobile layouts, docs HTML/Markdown and unchanged production homepage hash. No real model weights were downloaded or inference benchmarks claimed.
+
 ## Commands
 
 - `npm run dev`: local Vite development server

@@ -9,7 +9,7 @@ describe('independent documentation site', () => {
     expect(response.status).toBe(200)
     expect(html).toContain('Your first local model')
     expect(html).toContain('https://docs.sizeof.ai/getting-started')
-    expect(html).toContain(docsArticles[0].sections[0].paragraphs[0])
+    expect(html).toContain(docsArticles.find(article => article.slug === 'getting-started')!.sections[0].paragraphs[0])
     expect(html).not.toContain('href="https://sizeof.ai/"')
   })
   it('exposes all guides through sitemap and machine-readable Markdown', async () => {

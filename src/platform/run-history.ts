@@ -26,7 +26,8 @@ function parseRun(value: unknown): DeploymentRun {
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) throw new Error('Invalid record ID.')
   // Validate types before the command builder, then discard unrecognized fields.
   const fields = Object.fromEntries(['os', 'hardware', 'engine', 'model', 'file', 'context', 'port'].map(key => [key, text(raw[key], 512)]))
-  const input = restoreDeployment(new URLSearchParams({ ...fields, v: '1' }).toString())
+  if (raw.revision !== undefined) { const revision = text(raw.revision, 80).trim(); if (revision) fields.revision = revision }
+  const input = restoreDeployment(new URLSearchParams({ ...fields, v: fields.revision ? '2' : '1' }).toString())
   const outcome = row.outcome
   if (outcome !== 'planned' && outcome !== 'succeeded' && outcome !== 'failed') throw new Error('Invalid reported outcome.')
   const result: DeploymentRun = { id, savedAt: date(row.savedAt), input, outcome, runtimeVersion: text(row.runtimeVersion, 120), hardwareLabel: text(row.hardwareLabel, 160), notes: text(row.notes, 3000), firstError: text(row.firstError, 2000) }
@@ -36,27 +37,29 @@ function parseRun(value: unknown): DeploymentRun {
     const path = text(a.path, 240), revision = text(a.revision, 40)
     if (!/^[a-f0-9]{40}$/i.test(revision) || !Number.isSafeInteger(a.sizeBytes) || Number(a.sizeBytes) <= 0 || !/^[A-Za-z0-9][A-Za-z0-9_./-]*$/.test(path) || path.split('/').some(p => !p || p === '.' || p === '..')) throw new Error('Invalid saved artifact facts.')
     if (repositoryId !== input.model || path !== input.file || input.engine !== 'llama-cpp') throw new Error('Saved artifact does not match the deployment configuration.')
+    if (input.revision && input.revision.toLowerCase() !== revision.toLowerCase()) throw new Error('Requested and observed model revisions do not match.')
     result.artifact = { repositoryId, sourceModelId, path, revision, sizeBytes: Number(a.sizeBytes), checkedAt: date(a.checkedAt) }
   }
   return result
 }
 export function parseRuns(value: unknown): DeploymentRun[] {
   const data = object(value)
-  if (data.version !== 1 || !Array.isArray(data.items) || data.items.length > runLimit) throw new Error('Unsupported deployment backup. Maximum 100 records.')
+  if ((data.version !== 1 && data.version !== 2) || !Array.isArray(data.items) || data.items.length > runLimit) throw new Error('Unsupported deployment backup. Maximum 100 records.')
+  if (data.version === 1 && data.items.some(value => object(object(value).input).revision !== undefined)) throw new Error('Fixed-revision records require backup format version 2. No records were imported.')
   const rows = data.items.map(parseRun)
   if (new Set(rows.map(row => row.id)).size !== rows.length) throw new Error('Duplicate record IDs in backup.')
-  if (new TextEncoder().encode(JSON.stringify({ version: 1, items: rows })).length > runByteLimit) throw new Error('Deployment backup exceeds 2 MB.')
+  if (new TextEncoder().encode(JSON.stringify({ version: 2, items: rows })).length > runByteLimit) throw new Error('Deployment backup exceeds 2 MB.')
   return rows
 }
-export function rawRuns(): string { return localStorage.getItem(runStorageKey) ?? '{"version":1,"items":[]}' }
+export function rawRuns(): string { return localStorage.getItem(runStorageKey) ?? '{"version":2,"items":[]}' }
 export function readRuns(): DeploymentRun[] {
   const body = rawRuns()
   if (new TextEncoder().encode(body).length > runByteLimit) throw new Error('Deployment backup exceeds 2 MB.')
   return parseRuns(JSON.parse(body))
 }
 export function writeRuns(items: DeploymentRun[]): DeploymentRun[] {
-  const valid = parseRuns({ version: 1, items })
-  localStorage.setItem(runStorageKey, JSON.stringify({ version: 1, items: valid }))
+  const valid = parseRuns({ version: 2, items })
+  localStorage.setItem(runStorageKey, JSON.stringify({ version: 2, items: valid }))
   return valid
 }
 export function createRun(input: DeploymentInput, details: RunDetails, artifact?: RunArtifact): DeploymentRun {
@@ -67,7 +70,7 @@ export function createRun(input: DeploymentInput, details: RunDetails, artifact?
 // On ID collision retain current data; different imported content gets its own ID.
 export function mergeRuns(imported: DeploymentRun[]): DeploymentRun[] {
   const current = readRuns()
-  for (const row of parseRuns({ version: 1, items: imported })) {
+  for (const row of parseRuns({ version: 2, items: imported })) {
     const collision = current.find(item => item.id === row.id)
     if (collision && JSON.stringify(collision) === JSON.stringify(row)) continue
     current.push(collision ? { ...row, id: crypto.randomUUID() } : row)

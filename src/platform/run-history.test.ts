@@ -4,6 +4,25 @@ import { createRun, mergeRuns, parseRuns, readRuns, removeRun, runStorageKey, wr
 const input = { ...DEPLOYMENT_DEFAULTS, model: 'org/model', file: 'model.gguf' }
 const details = { runtimeVersion: '1.0', hardwareLabel: 'Laptop', outcome: 'planned' as const, notes: '', firstError: '' }
 const make = () => createRun(input, details)
+
+it('preserves pinned revisions and upgrades backup format without discarding legacy records', () => {
+  localStorage.clear()
+  const old = make()
+  localStorage.setItem(runStorageKey, JSON.stringify({ version: 1, items: [old] }))
+  const pinned = createRun({ ...input, revision: 'a'.repeat(40) }, details)
+  mergeRuns([pinned])
+  expect(readRuns()).toEqual([old, pinned])
+  expect(readRuns()[1].input.revision).toBe('a'.repeat(40))
+  expect(JSON.parse(localStorage.getItem(runStorageKey)!).version).toBe(2)
+  expect(() => parseRuns({ version: 1, items: [pinned] })).toThrow(/version 2/)
+})
+
+it('rejects conflicting requested and observed revisions', () => {
+  expect(() => createRun({ ...input, revision: 'a'.repeat(40) }, details, {
+    repositoryId: input.model, path: input.file, revision: 'b'.repeat(40), sizeBytes: 1024,
+    sourceModelId: input.model, checkedAt: new Date().toISOString(),
+  })).toThrow(/revisions do not match/)
+})
 beforeEach(() => localStorage.clear())
 it('saves a detached validated configuration snapshot', () => {
   const copy = { ...input }, run = createRun(copy, details)
@@ -20,7 +39,7 @@ it('does not overwrite valid existing data on malformed imports or full storage'
   writeRuns(rows)
   expect(() => mergeRuns([make()])).toThrow(/100/)
   expect(readRuns()).toEqual(rows)
-  expect(() => parseRuns({ version: 2, items: [] })).toThrow()
+  expect(() => parseRuns({ version: 3, items: [] })).toThrow()
   expect(() => parseRuns({ version: 1, items: [{ ...make(), notes: 'a'.repeat(3001) }] })).toThrow()
 })
 it('preserves both different versions of an ID collision and deduplicates exact copies', () => {

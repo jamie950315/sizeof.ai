@@ -6,6 +6,22 @@ import { DEPLOYMENT_DEFAULTS, restoreDeployment } from './deployment'
 import { createRun, mergeRuns, readRuns, runStorageKey } from './run-history'
 const input = { ...DEPLOYMENT_DEFAULTS, model: 'org/model', file: 'model.gguf' }
 const make = (model = input.model) => createRun({ ...input, model }, { runtimeVersion: '1', hardwareLabel: 'Laptop', outcome: 'planned', notes: '', firstError: '' })
+
+it('compares two selected records and preserves pinned reopen links', () => {
+  localStorage.clear()
+  const left = make()
+  const right = createRun({ ...input, context: '8192', revision: 'a'.repeat(40) }, { runtimeVersion: '2', hardwareLabel: 'Laptop', outcome: 'planned', notes: '', firstError: '' })
+  mergeRuns([left, right]); render(<RunHistoryPage />)
+  fireEvent.click(screen.getByRole('checkbox', { name: `Compare record ${left.id}` }))
+  fireEvent.click(screen.getByRole('checkbox', { name: `Compare record ${right.id}` }))
+  expect(screen.getByRole('heading', { name: 'Compare deployment records' })).toBeInTheDocument()
+  expect(screen.getByText(/A changed outcome does not prove/)).toBeInTheDocument()
+  const links = screen.getAllByRole('link', { name: 'Reopen configuration →' }).map(link => new URL(link.getAttribute('href')!, 'https://testnet.sizeof.ai'))
+  expect(links.some(url => url.searchParams.get('v') === '2' && url.searchParams.get('revision') === 'a'.repeat(40))).toBe(true)
+  expect(screen.getAllByRole('link', { name: 'Record a measurement →' })).toHaveLength(2)
+  fireEvent.click(screen.getByRole('button', { name: `Remove record ${left.id}` }))
+  expect(screen.queryByRole('heading', { name: 'Compare deployment records' })).not.toBeInTheDocument()
+})
 beforeEach(() => localStorage.clear())
 it('saves a user-reported record without claiming verified deployment', () => {
   render(<SaveRunForm input={input} />)

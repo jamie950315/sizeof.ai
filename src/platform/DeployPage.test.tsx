@@ -2,6 +2,27 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DeployPage from './DeployPage'
 import { DEPLOYMENT_DEFAULTS, deploymentSearch } from './deployment'
+import { readRuns } from './run-history'
+
+it('pins a selected published artifact and persists the requested revision', async () => {
+  localStorage.clear()
+  window.history.replaceState(null, '', '/deploy?model=org/model')
+  const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+    id: 'org/model', componentKind: 'model', modelKind: 'language', variants: [{
+      format: 'gguf', role: 'model', path: 'model.gguf', label: 'GGUF Q4', revision: 'a'.repeat(40),
+      weightSizeBytes: 1024, repositoryId: 'publisher/model-GGUF', provenance: 'community',
+    }],
+  }))
+  render(<DeployPage />)
+  fireEvent.click(screen.getByRole('button', { name: 'Find GGUF files' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Use publisher/model-GGUF/model.gguf' }))
+  expect(screen.getByLabelText('Model commit')).toHaveValue('a'.repeat(40))
+  expect(screen.getByRole('button', { name: 'Copy download fixed model revision' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Save configuration snapshot' }))
+  expect(readRuns()[0].input.revision).toBe('a'.repeat(40))
+  expect(readRuns()[0].artifact?.repositoryId).toBe('publisher/model-GGUF')
+  fetcher.mockRestore()
+})
 
 describe('deployment workbench', () => {
   beforeEach(() => window.history.replaceState(null, '', '/deploy'))

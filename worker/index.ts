@@ -430,6 +430,7 @@ function pageMetadata(pathname: string, host: string) {
     '/hardware': { title: 'Hardware planning lab', description: 'Plan memory, disk space, download time and electricity costs with visible assumptions.' },
     '/library': { title: 'My model library', description: 'Save a local model shortlist and notes in your browser.' },
     '/runs': { title: 'Deployment records', description: 'Keep deployment settings, observed artifact versions and your own test outcomes together.' },
+    '/benchmarks': { title: 'Measurement notebook', description: 'Record actual local-model timings, memory observations and failures without inventing performance claims.' },
     '/troubleshoot': { title: 'Troubleshooting workbench', description: 'Find the next safe check from the first failing stage of a local model deployment.' },
     '/docs': { title: 'Local model field guide', description: 'Practical local-model deployment guides for beginners and advanced users.' },
   }
@@ -526,7 +527,7 @@ function svgCardInput(url: URL): ShareCardInput | null {
 }
 
 function sitemap(host: string) {
-  const routes = ['/', '/start', '/deploy', '/hardware', '/troubleshoot', '/compare', '/docs', ...docsArticles.map((article) => `/docs/${article.slug}`), ...models.map((model) => new URL(model.sourceUrl).pathname)]
+  const routes = ['/', '/start', '/deploy', '/hardware', '/benchmarks', '/troubleshoot', '/compare', '/docs', ...docsArticles.map((article) => `/docs/${article.slug}`), ...models.map((model) => new URL(model.sourceUrl).pathname)]
   const locations = [...new Set(routes)].map((route) => `<url><loc>${escapeHtml(`${host}${route}`)}</loc></url>`).join('')
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${locations}</urlset>`
 }
