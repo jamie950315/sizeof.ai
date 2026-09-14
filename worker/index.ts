@@ -41,6 +41,7 @@ import { racePrefixSearch } from './prefix-search'
 import { handleServiceStatus } from './service-status'
 import { handleModelChanges } from './model-changes'
 import { docsArticles } from '../src/docs/content'
+import { handleDocsRequest } from './docs'
 import { fetchWithSafeRedirects, readBoundedBody, readUpstreamJson, UpstreamError } from './upstream'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
@@ -1412,6 +1413,9 @@ export async function handleWorkerRequest(
 ): Promise<Response> {
   const url = new URL(request.url)
   const host = publicHost(env.ENVIRONMENT)
+  if (env.ENVIRONMENT === 'testnet' && (url.pathname === '/docs' || url.pathname.startsWith('/docs/'))) {
+    return handleDocsRequest(request, env, { pathPrefix: '/docs', publicOrigin: host })
+  }
   if (url.pathname === '/api/status') return handleServiceStatus(request, env)
   if (url.pathname === '/api/model-changes') return handleModelChanges(request, huggingFaceFetcher(env))
   const estimateApi = url.pathname === '/api/v1/estimate'

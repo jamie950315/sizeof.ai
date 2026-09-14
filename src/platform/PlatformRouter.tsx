@@ -2,6 +2,7 @@ import { Component, lazy, Suspense, type ReactNode } from 'react'
 import App from '../App'
 import { PlatformLayout } from './PlatformNav'
 import StartPage from './StartPage'
+import { WorkspaceMetadata } from '../i18n/LanguageFooter'
 
 const DeployPage = lazy(() => import('./DeployPage'))
 const HardwarePage = lazy(() => import('./HardwarePage'))
@@ -33,5 +34,5 @@ export default function PlatformRouter() {
           : path === '/compatibility' ? <CompatibilityPage /> : path === '/context' ? <ContextBudgetPage />
             : path === '/model-changes' ? <ModelChangesPage /> : null
   if (!content) return <App />
-  return <PlatformLayout><WorkspaceBoundary><Suspense fallback={<div className="platform-loading" role="status">Opening workspace…</div>}>{content}</Suspense></WorkspaceBoundary></PlatformLayout>
+  return <PlatformLayout><WorkspaceBoundary><Suspense fallback={<div className="platform-loading" role="status">Opening workspace…</div>}>{content}<WorkspaceMetadata /></Suspense></WorkspaceBoundary></PlatformLayout>
 }

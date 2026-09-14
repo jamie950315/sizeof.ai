@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { translate } from '../i18n/core'
 import './status.css'
 
 interface RegionStatus {
@@ -86,7 +87,7 @@ export default function StatusPage() {
         {region.error && <p className="status-warning">{region.error}</p>}
         <div className="status-count">{region.models === null ? 'Unknown' : region.models.toLocaleString()}<small>model names</small></div>
         <dl><div><dt>List updated</dt><dd>{shownDate(region.updatedAt)}</dd></div><div><dt>Update age</dt><dd>{yesNo(region.stale, 'Older than 8 hours', 'Within 8 hours')}</dd></div><div><dt>Synchronization</dt><dd>{yesNo(region.syncHealthy, 'Latest check healthy', 'Needs attention')}</dd></div><div><dt>Latest successful synchronization</dt><dd>{shownDate(region.lastSyncAt)}</dd></div><div><dt>Initial backfill finished</dt><dd>{yesNo(region.initialBackfillComplete, 'Yes — not a live completeness guarantee', 'Not yet confirmed complete')}</dd></div><div><dt>Last complete backfill</dt><dd>{shownDate(region.lastFullBackfillAt)}</dd></div></dl>
-        <details><summary>Published list identifier</summary><code>{region.generation ?? 'Unknown'}</code></details>
+        <details><summary>Published list identifier</summary><code>{region.generation ?? translate('Unknown')}</code></details>
       </section>)}</div>
       <section className="status-explanation"><h2>Coverage has limits</h2><p>{data.coverageNote}</p><p>The eight-hour age marker is an attention threshold, not an update-time promise. A completed backfill is a historical crawl result, not proof of zero missing, renamed, deleted, or newly public models today.</p></section>
     </>}

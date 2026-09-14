@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useLanguage } from './i18n/LanguageFooter'
+import { translate } from './i18n/core'
 import PlatformNav from './platform/PlatformNav'
 import SaveModelButton from './platform/SaveModelButton'
 import {
@@ -170,6 +172,7 @@ function Brand() {
 }
 
 export default function ModelDetailPage({ route }: Props) {
+  const { locale } = useLanguage()
   const [model, setModel] = useState<HuggingFaceModel | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
@@ -262,9 +265,9 @@ export default function ModelDetailPage({ route }: Props) {
   }, [context, kvPrecision, mlaCacheMode, model, quantization, selectedSource, selectedVariantId, vram])
 
   useEffect(() => {
-    if (model) document.title = `${model.name} VRAM & specs — sizeof.ai`
-    return () => { document.title = 'sizeof.ai — LLM memory, measured' }
-  }, [model])
+    if (model) document.title = `${model.name} ${translate('VRAM & specs')} — sizeof.ai`
+    return () => { document.title = `sizeof.ai — ${translate('LLM memory, measured')}` }
+  }, [model, locale])
 
   const modelVariants = model?.variants ?? []
   const selectableVariants = model?.addon

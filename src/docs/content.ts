@@ -1,3 +1,5 @@
+import { getActiveLocale, translate } from '../i18n/core'
+
 export interface DocSection {
   id: string
   title: string
@@ -188,12 +190,13 @@ export function findDocArticle(slug: string): DocArticle | undefined {
   return docsArticles.find((article) => article.slug === slug)
 }
 
-export function searchDocs(query: string, level = 'All'): DocArticle[] {
+export function searchDocs(query: string, level = 'All', locale = getActiveLocale()): DocArticle[] {
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   return docsArticles.filter((article) => {
     if (level !== 'All' && article.level !== level) return false
     const text = [article.title, article.description, article.category, ...article.sections.flatMap((section) => [section.title, ...section.paragraphs, ...(section.bullets ?? [])])].join(' ').toLowerCase()
-    return terms.every((term) => text.includes(term))
+    const localized = [article.title, article.description, article.category, ...article.sections.flatMap((section) => [section.title, ...section.paragraphs, ...(section.bullets ?? [])])].map(value => translate(value, locale)).join(' ').toLowerCase()
+    return terms.every((term) => text.includes(term) || localized.includes(term))
   })
 }
 

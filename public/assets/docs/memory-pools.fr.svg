@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
+<title id="title">Mémoire GPU dédiée et mémoire unifiée Apple</title><desc id="desc">Les systèmes GPU dédiés ont une RAM système et une VRAM GPU distinctes. La mémoire unifiée Apple est un pool physique partagé par le CPU et le GPU. Les deux ont besoin d’espace pour les poids, l’état du modèle, les espaces de travail et d’autres applications. Les boîtes ne sont pas à l'échelle.</desc>
+<rect width="1100" height="620" rx="16" fill="#111923"/>
+<g font-family="system-ui,sans-serif" fill="#edf3ff">
+<text x="40" y="52" font-size="24" font-weight="700" textLength="1010" lengthAdjust="spacingAndGlyphs">Où se trouve la mémoire des modèles ?</text>
+<text x="40" y="81" font-size="15" fill="#acbbce" textLength="1010" lengthAdjust="spacingAndGlyphs">Propriété conceptuelle de la mémoire · pas à l'échelle</text>
+<text x="42" y="136" font-size="21" font-weight="650">GPU dédié</text>
+<text x="602" y="136" font-size="21" font-weight="650">Mémoire unifiée Apple</text>
+<rect x="40" y="162" width="460" height="110" rx="8" fill="#202d40" stroke="#5a7394"/>
+<text x="62" y="193" font-size="18" font-weight="650" textLength="390" lengthAdjust="spacingAndGlyphs">RAM système · Processeur</text><text x="62" y="226" font-size="15" fill="#becae0" textLength="390" lengthAdjust="spacingAndGlyphs">Système d'exploitation, applications, chargement et déchargement facultatif</text>
+<path d="M270 278V309" stroke="#91abc9" stroke-width="2"/><path d="m262 301 8 8 8-8" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="291" y="298" font-size="13" fill="#afc0d7">Transferts de données</text>
+<rect x="40" y="322" width="460" height="210" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="62" y="355" font-size="18" font-weight="650">GPU VRAM · capacité séparée</text>
+<rect x="62" y="378" width="416" height="34" rx="4" fill="#275fac"/><text x="77" y="401" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs">Pondérations du modèle résident</text>
+<rect x="62" y="422" width="416" height="34" rx="4" fill="#59488d"/><text x="77" y="445" font-size="15">Cache KV / état spécifique à l'architecture</text>
+<rect x="62" y="466" width="416" height="34" rx="4" fill="#256665"/><text x="77" y="489" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs">Espaces de travail d'exécution et autres allocations</text>
+<rect x="600" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="685" y="195" font-size="18">CPU</text>
+<rect x="845" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="930" y="195" font-size="18">GPU</text>
+<path d="M708 219V250H950V219M830 250V257M830 282V294" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="627" y="276" font-size="13" fill="#afc0d7">Accéder au même pool de mémoire physique</text>
+<rect x="600" y="294" width="460" height="238" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="622" y="325" font-size="18" font-weight="650" textLength="390" lengthAdjust="spacingAndGlyphs">Capacité partagée · laisser de la marge au système</text>
+<rect x="622" y="344" width="416" height="32" rx="4" fill="#35445d"/><text x="637" y="366" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs">Système d'exploitation et autres applications</text>
+<rect x="622" y="386" width="416" height="32" rx="4" fill="#275fac"/><text x="637" y="408" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs">Pondérations du modèle résident</text>
+<rect x="622" y="428" width="416" height="32" rx="4" fill="#59488d"/><text x="637" y="450" font-size="15">Cache KV / état spécifique à l'architecture</text>
+<rect x="622" y="470" width="416" height="32" rx="4" fill="#256665"/><text x="637" y="492" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs">Espaces de travail d'exécution et autres allocations</text>
+<text x="40" y="572" font-size="15" fill="#bfcee2">L'espace disque est distinct des deux diagrammes. Un modèle adapté au disque ne prouve pas qu’il tient en mémoire.</text>
+<text x="40" y="598" font-size="13" fill="#91a5c1" textLength="1010" lengthAdjust="spacingAndGlyphs">Les limites d'exécution, le déchargement, le partage et les allocations de pointe dépendent de l'appareil, du moteur et de la charge de travail.</text>
+</g></svg>

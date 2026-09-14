@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
+<title id="title">전용 GPU 메모리 및 Apple 통합 메모리</title><desc id="desc">전용 GPU 시스템에는 별도의 시스템 RAM과 GPU VRAM이 있습니다. Apple 통합 메모리는 CPU와 GPU가 공유하는 물리적 풀입니다. 둘 다 가중치, 모델 상태, 작업 공간 및 기타 응용 프로그램을 위한 공간이 필요합니다. 상자는 크기가 조정되지 않습니다.</desc>
+<rect width="1100" height="620" rx="16" fill="#111923"/>
+<g font-family="system-ui,sans-serif" fill="#edf3ff">
+<text x="40" y="52" font-size="24" font-weight="700">모델 메모리는 어디에 있습니까?</text>
+<text x="40" y="81" font-size="15" fill="#acbbce">메모리의 개념적 소유권 · 확장 불가</text>
+<text x="42" y="136" font-size="21" font-weight="650">전용 GPU</text>
+<text x="602" y="136" font-size="21" font-weight="650">애플 통합 메모리</text>
+<rect x="40" y="162" width="460" height="110" rx="8" fill="#202d40" stroke="#5a7394"/>
+<text x="62" y="193" font-size="18" font-weight="650">시스템 RAM · CPU</text><text x="62" y="226" font-size="15" fill="#becae0">OS, 애플리케이션, 로딩 및 선택적 오프로드</text>
+<path d="M270 278V309" stroke="#91abc9" stroke-width="2"/><path d="m262 301 8 8 8-8" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="291" y="298" font-size="13" fill="#afc0d7">데이터 전송</text>
+<rect x="40" y="322" width="460" height="210" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="62" y="355" font-size="18" font-weight="650">GPU VRAM · 별도 용량</text>
+<rect x="62" y="378" width="416" height="34" rx="4" fill="#275fac"/><text x="77" y="401" font-size="15">상주 모델 가중치</text>
+<rect x="62" y="422" width="416" height="34" rx="4" fill="#59488d"/><text x="77" y="445" font-size="15">KV 캐시/아키텍처별 상태</text>
+<rect x="62" y="466" width="416" height="34" rx="4" fill="#256665"/><text x="77" y="489" font-size="15">런타임 작업공간 및 기타 할당</text>
+<rect x="600" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="685" y="195" font-size="18">CPU</text>
+<rect x="845" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="930" y="195" font-size="18">GPU</text>
+<path d="M708 219V250H950V219M830 250V257M830 282V294" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="627" y="276" font-size="13" fill="#afc0d7">동일한 물리적 메모리 풀에 액세스</text>
+<rect x="600" y="294" width="460" height="238" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="622" y="325" font-size="18" font-weight="650">공유 용량 · 시스템 헤드룸 남겨두기</text>
+<rect x="622" y="344" width="416" height="32" rx="4" fill="#35445d"/><text x="637" y="366" font-size="15">OS 및 기타 애플리케이션</text>
+<rect x="622" y="386" width="416" height="32" rx="4" fill="#275fac"/><text x="637" y="408" font-size="15">상주 모델 가중치</text>
+<rect x="622" y="428" width="416" height="32" rx="4" fill="#59488d"/><text x="637" y="450" font-size="15">KV 캐시/아키텍처별 상태</text>
+<rect x="622" y="470" width="416" height="32" rx="4" fill="#256665"/><text x="637" y="492" font-size="15">런타임 작업공간 및 기타 할당</text>
+<text x="40" y="572" font-size="15" fill="#bfcee2">디스크 공간은 두 다이어그램과 별개입니다. 디스크에 맞는 모델이 메모리에 맞는다는 것을 증명하지는 않습니다.</text>
+<text x="40" y="598" font-size="13" fill="#91a5c1">런타임 제한, 오프로드, 공유 및 최대 할당은 장치, 엔진 및 작업 부하에 따라 다릅니다.</text>
+</g></svg>

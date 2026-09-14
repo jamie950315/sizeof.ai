@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
+<title id="title">Memori GPU khusus dan memori terpadu Apple</title><desc id="desc">Sistem GPU khusus memiliki RAM sistem dan VRAM GPU terpisah. Memori terpadu Apple adalah kumpulan fisik yang digunakan bersama oleh CPU dan GPU. Keduanya memerlukan ruang untuk bobot, status model, ruang kerja, dan aplikasi lainnya. Kotak tidak boleh diukur.</desc>
+<rect width="1100" height="620" rx="16" fill="#111923"/>
+<g font-family="system-ui,sans-serif" fill="#edf3ff">
+<text x="40" y="52" font-size="24" font-weight="700">Di mana memori model berada?</text>
+<text x="40" y="81" font-size="15" fill="#acbbce" textLength="1010" lengthAdjust="spacingAndGlyphs">Kepemilikan memori secara konseptual · tidak berskala</text>
+<text x="42" y="136" font-size="21" font-weight="650">GPU khusus</text>
+<text x="602" y="136" font-size="21" font-weight="650">Memori terpadu Apple</text>
+<rect x="40" y="162" width="460" height="110" rx="8" fill="#202d40" stroke="#5a7394"/>
+<text x="62" y="193" font-size="18" font-weight="650">RAM Sistem · CPU</text><text x="62" y="226" font-size="15" fill="#becae0">OS, aplikasi, pemuatan, dan pembongkaran opsional</text>
+<path d="M270 278V309" stroke="#91abc9" stroke-width="2"/><path d="m262 301 8 8 8-8" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="291" y="298" font-size="13" fill="#afc0d7">Transfer data</text>
+<rect x="40" y="322" width="460" height="210" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="62" y="355" font-size="18" font-weight="650">GPU VRAM · kapasitas terpisah</text>
+<rect x="62" y="378" width="416" height="34" rx="4" fill="#275fac"/><text x="77" y="401" font-size="15">Bobot model residen</text>
+<rect x="62" y="422" width="416" height="34" rx="4" fill="#59488d"/><text x="77" y="445" font-size="15">Cache KV/status khusus arsitektur</text>
+<rect x="62" y="466" width="416" height="34" rx="4" fill="#256665"/><text x="77" y="489" font-size="15">Ruang kerja runtime dan alokasi lainnya</text>
+<rect x="600" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="685" y="195" font-size="18">CPU</text>
+<rect x="845" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="930" y="195" font-size="18">GPU</text>
+<path d="M708 219V250H950V219M830 250V257M830 282V294" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="627" y="276" font-size="13" fill="#afc0d7">Akses kumpulan memori fisik yang sama</text>
+<rect x="600" y="294" width="460" height="238" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="622" y="325" font-size="18" font-weight="650" textLength="390" lengthAdjust="spacingAndGlyphs">Kapasitas bersama · tinggalkan ruang kepala sistem</text>
+<rect x="622" y="344" width="416" height="32" rx="4" fill="#35445d"/><text x="637" y="366" font-size="15">OS dan aplikasi lainnya</text>
+<rect x="622" y="386" width="416" height="32" rx="4" fill="#275fac"/><text x="637" y="408" font-size="15">Bobot model residen</text>
+<rect x="622" y="428" width="416" height="32" rx="4" fill="#59488d"/><text x="637" y="450" font-size="15">Cache KV/status khusus arsitektur</text>
+<rect x="622" y="470" width="416" height="32" rx="4" fill="#256665"/><text x="637" y="492" font-size="15">Ruang kerja runtime dan alokasi lainnya</text>
+<text x="40" y="572" font-size="15" fill="#bfcee2" textLength="1010" lengthAdjust="spacingAndGlyphs">Ruang disk terpisah dari kedua diagram. Pemasangan model pada disk tidak membuktikan bahwa model tersebut cocok dengan memori.</text>
+<text x="40" y="598" font-size="13" fill="#91a5c1" textLength="1010" lengthAdjust="spacingAndGlyphs">Batas waktu pengoperasian, pembongkaran muatan, pembagian, dan alokasi puncak bergantung pada perangkat, mesin, dan beban kerja.</text>
+</g></svg>

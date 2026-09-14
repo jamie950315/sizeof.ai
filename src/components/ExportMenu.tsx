@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
 import { createSizingExport, exportSizingCsv, exportSizingMarkdown, type SizingExportInput } from '../lib/export'
+import { localizeOutput } from '../i18n/core'
 
 interface Props { input: SizingExportInput; label?: string; fileStem: string }
 function download(contents: string, type: string, fileName: string) { const url = URL.createObjectURL(new Blob([contents], { type })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = fileName; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0) }
 function textareaCopy(contents: string) {
   const previousFocus = document.activeElement
   const textarea = document.createElement('textarea')
-  textarea.value = contents
+  textarea.value = localizeOutput(contents)
   textarea.setAttribute('readonly', '')
   textarea.style.position = 'fixed'
   textarea.style.opacity = '0'

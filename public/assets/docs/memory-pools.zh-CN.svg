@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
+<title id="title">专用 GPU 内存和 Apple 统一内存</title><desc id="desc">专用 GPU 系统具有独立的系统 RAM 和 GPU VRAM。 Apple统一内存是CPU和GPU共享的物理池。两者都需要空间来容纳权重、模型状态、工作空间和其他应用程序。盒子不按比例。</desc>
+<rect width="1100" height="620" rx="16" fill="#111923"/>
+<g font-family="system-ui,sans-serif" fill="#edf3ff">
+<text x="40" y="52" font-size="24" font-weight="700">模型内存位于哪里？</text>
+<text x="40" y="81" font-size="15" fill="#acbbce">内存的概念所有权·未按比例</text>
+<text x="42" y="136" font-size="21" font-weight="650">专用GPU</text>
+<text x="602" y="136" font-size="21" font-weight="650">苹果统一内存</text>
+<rect x="40" y="162" width="460" height="110" rx="8" fill="#202d40" stroke="#5a7394"/>
+<text x="62" y="193" font-size="18" font-weight="650">系统内存·CPU</text><text x="62" y="226" font-size="15" fill="#becae0">操作系统、应用程序、加载和可选卸载</text>
+<path d="M270 278V309" stroke="#91abc9" stroke-width="2"/><path d="m262 301 8 8 8-8" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="291" y="298" font-size="13" fill="#afc0d7">数据传输</text>
+<rect x="40" y="322" width="460" height="210" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="62" y="355" font-size="18" font-weight="650">GPU VRAM·独立容量</text>
+<rect x="62" y="378" width="416" height="34" rx="4" fill="#275fac"/><text x="77" y="401" font-size="15">常驻模型权重</text>
+<rect x="62" y="422" width="416" height="34" rx="4" fill="#59488d"/><text x="77" y="445" font-size="15">KV 缓存/架构特定状态</text>
+<rect x="62" y="466" width="416" height="34" rx="4" fill="#256665"/><text x="77" y="489" font-size="15">运行时工作区和其他分配</text>
+<rect x="600" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="685" y="195" font-size="18">CPU</text>
+<rect x="845" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="930" y="195" font-size="18">GPU</text>
+<path d="M708 219V250H950V219M830 250V257M830 282V294" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="627" y="276" font-size="13" fill="#afc0d7">访问同一个物理内存池</text>
+<rect x="600" y="294" width="460" height="238" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="622" y="325" font-size="18" font-weight="650">共享容量·留出系统空间</text>
+<rect x="622" y="344" width="416" height="32" rx="4" fill="#35445d"/><text x="637" y="366" font-size="15">操作系统和其他应用程序</text>
+<rect x="622" y="386" width="416" height="32" rx="4" fill="#275fac"/><text x="637" y="408" font-size="15">常驻模型权重</text>
+<rect x="622" y="428" width="416" height="32" rx="4" fill="#59488d"/><text x="637" y="450" font-size="15">KV 缓存/架构特定状态</text>
+<rect x="622" y="470" width="416" height="32" rx="4" fill="#256665"/><text x="637" y="492" font-size="15">运行时工作区和其他分配</text>
+<text x="40" y="572" font-size="15" fill="#bfcee2">磁盘空间与两个图是分开的。适合磁盘的模型并不能证明它适合内存。</text>
+<text x="40" y="598" font-size="13" fill="#91a5c1">运行时限制、卸载、共享和峰值分配取决于设备、引擎和工作负载。</text>
+</g></svg>

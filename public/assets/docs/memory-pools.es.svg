@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
+<title id="title">Memoria GPU dedicada y memoria unificada de Apple</title><desc id="desc">Los sistemas de GPU dedicados tienen RAM de sistema y VRAM de GPU independientes. La memoria unificada de Apple es un grupo físico compartido por CPU y GPU. Ambos necesitan espacio para pesos, estado del modelo, espacios de trabajo y otras aplicaciones. Las cajas no están a escala.</desc>
+<rect width="1100" height="620" rx="16" fill="#111923"/>
+<g font-family="system-ui,sans-serif" fill="#edf3ff">
+<text x="40" y="52" font-size="24" font-weight="700">¿Dónde vive la memoria modelo?</text>
+<text x="40" y="81" font-size="15" fill="#acbbce">Propiedad conceptual de la memoria · no a escala</text>
+<text x="42" y="136" font-size="21" font-weight="650">GPU dedicada</text>
+<text x="602" y="136" font-size="21" font-weight="650" textLength="390" lengthAdjust="spacingAndGlyphs">Memoria unificada de Apple</text>
+<rect x="40" y="162" width="460" height="110" rx="8" fill="#202d40" stroke="#5a7394"/>
+<text x="62" y="193" font-size="18" font-weight="650" textLength="390" lengthAdjust="spacingAndGlyphs">RAM del sistema · CPU</text><text x="62" y="226" font-size="15" fill="#becae0">SO, aplicaciones, carga y descarga opcional</text>
+<path d="M270 278V309" stroke="#91abc9" stroke-width="2"/><path d="m262 301 8 8 8-8" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="291" y="298" font-size="13" fill="#afc0d7">Transferencias de datos</text>
+<rect x="40" y="322" width="460" height="210" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="62" y="355" font-size="18" font-weight="650">GPU VRAM · capacidad separada</text>
+<rect x="62" y="378" width="416" height="34" rx="4" fill="#275fac"/><text x="77" y="401" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs">Pesos del modelo residente</text>
+<rect x="62" y="422" width="416" height="34" rx="4" fill="#59488d"/><text x="77" y="445" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs">Caché KV/estado específico de la arquitectura</text>
+<rect x="62" y="466" width="416" height="34" rx="4" fill="#256665"/><text x="77" y="489" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs">Espacios de trabajo en tiempo de ejecución y otras asignaciones</text>
+<rect x="600" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="685" y="195" font-size="18">CPU</text>
+<rect x="845" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="930" y="195" font-size="18">GPU</text>
+<path d="M708 219V250H950V219M830 250V257M830 282V294" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="627" y="276" font-size="13" fill="#afc0d7">Acceda al mismo grupo de memoria física</text>
+<rect x="600" y="294" width="460" height="238" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="622" y="325" font-size="18" font-weight="650" textLength="390" lengthAdjust="spacingAndGlyphs">Capacidad compartida · dejar espacio libre al sistema</text>
+<rect x="622" y="344" width="416" height="32" rx="4" fill="#35445d"/><text x="637" y="366" font-size="15">SO y otras aplicaciones</text>
+<rect x="622" y="386" width="416" height="32" rx="4" fill="#275fac"/><text x="637" y="408" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs">Pesos del modelo residente</text>
+<rect x="622" y="428" width="416" height="32" rx="4" fill="#59488d"/><text x="637" y="450" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs">Caché KV/estado específico de la arquitectura</text>
+<rect x="622" y="470" width="416" height="32" rx="4" fill="#256665"/><text x="637" y="492" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs">Espacios de trabajo en tiempo de ejecución y otras asignaciones</text>
+<text x="40" y="572" font-size="15" fill="#bfcee2" textLength="1010" lengthAdjust="spacingAndGlyphs">El espacio en disco está separado de ambos diagramas. Un modelo que encaja en el disco no prueba que quepa en la memoria.</text>
+<text x="40" y="598" font-size="13" fill="#91a5c1" textLength="1010" lengthAdjust="spacingAndGlyphs">Los límites de tiempo de ejecución, la descarga, el uso compartido y las asignaciones máximas dependen del dispositivo, el motor y la carga de trabajo.</text>
+</g></svg>

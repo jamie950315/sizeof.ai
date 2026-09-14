@@ -18,7 +18,9 @@
     "cli": "node ./cli/sizeof.mjs",
     "mcp": "node ./mcp/server.mjs",
     "typecheck": "tsc -b --pretty false",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/i18n-check.mjs && tsc -b && node scripts/localize-diagrams.mjs && vite build",
+    "i18n:extract": "node scripts/i18n-catalog.mjs --extract --write",
+    "i18n:generate": "node scripts/i18n-catalog.mjs --write",
     "preview": "vite preview",
     "cf:check": "wrangler deploy --dry-run",
     "deploy": "npm run build && wrangler deploy",
@@ -36,9 +38,11 @@
     "react-dom": "latest"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.7",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
     "@testing-library/user-event": "latest",
+    "@types/babel__core": "^7.20.5",
     "@types/node": "^26.2.0",
     "@types/react": "latest",
     "@types/react-dom": "latest",

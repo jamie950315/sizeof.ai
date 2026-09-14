@@ -149,6 +149,14 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Activated the previously disconnected dedicated `sizeof-search-us` tunnel (`a6b59d6b-b12a-4130-811e-0c3435a957b6`) on A1-US with `cloudflared-sizeof-search.service`; checked-in config/service templates live in `services/search-index/`. Credentials are root-only under `/etc/cloudflared`, not in the repository; only loopback API and metrics ports are used. Existing Tailscale and unrelated tunnels were not restarted. The new DNS record points only to this US tunnel.
 - Verified 868 JS/TS tests and build/typecheck, systemd/ingress validation, local Worker smoke, four active SJC tunnel connections with zero origin proxy errors, eight consecutive live status checks with both regions healthy/aligned (3,055,452 names), five authenticated direct US searches, and five public testnet searches from A1-US returning `X-Sizeof-Search-Source: us` (148–410 ms in this sample). Unauthenticated search/snapshot requests return 401. Browser status shows both lists ready. Production homepage hash is unchanged. These checks establish current recovery, not a permanent uptime guarantee.
 
+## Multilingual testnet preview (2026-09-14)
+
+- Testnet supports English, Simplified/Traditional Chinese, Japanese, Spanish, Russian, German, French, Portuguese, Korean, Arabic (RTL), Hindi, and Indonesian across UI, documentation, errors, accessibility labels, human-readable exports, and documentation diagrams. Model identities, technical units, executable commands, user observations, and JSON/CSV backup schemas stay unchanged.
+- The footer selection is retained in `lang` URL parameters, browser-local storage, and a shared `sizeof-language` cookie. Language parameters are separated from strict calculator/runbook schemas. Locale packs load on demand; failed switches preserve the previous language and configuration.
+- Documentation links from testnet remain under `https://testnet.sizeof.ai/docs`, including localized server-rendered HTML and `.md` articles. The existing `docs.sizeof.ai` and production Workers are not deployed by this stream.
+- English source copy is canonical. `scripts/i18n-jsx.cjs` localizes the React source tree, not the DOM. `src/i18n/messages.json` and twelve locale catalogs contain 3,204 matching keys; `npm run i18n:extract` and `npm run i18n:generate` maintain them. Build regenerates localized SVG assets. New public copy requires matching catalog entries before release; see `src/i18n/README.md` for provenance and checks.
+- Initial translations are machine-generated with targeted technical corrections and model-authored gap filling; comprehensive native-speaker linguistic review is not claimed.
+
 ## Commands
 
 - `npm run dev`: local Vite development server

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
+<title id="title">समर्पित GPU मेमोरी और Apple एकीकृत मेमोरी</title><desc id="desc">समर्पित जीपीयू सिस्टम में अलग सिस्टम रैम और जीपीयू वीआरएएम होता है। Apple एकीकृत मेमोरी CPU और GPU द्वारा साझा किया गया एक भौतिक पूल है। दोनों को वज़न, मॉडल स्थिति, कार्यस्थान और अन्य अनुप्रयोगों के लिए जगह की आवश्यकता होती है। बक्से पैमाने पर नहीं हैं.</desc>
+<rect width="1100" height="620" rx="16" fill="#111923"/>
+<g font-family="system-ui,sans-serif" fill="#edf3ff">
+<text x="40" y="52" font-size="24" font-weight="700">मॉडल मेमोरी कहाँ रहती है?</text>
+<text x="40" y="81" font-size="15" fill="#acbbce">स्मृति का वैचारिक स्वामित्व · पैमाने पर नहीं</text>
+<text x="42" y="136" font-size="21" font-weight="650">समर्पित जीपीयू</text>
+<text x="602" y="136" font-size="21" font-weight="650">Apple एकीकृत मेमोरी</text>
+<rect x="40" y="162" width="460" height="110" rx="8" fill="#202d40" stroke="#5a7394"/>
+<text x="62" y="193" font-size="18" font-weight="650" textLength="390" lengthAdjust="spacingAndGlyphs">सिस्टम रैम · सीपीयू</text><text x="62" y="226" font-size="15" fill="#becae0">ओएस, एप्लिकेशन, लोडिंग और वैकल्पिक ऑफलोड</text>
+<path d="M270 278V309" stroke="#91abc9" stroke-width="2"/><path d="m262 301 8 8 8-8" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="291" y="298" font-size="13" fill="#afc0d7">डेटा स्थानांतरण</text>
+<rect x="40" y="322" width="460" height="210" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="62" y="355" font-size="18" font-weight="650">जीपीयू वीआरएएम · अलग क्षमता</text>
+<rect x="62" y="378" width="416" height="34" rx="4" fill="#275fac"/><text x="77" y="401" font-size="15">निवासी मॉडल वजन</text>
+<rect x="62" y="422" width="416" height="34" rx="4" fill="#59488d"/><text x="77" y="445" font-size="15">केवी कैश/आर्किटेक्चर-विशिष्ट स्थिति</text>
+<rect x="62" y="466" width="416" height="34" rx="4" fill="#256665"/><text x="77" y="489" font-size="15">रनटाइम कार्यस्थान और अन्य आवंटन</text>
+<rect x="600" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="685" y="195" font-size="18">CPU</text>
+<rect x="845" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="930" y="195" font-size="18">GPU</text>
+<path d="M708 219V250H950V219M830 250V257M830 282V294" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="627" y="276" font-size="13" fill="#afc0d7">उसी भौतिक मेमोरी पूल तक पहुंचें</text>
+<rect x="600" y="294" width="460" height="238" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="622" y="325" font-size="18" font-weight="650">साझा क्षमता · सिस्टम हेडरूम छोड़ें</text>
+<rect x="622" y="344" width="416" height="32" rx="4" fill="#35445d"/><text x="637" y="366" font-size="15">ओएस और अन्य अनुप्रयोग</text>
+<rect x="622" y="386" width="416" height="32" rx="4" fill="#275fac"/><text x="637" y="408" font-size="15">निवासी मॉडल वजन</text>
+<rect x="622" y="428" width="416" height="32" rx="4" fill="#59488d"/><text x="637" y="450" font-size="15">केवी कैश/आर्किटेक्चर-विशिष्ट स्थिति</text>
+<rect x="622" y="470" width="416" height="32" rx="4" fill="#256665"/><text x="637" y="492" font-size="15">रनटाइम कार्यस्थान और अन्य आवंटन</text>
+<text x="40" y="572" font-size="15" fill="#bfcee2">डिस्क स्थान दोनों आरेखों से अलग है। डिस्क पर फिट होने वाला मॉडल यह साबित नहीं करता है कि यह मेमोरी में फिट बैठता है।</text>
+<text x="40" y="598" font-size="13" fill="#91a5c1">रनटाइम सीमा, ऑफलोड, शेयरिंग और पीक आवंटन डिवाइस, इंजन और वर्कलोड पर निर्भर करते हैं।</text>
+</g></svg>

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
+<title id="title">ذاكرة GPU مخصصة وذاكرة Apple الموحدة</title><desc id="desc">تحتوي أنظمة GPU المخصصة على ذاكرة وصول عشوائي (RAM) منفصلة للنظام وذاكرة GPU VRAM منفصلة. ذاكرة Apple الموحدة عبارة عن تجمع فعلي مشترك بين وحدة المعالجة المركزية ووحدة معالجة الرسومات. كلاهما يحتاج إلى مساحة للأوزان وحالة النموذج ومساحات العمل والتطبيقات الأخرى. الصناديق ليست على نطاق واسع.</desc>
+<rect width="1100" height="620" rx="16" fill="#111923"/>
+<g font-family="system-ui,sans-serif" fill="#edf3ff">
+<text x="1060" y="52" font-size="24" font-weight="700" direction="rtl" unicode-bidi="plaintext" text-anchor="start">أين تعيش ذاكرة النموذج؟</text>
+<text x="1060" y="81" font-size="15" fill="#acbbce" direction="rtl" unicode-bidi="plaintext" text-anchor="start">الملكية المفاهيمية للذاكرة · عدم القياس</text>
+<text x="490" y="136" font-size="21" font-weight="650" textLength="450" lengthAdjust="spacingAndGlyphs" direction="rtl" unicode-bidi="plaintext" text-anchor="start">وحدة معالجة الرسومات المخصصة</text>
+<text x="1050" y="136" font-size="21" font-weight="650" direction="rtl" unicode-bidi="plaintext" text-anchor="start">ذاكرة أبل الموحدة</text>
+<rect x="40" y="162" width="460" height="110" rx="8" fill="#202d40" stroke="#5a7394"/>
+<text x="478" y="193" font-size="18" font-weight="650" textLength="390" lengthAdjust="spacingAndGlyphs" direction="rtl" unicode-bidi="plaintext" text-anchor="start">ذاكرة الوصول العشوائي للنظام · وحدة المعالجة المركزية</text><text x="478" y="226" font-size="15" fill="#becae0" direction="rtl" unicode-bidi="plaintext" text-anchor="start">نظام التشغيل والتطبيقات والتحميل والتفريغ الاختياري</text>
+<path d="M270 278V309" stroke="#91abc9" stroke-width="2"/><path d="m262 301 8 8 8-8" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="480" y="298" font-size="13" fill="#afc0d7" direction="rtl" unicode-bidi="plaintext" text-anchor="start">عمليات نقل البيانات</text>
+<rect x="40" y="322" width="460" height="210" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="478" y="355" font-size="18" font-weight="650" direction="rtl" unicode-bidi="plaintext" text-anchor="start">GPU VRAM · سعة منفصلة</text>
+<rect x="62" y="378" width="416" height="34" rx="4" fill="#275fac"/><text x="463" y="401" font-size="15" direction="rtl" unicode-bidi="plaintext" text-anchor="start">أوزان النموذج المقيم</text>
+<rect x="62" y="422" width="416" height="34" rx="4" fill="#59488d"/><text x="463" y="445" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs" direction="rtl" unicode-bidi="plaintext" text-anchor="start">ذاكرة التخزين المؤقت KV/حالة خاصة بالهندسة المعمارية</text>
+<rect x="62" y="466" width="416" height="34" rx="4" fill="#256665"/><text x="463" y="489" font-size="15" direction="rtl" unicode-bidi="plaintext" text-anchor="start">مساحات عمل وقت التشغيل والتخصيصات الأخرى</text>
+<rect x="600" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="685" y="195" font-size="18">CPU</text>
+<rect x="845" y="162" width="215" height="52" rx="7" fill="#202d40" stroke="#5a7394"/><text x="930" y="195" font-size="18">GPU</text>
+<path d="M708 219V250H950V219M830 250V257M830 282V294" fill="none" stroke="#91abc9" stroke-width="2"/>
+<text x="1032" y="276" font-size="13" fill="#afc0d7" direction="rtl" unicode-bidi="plaintext" text-anchor="start">الوصول إلى نفس تجمع الذاكرة الفعلية</text>
+<rect x="600" y="294" width="460" height="238" rx="8" fill="#16253d" stroke="#6793d9"/>
+<text x="1038" y="325" font-size="18" font-weight="650" direction="rtl" unicode-bidi="plaintext" text-anchor="start">القدرة المشتركة · ترك الإرتفاع للنظام</text>
+<rect x="622" y="344" width="416" height="32" rx="4" fill="#35445d"/><text x="1023" y="366" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs" direction="rtl" unicode-bidi="plaintext" text-anchor="start">نظام التشغيل والتطبيقات الأخرى</text>
+<rect x="622" y="386" width="416" height="32" rx="4" fill="#275fac"/><text x="1023" y="408" font-size="15" direction="rtl" unicode-bidi="plaintext" text-anchor="start">أوزان النموذج المقيم</text>
+<rect x="622" y="428" width="416" height="32" rx="4" fill="#59488d"/><text x="1023" y="450" font-size="15" textLength="390" lengthAdjust="spacingAndGlyphs" direction="rtl" unicode-bidi="plaintext" text-anchor="start">ذاكرة التخزين المؤقت KV/حالة خاصة بالهندسة المعمارية</text>
+<rect x="622" y="470" width="416" height="32" rx="4" fill="#256665"/><text x="1023" y="492" font-size="15" direction="rtl" unicode-bidi="plaintext" text-anchor="start">مساحات عمل وقت التشغيل والتخصيصات الأخرى</text>
+<text x="1060" y="572" font-size="15" fill="#bfcee2" direction="rtl" unicode-bidi="plaintext" text-anchor="start">مساحة القرص منفصلة عن كلا المخططين. النموذج الملائم على القرص لا يثبت أنه ملائم للذاكرة.</text>
+<text x="1060" y="598" font-size="13" fill="#91a5c1" direction="rtl" unicode-bidi="plaintext" text-anchor="start">تعتمد حدود وقت التشغيل والتفريغ والمشاركة وتخصيصات الذروة على الجهاز والمحرك وعبء العمل.</text>
+</g></svg>
