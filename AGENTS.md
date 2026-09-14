@@ -156,6 +156,7 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Documentation links from testnet remain under `https://testnet.sizeof.ai/docs`, including localized server-rendered HTML and `.md` articles. The existing `docs.sizeof.ai` and production Workers are not deployed by this stream.
 - English source copy is canonical. `scripts/i18n-jsx.cjs` localizes the React source tree, not the DOM. `src/i18n/messages.json` and twelve locale catalogs contain 3,204 matching keys; `npm run i18n:extract` and `npm run i18n:generate` maintain them. Build regenerates localized SVG assets. New public copy requires matching catalog entries before release; see `src/i18n/README.md` for provenance and checks.
 - Initial translations are machine-generated with targeted technical corrections and model-authored gap filling; comprehensive native-speaker linguistic review is not claimed.
+- Deployed only to testnet Worker version `43fad4e5-b06b-4c0d-b99e-1e223aaafda0`. Verified 907 JS/TS tests, build/typecheck, live model API and localized Markdown, 16 desktop routes, all 13 languages on mobile documentation, mixed-language mobile calculators/workspaces, and actual footer switch/link/reload/clean-URL persistence. Production, www, and the existing docs homepage hashes stayed unchanged. Cloudflare analytics beacon requests were blocked in the QA browser; application resources and workflows passed.
 
 ## Commands
 
