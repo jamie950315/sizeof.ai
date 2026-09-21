@@ -9,6 +9,7 @@ import PlatformRouter from '../platform/PlatformRouter'
 import DocsPage from '../docs/DocsPage'
 import RunComparison from '../platform/RunComparison'
 import RunHistoryPage from '../platform/RunHistoryPage'
+import StartPage from '../platform/StartPage'
 import { DEPLOYMENT_DEFAULTS } from '../platform/deployment'
 import { writeRuns, type DeploymentRun } from '../platform/run-history'
 import * as client from './client'
@@ -110,6 +111,14 @@ describe('site-wide persistent language routing', () => {
     expect(screen.getByText((_, node) => node?.textContent === '256K 原生上下文')).toBeVisible()
     expect(screen.getByText((_, node) => node?.textContent === '27.781B 參數')).toBeVisible()
     expect(screen.queryByText(/64升|在地化|權權重化|合身性/)).toBeNull()
+  })
+  it('explicitly localizes fixed card data without translating arbitrary values', () => {
+    setActiveLocale('zh-TW')
+    render(<StartPage />)
+    expect(screen.getByRole('heading', { name: '模型瀏覽器' })).toBeVisible()
+    expect(screen.getByText('搜尋公開模型，查看各種設定所需的記憶體。')).toBeVisible()
+    expect(screen.queryByText('Model explorer')).toBeNull()
+    expect(screen.queryByText('Search public models and inspect the memory behind every configuration.')).toBeNull()
   })
   it('keeps private observations verbatim even when they match known site messages', async () => {
     setActiveLocale('zh-TW')

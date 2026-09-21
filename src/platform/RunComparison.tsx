@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import type { DeploymentRun } from './run-history'
 import { compareRuns, exportRunDiff, runDiffCaveat } from './run-diff'
+import { translate } from '../i18n/core'
 import './run-diff.css'
 
 export default function RunComparison({ left, right }: { left: DeploymentRun; right: DeploymentRun }) {
@@ -36,7 +37,7 @@ export default function RunComparison({ left, right }: { left: DeploymentRun; ri
     {changesOnly && !rows.some(row => row.changed) ? <p>These records have no differences.</p> : <div className="run-diff-scroll" role="region" aria-label="Deployment comparison table" tabIndex={0}><table>
       <caption>Record A compared with record B</caption>
       <thead><tr><th scope="col">Field</th><th scope="col">A · {left.input.model}</th><th scope="col">B · {right.input.model}</th><th scope="col">Difference</th></tr></thead>
-      <tbody>{rows.filter(row => !changesOnly || row.changed).map(row => <tr key={row.key} className={row.changed ? 'run-diff-changed' : ''}><th scope="row"><small>{row.category}</small>{row.label}</th><td>{row.before === null ? <span className="run-diff-missing">Not recorded</span> : row.before}</td><td>{row.after === null ? <span className="run-diff-missing">Not recorded</span> : row.after}</td><td>{row.changed ? 'Changed' : 'Same'}</td></tr>)}</tbody>
+      <tbody>{rows.filter(row => !changesOnly || row.changed).map(row => <tr key={row.key} className={row.changed ? 'run-diff-changed' : ''}><th scope="row"><small>{translate(row.category)}</small>{translate(row.label)}</th><td>{row.before === null ? <span className="run-diff-missing">Not recorded</span> : row.before}</td><td>{row.after === null ? <span className="run-diff-missing">Not recorded</span> : row.after}</td><td>{row.changed ? 'Changed' : 'Same'}</td></tr>)}</tbody>
     </table></div>}
     <p className="run-diff-privacy">Exports include both records’ private notes and error summaries, including fields hidden by the filter. Review them before sharing. Nothing is uploaded.</p>
     <div className="platform-actions"><button onClick={() => void copy()}>Copy comparison</button><button onClick={download}>Download comparison</button></div>

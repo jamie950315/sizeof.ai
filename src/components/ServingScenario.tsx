@@ -4,6 +4,7 @@ import type { ModelSpec } from '../data/models'
 import type { HuggingFaceVariantFormat } from '../lib/huggingface-variants'
 import { estimateServingScenario } from '../lib/serving-estimator'
 import type { EstimateOptions } from '../lib/estimator'
+import { translate } from '../i18n/core'
 
 interface Props {
   model: ModelSpec
@@ -64,7 +65,7 @@ export default function ServingScenario({ model, estimateOptions, artifactFormat
         <div className="serving-input-grid">
           <label>Engine profile
             <select aria-label="Engine profile" value={profileId} onChange={(event) => setProfileId(event.target.value as EngineProfileId)}>
-              {engineProfiles.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}
+              {engineProfiles.map((candidate) => <option key={candidate.id} value={candidate.id}>{translate(candidate.label)}</option>)}
             </select>
           </label>
           <label>Workload example
@@ -85,10 +86,10 @@ export default function ServingScenario({ model, estimateOptions, artifactFormat
             <input aria-label="Batch or micro-batch label (optional)" type="text" value={batchLabel} onChange={(event) => setBatchLabel(event.target.value)} />
           </label>
         </div>
-        <p className="serving-source"><a href={profile.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${profile.label} source`}>{profile.label} source</a> · reviewed {profile.reviewedAt}</p>
-        {result.error ? <p className="serving-status" role="status">{result.error}</p> : result.value && (
+        <p className="serving-source"><a href={profile.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${profile.label} source`}>{translate(profile.label)} source</a> · reviewed {profile.reviewedAt}</p>
+        {result.error ? <p className="serving-status" role="status">{translate(result.error)}</p> : result.value && (
           <div className="serving-result" role="status">
-            {!result.value.applicability.applicable || result.value.kind === 'unavailable' ? <p>{result.value.applicability.reason}</p> : (
+            {!result.value.applicability.applicable || result.value.kind === 'unavailable' ? <p>{translate(result.value.applicability.reason)}</p> : (
               <dl>
                 <div><dt>Decode resident lower bound</dt><dd>{formatGiB(result.value.components?.decodeResidentGiB ?? null)}</dd></div>
                 <div><dt>Per-request KV</dt><dd>{formatGiB(result.value.components?.perRequestKvGiB ?? null)}</dd></div>
@@ -96,7 +97,7 @@ export default function ServingScenario({ model, estimateOptions, artifactFormat
               </dl>
             )}
             <p><strong>Prefill peak</strong> Not safely derivable from public model metadata.</p>
-            <p><strong>Unknown factors</strong> {result.value.unknownFactors.join('; ')}.</p>
+            <p><strong>Unknown factors</strong> {result.value.unknownFactors.map(value => translate(value)).join('; ')}.</p>
           </div>
         )}
       </details>
