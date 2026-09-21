@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { translate } from '../i18n/core'
 import { serializeCompareState } from '../lib/compare-state'
 import { addLibraryModel, libraryByteLimit, mergeLibrary, parseLibrary, rawLibraryBackup, readLibrary, writeLibrary, type LibraryItem } from './library'
 
@@ -26,7 +27,7 @@ export default function LibraryPage() {
   const visible = items.filter((item) => `${item.modelId} ${item.notes} ${item.tags}`.toLowerCase().includes(query.toLowerCase()))
   const compare = `/compare?${serializeCompareState({ items: selected.map((modelId) => ({ modelId, quantization: 'q4_k_m', context: 8192, kvPrecision: 'fp16', mlaCacheMode: 'expanded', vramGiB: 32, source: 'estimated', variantId: null })) })}`
   return <main className="platform-main"><p className="platform-eyebrow">YOUR RESEARCH / SAVED ON THIS BROWSER</p><h1>My model library</h1><p className="platform-lead">Keep a shortlist, add notes, and compare your next candidates. No login, no cloud sync. Export a backup before clearing browser data. Do not store API keys in notes.</p>
-    {error && <p className="platform-alert" role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
+    {error && <p className="platform-alert" role="alert">{translate(error)}</p>}{notice && <p role="status">{translate(notice)}</p>}
     {!readable && <div className="platform-actions"><button onClick={() => { try { downloadLibrary(rawLibraryBackup()) } catch { setError('Could not export raw browser data. Browser storage may be unavailable.') } }}>Download recovery copy</button><button onClick={() => {
       if (!window.confirm('Reset this browser library? Download a recovery copy first. This replaces the stored library with an empty one.')) return
       try { writeLibrary([]); setItems([]); setReadable(true); setError(''); setNotice('Library reset. You can now import a valid backup.') } catch { setError('Could not reset browser storage.') }

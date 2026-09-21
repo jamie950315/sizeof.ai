@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { translate } from '../i18n/core'
 import { fetchArtifactChoices, type ArtifactChoices, type DeploymentArtifact } from './artifact-picker'
 import './artifact-picker.css'
 
@@ -36,7 +37,7 @@ export default function ArtifactPicker({ modelInput, onSelect }: { modelInput: s
     <div className="artifact-picker-heading"><h3>Choose a published file</h3><button type="button" disabled={busy || !modelInput.trim()} onClick={() => void lookup()}>{busy ? 'Checking files…' : 'Find GGUF files'}</button></div>
     <p>Checks public model metadata only. No weights are downloaded. Selecting a community file uses its publisher’s repository.</p>
     {busy && <p role="status">Checking model files…</p>}
-    {error && <p role="alert" className="deploy-error">{error}</p>}
+    {error && <p role="alert" className="deploy-error">{translate(error)}</p>}
     {choices && <>
       <p>{choices.artifacts.length} selectable GGUF artifacts, including verified complete shard groups. Architecture support still depends on your llama.cpp version.</p>
       {choices.omittedSplitFiles > 0 && <p className="artifact-picker-warning">{choices.omittedSplitFiles} split-file variants omitted because the response lacks a complete manifest. Use the repository’s download instructions.</p>}

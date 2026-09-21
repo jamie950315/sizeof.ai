@@ -1,4 +1,5 @@
 import { benchmarkByteLimit, parseBenchmark, type BenchmarkRow } from './benchmark'
+import { formatMessage } from '../i18n/core'
 
 export const benchmarkImportSource = 'https://github.com/vllm-project/vllm/blob/main/vllm/benchmarks/serve.py'
 export const llamaBenchImportSource = 'https://github.com/ggml-org/llama.cpp/blob/master/tools/llama-bench/llama-bench.cpp'
@@ -10,7 +11,7 @@ function record(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 function numeric(value: unknown, name: string, integer = false): number {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || (integer && !Number.isInteger(value))) throw new Error(`Invalid ${name}: expected a finite non-negative ${integer ? 'integer' : 'number'}.`)
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || (integer && !Number.isInteger(value))) throw new Error(formatMessage('Invalid {0}: expected a finite non-negative {1}.', [name, integer ? 'integer' : 'number']))
   return value
 }
 export function parseBenchmarkResult(body: string): BenchmarkImportPreview {

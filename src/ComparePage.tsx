@@ -363,7 +363,7 @@ export default function ComparePage() {
         </div>
       </header>
       <p className="visually-hidden" role="status" aria-live="polite">{Object.values(models).some((status) => status.kind === 'loading') ? 'Loading comparison models' : ''}</p>
-      {copyError && <p role="alert">{copyError}</p>}
+      {copyError && <p role="alert">{translate(copyError)}</p>}
       <nav className="compare-mobile-selector" aria-label="Comparison model selector">
         {activeItems.map((item) => <a key={item.modelId} href={`#${cardId(item.modelId)}`} onClick={() => setFocusModelId(item.modelId)}>{item.modelId}</a>)}
       </nav>

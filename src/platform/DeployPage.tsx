@@ -51,7 +51,7 @@ export default function DeployPage() {
   }
   return <main className="deploy-workbench">
     <header className="deploy-heading"><div><p className="deploy-eyebrow">LOCAL DEPLOYMENT / WORKBENCH</p><h1>From model to first reply.</h1><p>Build a local-only launch plan. Understand each step before you run it.</p></div><span className="deploy-local"><span /> Nothing runs in your browser</span></header>
-    {linkError && <div role="alert" className="deploy-error">{linkError} <button onClick={() => { window.history.replaceState(null, '', '/deploy'); setLinkError('') }}>Reset invalid link</button></div>}
+    {linkError && <div role="alert" className="deploy-error">{translate(linkError)} <button onClick={() => { window.history.replaceState(null, '', '/deploy'); setLinkError('') }}>Reset invalid link</button></div>}
     <div className="deploy-grid">
       <section className="deploy-panel deploy-inputs" aria-labelledby="deploy-config-title">
         <p className="deploy-eyebrow">01 / CONFIGURE</p><h2 id="deploy-config-title">Your machine. Your model.</h2>
@@ -73,19 +73,19 @@ export default function DeployPage() {
         <div className="deploy-note">Local address only: <code>127.0.0.1</code>. No account, key, or paid compute is needed to prepare a plan.</div>
         <p className="deploy-hint" style={{ marginTop: 14 }}><a href={`/docs/${input.engine}`}>Read the {input.engine === 'llama-cpp' ? 'llama.cpp' : input.engine === 'mlx' ? 'MLX' : 'vLLM'} setup guide →</a></p>
         <p className="deploy-hint"><a href="/compatibility">Review compatibility evidence →</a> · <a href="/context">Budget the whole request →</a></p>
-        {compatibility && <p role="alert" className="deploy-error">{compatibility}</p>}
+        {compatibility && <p role="alert" className="deploy-error">{translate(compatibility)}</p>}
       </section>
       <section className="deploy-panel deploy-output" aria-labelledby="deploy-plan-title">
         <div className="deploy-output-header"><div><p className="deploy-eyebrow">02 / REVIEW & RUN LOCALLY</p><h2 id="deploy-plan-title">Your deployment runbook</h2></div><Terminal size={24} aria-hidden="true" /></div>
-        {!plan || linkError ? <div className="deploy-empty"><Terminal size={36} aria-hidden="true" /><h3>{linkError ? 'Reset the invalid link first' : 'Complete your launch settings'}</h3><p>{linkError || validation}</p><a href="/docs">New to local models? Start with the guides <ArrowUpRight size={14} /></a></div> : <>
+        {!plan || linkError ? <div className="deploy-empty"><Terminal size={36} aria-hidden="true" /><h3>{linkError ? 'Reset the invalid link first' : 'Complete your launch settings'}</h3><p>{translate(linkError || validation)}</p><a href="/docs">New to local models? Start with the guides <ArrowUpRight size={14} /></a></div> : <>
           <div className="deploy-summary"><span>{plan.shell}</span><span>{input.engine}</span><span>One local server</span><span>Reviewed 08 Sep 2026</span></div>
           {plan.modelRevision
             ? <p className="deploy-note">Fixed model revision: <code>{plan.modelRevision}</code>. Run the download step first, then launch from <code>{plan.localModelPath}</code>.</p>
             : <p className="deploy-note">Unpinned model: upstream files may change. Fill a full model commit for a repeatable download.</p>}
-          <details className="deploy-checklist" open><summary>Before you start · {checked.length}/{plan.checklist.length} checked</summary>{plan.checklist.map((item, index) => <label key={item}><input type="checkbox" checked={checked.includes(index)} onChange={() => setChecked(previous => previous.includes(index) ? previous.filter(value => value !== index) : [...previous, index])} /><span>{item}</span></label>)}</details>
-          {[...(plan.download ? [['Download fixed model revision', plan.download]] : []), ['Start the server', plan.launch], ['Check the API · second terminal', plan.probe], ['Request a first reply · second terminal', plan.client]].map(([title, command], index) => <section className="deploy-command" key={title}><div><h3><span>0{index + 1}</span>{title}</h3><button aria-label={`Copy ${title.toLowerCase()}`} onClick={() => void copy(command, 'Command copied. Review it before running.')}><Copy size={15} aria-hidden="true" /> Copy</button></div><pre><code>{command}</code></pre></section>)}
+          <details className="deploy-checklist" open><summary>Before you start · {checked.length}/{plan.checklist.length} checked</summary>{plan.checklist.map((item, index) => <label key={item}><input type="checkbox" checked={checked.includes(index)} onChange={() => setChecked(previous => previous.includes(index) ? previous.filter(value => value !== index) : [...previous, index])} /><span>{translate(item)}</span></label>)}</details>
+          {[...(plan.download ? [['Download fixed model revision', plan.download]] : []), ['Start the server', plan.launch], ['Check the API · second terminal', plan.probe], ['Request a first reply · second terminal', plan.client]].map(([title, command], index) => <section className="deploy-command" key={title}><div><h3><span>0{index + 1}</span>{translate(title)}</h3><button aria-label={`Copy ${translate(title).toLowerCase()}`} onClick={() => void copy(command, 'Command copied. Review it before running.')}><Copy size={15} aria-hidden="true" /> Copy</button></div><pre><code>{command}</code></pre></section>)}
           <div className="deploy-actions"><button onClick={() => void copy(deploymentMarkdown(input), 'Runbook copied.')}><Copy size={15} aria-hidden="true" /> Copy runbook</button><button onClick={download}><Download size={15} aria-hidden="true" /> Download .md</button><button onClick={() => void sharePlan()}><ArrowUpRight size={15} aria-hidden="true" /> Share plan</button></div>
-          <div className="deploy-limits"><h3>Know the limits</h3>{plan.warnings.map(warning => <p key={warning}>{warning}</p>)}<p><a href="/docs/troubleshooting">Troubleshoot a failed launch →</a> · <a href="/docs/serving-security">Before exposing an API →</a></p></div>
+          <div className="deploy-limits"><h3>Know the limits</h3>{plan.warnings.map(warning => <p key={warning}>{translate(warning)}</p>)}<p><a href="/docs/troubleshooting">Troubleshoot a failed launch →</a> · <a href="/docs/serving-security">Before exposing an API →</a></p></div>
           <p className="deploy-hint"><a href="/troubleshoot">Open interactive troubleshooting →</a></p>
           <p className="deploy-hint">Changing launch settings resets unsaved record notes and the reported outcome. Save the current record first if you want to keep it.</p>
           <SaveRunForm key={`${JSON.stringify(input)}:${artifact?.revision ?? ''}`} input={input} artifact={artifact} />

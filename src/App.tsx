@@ -322,6 +322,7 @@ function HomePage() {
   const offloadLabel = memoryBarUsage.offloadGiB > 0
     ? `OFFLOAD ${formatGiB(memoryBarUsage.offloadGiB)}`
     : null
+  const localizedSearchError = searchError ? translate(searchError) : ''
 
   return (
     <div className="site-shell">
@@ -412,7 +413,7 @@ function HomePage() {
                 <div className="catalog-state" role="status"><span className="pulse-dot" /> Searching Hugging Face for “{submittedCatalogQuery}”…</div>
               )}
               {searchState === 'error' && (
-                <div className="catalog-state catalog-error" role="alert">{searchError} Your curated model index is unchanged.</div>
+                <div className="catalog-state catalog-error" role="alert">{localizedSearchError} Your curated model index is unchanged.</div>
               )}
               {searchState === 'idle' && searchResults?.length === 0 && (
                 <div className="catalog-state">No Hugging Face models matched “{submittedCatalogQuery}”.</div>
@@ -439,7 +440,7 @@ function HomePage() {
                 </article>
               ))}
               {searchLoadMoreError && (
-                <div className="catalog-state catalog-error" role="alert">Could not load the next page. {searchError} Try Load More again.</div>
+                <div className="catalog-state catalog-error" role="alert">Could not load the next page. {localizedSearchError} Try Load More again.</div>
               )}
             </div>
             {nextSearchCursor && searchResults && (
@@ -683,7 +684,7 @@ function HomePage() {
                   {copied ? 'COPIED' : 'COPY LINK'}
                 </button>
               </div>
-              {copyError && <p role="alert">{copyError}</p>}
+              {copyError && <p role="alert">{translate(copyError)}</p>}
               <p className="estimate-note">
                 <Info size={15} /> {estimate.isLowerBound ? 'Lower bound only: some runtime memory is unknown, so fitting within this capacity is not guaranteed.' : 'Includes weights, KV cache, and runtime allowance. Actual use varies by engine and GPU offload.'}
               </p>

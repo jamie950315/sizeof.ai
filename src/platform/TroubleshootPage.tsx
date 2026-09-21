@@ -33,7 +33,7 @@ export default function TroubleshootPage() {
   }
   return <main className="platform-main troubleshoot-page">
     <header><p className="platform-eyebrow">LOCAL DEPLOYMENT · DIAGNOSTIC DESK</p><h1>Find the first failure.</h1><p className="platform-lead">Start where the workflow stopped. Gather evidence, inspect one cause at a time, and keep your original model and settings visible.</p></header>
-    {error ? <section role="alert" className="platform-alert"><p>{error} No diagnostic advice is shown for this invalid link.</p><button onClick={() => { setError(''); choose({ ...DEFAULT_DIAGNOSTIC }); window.history.replaceState(null, '', '/troubleshoot') }}>Reset invalid link</button></section> : <>
+    {error ? <section role="alert" className="platform-alert"><p>{translate(error)} No diagnostic advice is shown for this invalid link.</p><button onClick={() => { setError(''); choose({ ...DEFAULT_DIAGNOSTIC }); window.history.replaceState(null, '', '/troubleshoot') }}>Reset invalid link</button></section> : <>
       <aside className="trouble-boundary">This is a guided checklist, not an automatic diagnosis. Nothing runs on your computer, no logs are uploaded, and no AI service is called. Preserve the first error before retrying.</aside>
       <div className="trouble-workspace">
         <section className="trouble-controls" aria-label="Diagnostic selection">

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { formatMessage, translate } from '../i18n/core'
 import { normalizeCompareModelInput } from '../lib/compare-state'
 import './model-changes.css'
 
@@ -56,7 +57,7 @@ export default function ModelChangesPage() {
     try {
       const params = new URLSearchParams({ model, before: before.toLowerCase(), ...(after ? { after: after.toLowerCase() } : {}) })
       const response = await fetch(`/api/model-changes?${params}`, { signal: controller.signal, cache: 'no-store' })
-      if (!response.ok) throw new Error(`Comparison failed (HTTP ${response.status}). The repository or revision may be unavailable, private, or too large. Nothing was upgraded.`)
+      if (!response.ok) throw new Error(formatMessage('Comparison failed (HTTP {0}). The repository or revision may be unavailable, private, or too large. Nothing was upgraded.', [response.status]))
       if (response.headers.get('X-Sizeof-Model-Source')?.includes('stale')) throw new Error('Stale metadata cannot establish a fresh comparison. Please retry.')
       const data = parseResult(await readResult(response), model, before, after)
       if (token !== generation.current || controller.signal.aborted) return
@@ -67,7 +68,7 @@ export default function ModelChangesPage() {
   const files = result?.files.filter(file => (filter === 'all' || file.change === filter) && file.path.toLowerCase().includes(query.toLowerCase())) ?? []
   return <main className="platform-main model-changes-page"><p className="platform-eyebrow">INSPECT BEFORE YOU UPGRADE</p><h1>Model version changes</h1><p className="platform-lead">Compare public repository files and selected published configuration facts. No model weights are downloaded, no saved settings are replaced, and no upgrade runs automatically.</p>
     <form className="model-changes-inputs" onSubmit={e => { e.preventDefault(); void compare() }}><label>Model ID or model URL<input required maxLength={500} value={input.model} onChange={e => update('model', e.target.value)} placeholder="owner/model" /></label><label>Earlier revision<input required maxLength={40} value={input.before} onChange={e => update('before', e.target.value)} placeholder="Complete 40-character commit" /></label><label>Later revision (optional)<input maxLength={40} value={input.after} onChange={e => update('after', e.target.value)} placeholder="Blank: resolve current revision when checked" /></label><button className="platform-primary" disabled={busy} type="submit">{busy ? 'Checking revisions…' : 'Compare revisions'}</button></form>
-    <p>Links only fill the form; checking starts when you press Compare. Leaving the later revision blank resolves the current revision once, then compares that fixed version. This does not bypass repository access restrictions.</p>{busy && <p role="status">Reading revision metadata. Large repositories may take longer; the request stops after 45 seconds.</p>}{error && <p className="platform-alert" role="alert">{error}</p>}
+    <p>Links only fill the form; checking starts when you press Compare. Leaving the later revision blank resolves the current revision once, then compares that fixed version. This does not bypass repository access restrictions.</p>{busy && <p role="status">Reading revision metadata. Large repositories may take longer; the request stops after 45 seconds.</p>}{error && <p className="platform-alert" role="alert">{translate(error)}</p>}
     {result && <section aria-label="Revision comparison"><header><h2>{result.modelId}</h2><p>Checked {new Date(result.checkedAt).toLocaleString()} · file listings completed for both revisions.</p></header><div className="model-changes-snapshots">{(['before', 'after'] as const).map((side, i) => <article key={side}><h3>{i ? 'Later revision' : 'Earlier revision'}</h3><code>{result[side].revision}</code><p>{result[side].files.toLocaleString()} files · configuration {result[side].configAvailable ? 'available' : 'unavailable'}</p><p>License metadata: {result[side].license ?? 'Unknown / not published'}</p><a target="_blank" rel="noreferrer" href={`https://huggingface.co/${result.modelId}/tree/${result[side].revision}`}>Inspect {i ? 'later' : 'earlier'} repository files ↗</a></article>)}</div>
       <p className="model-changes-caution">{result.unknownContentFiles.toLocaleString()} files have content that cannot be compared reliably. Unknown does not mean unchanged. License labels are metadata, not a legal-text review. Architecture changes do not prove quality, speed or runtime compatibility.</p>
       {result.notes.length > 0 && <ul>{result.notes.map((note, i) => <li key={i}>{note}</li>)}</ul>}

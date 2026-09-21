@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { translate } from '../i18n/core'
+import { formatMessage, translate } from '../i18n/core'
 import './status.css'
 
 interface RegionStatus {
@@ -30,7 +30,7 @@ export function parseDataStatus(value: unknown): DataStatus {
 
 async function fetchStatus(signal: AbortSignal): Promise<DataStatus> {
   const response = await fetch('/api/status', { signal, cache: 'no-store' })
-  if (!response.ok) throw new Error(`Status check failed (HTTP ${response.status}). This does not prove either search machine is down.`)
+  if (!response.ok) throw new Error(formatMessage('Status check failed (HTTP {0}). This does not prove either search machine is down.', [response.status]))
   if (!response.body) throw new Error('Status response was empty.')
   const reader = response.body.getReader(), chunks: Uint8Array[] = []
   let size = 0
@@ -79,7 +79,7 @@ export default function StatusPage() {
   return <main className="status-page">
     <header className="status-intro"><span>DATA TRANSPARENCY</span><h1>What is up to date?</h1><p>Check the model-name lists used by search. Matching copies mean the two regions share a published list—not that every Hugging Face model is present.</p><button onClick={() => void refresh()} disabled={busy}>{busy ? 'Checking…' : 'Refresh status'}</button></header>
     {busy && <p role="status">Checking both regional search routes…</p>}
-    {error && <p role="alert" className="status-warning">{error}</p>}
+    {error && <p role="alert" className="status-warning">{translate(error)}</p>}
     {data && <>
       <section className="status-alignment" aria-label="Regional agreement"><h2>{data.alignment === 'aligned' ? 'Both regions share the same list' : data.alignment === 'different' ? 'Regional lists currently differ' : 'Regional agreement is unknown'}</h2><p>{data.alignment === 'different' ? 'An update may still be transferring or loading. A difference alone does not identify the cause.' : data.alignment === 'unknown' ? 'At least one route or list could not be compared. An unreachable route is not proof that its machine has stopped.' : 'The published generation and model count match at this check.'}</p><small>Checked {shownDate(data.checkedAt)} · times shown in your local time zone · refresh is manual</small></section>
       <div className="status-regions">{data.regions.map(region => <section className="status-region" key={region.id} aria-label={region.label}>

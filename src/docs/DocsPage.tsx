@@ -28,7 +28,7 @@ function CodeExample({ code }: { code: string }) {
   return <div className="docs-code">
     <div className="docs-code-toolbar"><span>TERMINAL · REVIEW BEFORE RUNNING</span><button type="button" onClick={() => void copy()} aria-label="Copy command">{feedback === 'Copied' ? <Check size={14} /> : <Copy size={14} />} Copy</button></div>
     <pre><code>{code}</code></pre>
-    {feedback && <p role="status">{feedback}</p>}
+    {feedback && <p role="status">{translate(feedback)}</p>}
   </div>
 }
 

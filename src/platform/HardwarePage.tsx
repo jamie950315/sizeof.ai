@@ -37,7 +37,7 @@ export default function HardwarePage() {
   }
   return <main className="hardware-page">
     <header className="hardware-intro"><span className="hardware-eyebrow">PLAN BEFORE YOU DOWNLOAD</span><h1>Hardware lab<span>.</span></h1><p>Memory, disk space, download time, and running costs. Make the trade-offs visible before choosing your local setup.</p></header>
-    {linkError ? <section role="alert" className="hardware-error"><p>{linkError} No calculations are shown for this invalid link.</p><button onClick={() => { setPlan({ ...DEFAULT_HARDWARE_PLAN }); setLinkError(undefined); window.history.replaceState(null, '', '/hardware') }}>Reset plan</button></section> : <>
+    {linkError ? <section role="alert" className="hardware-error"><p>{translate(linkError)} No calculations are shown for this invalid link.</p><button onClick={() => { setPlan({ ...DEFAULT_HARDWARE_PLAN }); setLinkError(undefined); window.history.replaceState(null, '', '/hardware') }}>Reset plan</button></section> : <>
     <nav className="hardware-tabs" aria-label="Planning tools">{(['memory', 'storage', 'cost'] as const).map((key, i) => <button key={key} aria-pressed={tab === key} onClick={() => setTab(key)}><small>0{i + 1}</small>{key === 'memory' ? 'Memory budget' : key === 'storage' ? 'Storage & download' : 'Running costs'}</button>)}</nav>
     <div className="hardware-workspace">
       <section className="hardware-controls" aria-label="Planning inputs">

@@ -10,7 +10,7 @@ const VLLM = 'https://docs.vllm.ai/en/latest/getting_started/installation/gpu/'
 const MODELS = 'https://docs.vllm.ai/en/latest/models/supported_models/'
 export function validateCompatibility(plan: CompatibilityPlan) {
   if (!plan || typeof plan !== 'object' || Object.keys(plan).some(key => !Object.hasOwn(COMPAT_OPTIONS, key))) throw new Error('Unknown compatibility field.')
-  for (const key of Object.keys(COMPAT_OPTIONS) as (keyof CompatibilityPlan)[]) if (!Object.hasOwn(plan, key) || !(COMPAT_OPTIONS[key] as readonly string[]).includes(plan[key])) throw new Error(`Invalid compatibility ${key}.`)
+  for (const key of Object.keys(COMPAT_OPTIONS) as (keyof CompatibilityPlan)[]) if (!Object.hasOwn(plan, key) || !(COMPAT_OPTIONS[key] as readonly string[]).includes(plan[key])) throw new Error(formatMessage('Invalid compatibility {0}.', [key]))
 }
 export function compatibilityEvidence(plan: CompatibilityPlan): CompatibilityEvidence[] {
   validateCompatibility(plan)
@@ -45,6 +45,7 @@ export function parseCompatibility(search: string): CompatibilityPlan {
   if (params.get('v') !== '1') throw new Error('Unsupported compatibility link version.')
   for (const key of params.keys()) if (!keys.includes(key) || params.getAll(key).length !== 1) throw new Error('Unknown or repeated compatibility link field.')
   const plan = { ...DEFAULT_COMPATIBILITY }
-  for (const key of Object.keys(COMPAT_OPTIONS) as (keyof CompatibilityPlan)[]) { const value = params.get(key); if (value === null || !(COMPAT_OPTIONS[key] as readonly string[]).includes(value)) throw new Error(`Invalid compatibility ${key}.`); Object.assign(plan, { [key]: value }) }
+  for (const key of Object.keys(COMPAT_OPTIONS) as (keyof CompatibilityPlan)[]) { const value = params.get(key); if (value === null || !(COMPAT_OPTIONS[key] as readonly string[]).includes(value)) throw new Error(formatMessage('Invalid compatibility {0}.', [key])); Object.assign(plan, { [key]: value }) }
   return plan
 }
+import { formatMessage } from '../i18n/core'

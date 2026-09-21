@@ -8,9 +8,9 @@ export function contextBudget(plan: ContextPlan) {
   if (!plan || typeof plan !== 'object' || Object.keys(plan).some(key => !allowed.includes(key))) throw new Error('Unknown context field.')
   const values = {} as Record<keyof ContextPlan, number>
   for (const key of ['capacity', ...CONTEXT_FIELDS] as const) {
-    if (!Object.hasOwn(plan, key) || typeof plan[key] !== 'string' || !/^\d{1,8}$/.test(plan[key])) throw new Error(`${CONTEXT_LABELS[key]} must be a whole token count.`)
+    if (!Object.hasOwn(plan, key) || typeof plan[key] !== 'string' || !/^\d{1,8}$/.test(plan[key])) throw new Error(formatMessage('{0} must be a whole token count.', [translate(CONTEXT_LABELS[key])]))
     const value = Number(plan[key])
-    if (value > 10000000 || (key === 'capacity' && value < 1)) throw new Error(`${CONTEXT_LABELS[key]} must be ${key === 'capacity' ? '1' : '0'}–10,000,000 tokens.`)
+    if (value > 10000000 || (key === 'capacity' && value < 1)) throw new Error(formatMessage('{0} must be {1}–10,000,000 tokens.', [translate(CONTEXT_LABELS[key]), key === 'capacity' ? '1' : '0']))
     values[key] = value
   }
   const input = CONTEXT_FIELDS.filter(key => key !== 'output').reduce((sum, key) => sum + values[key], 0)
@@ -32,3 +32,4 @@ export function contextSummary(plan: ContextPlan) {
   const result = contextBudget(plan)
   return ['# Context budget', '', 'User-entered counts and reservations; not tokenizer-verified or a memory-fit guarantee.', ...(['capacity', ...CONTEXT_FIELDS] as const).map(key => `${CONTEXT_LABELS[key]}: ${result.values[key]} tokens`), `Total allocated: ${result.total}`, `Remaining: ${result.remaining}`, '', 'Count the final rendered prompt with the exact runtime tokenizer and chat template. Include image/audio token accounting from the runtime. Component token counts may not add exactly at boundaries. Validate against the final prompt count before execution.'].join('\n')
 }
+import { formatMessage, translate } from '../i18n/core'

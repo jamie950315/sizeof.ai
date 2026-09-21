@@ -2,6 +2,7 @@ import type { ModelSpec } from '../data/models'
 import { getEngineApplicability, getEngineProfile, getVerifiedServingArchitecture, type EngineApplicability, type EngineProfile, type EngineProfileId, type ServingHardwareKind } from '../data/engine-profiles'
 import type { HuggingFaceVariantFormat } from './huggingface-variants'
 import { estimateVram, type EstimateOptions } from './estimator'
+import { formatMessage, translate } from '../i18n/core'
 
 export interface ServingScenarioInput extends Omit<EstimateOptions, 'context'> {
   profileId: EngineProfileId
@@ -46,8 +47,8 @@ export interface ServingScenarioEstimate {
 }
 
 function validateInteger(value: number, label: string, maximum: number) {
-  if (!Number.isInteger(value) || value < 1) throw new Error(`${label} must be a positive integer`)
-  if (value > maximum) throw new Error(`${label} must be between 1 and ${maximum}`)
+  if (!Number.isInteger(value) || value < 1) throw new Error(formatMessage('{0} must be a positive integer', [translate(label)]))
+  if (value > maximum) throw new Error(formatMessage('{0} must be between 1 and {1}', [translate(label), maximum]))
 }
 
 export function estimateServingScenario(model: ModelSpec, input: ServingScenarioInput): ServingScenarioEstimate {

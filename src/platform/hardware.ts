@@ -14,10 +14,10 @@ export const DEFAULT_HARDWARE_PLAN: HardwarePlan = {
 }
 
 export function numberInput(value: string, label: string, min = 0, max = 1e9, integer = false): number {
-  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(value.trim())) throw new Error(`${label}: enter a finite, non-negative number.`)
+  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(value.trim())) throw new Error(formatMessage('{0}: enter a finite, non-negative number.', [translate(label)]))
   const n = Number(value)
   if (!Number.isFinite(n) || n < min || n > max || (integer && !Number.isInteger(n))) {
-    throw new Error(`${label}: enter ${integer ? 'a whole number' : 'a number'} from ${min} to ${max}.`)
+    throw new Error(formatMessage('{0}: enter {1} from {2} to {3}.', [translate(label), translate(integer ? 'a whole number' : 'a number'), min, max]))
   }
   return n
 }
@@ -56,10 +56,10 @@ export function parseHardwarePlan(search: string): HardwarePlan {
   const plan = { ...DEFAULT_HARDWARE_PLAN }
   for (const key of Object.keys(plan) as (keyof HardwarePlan)[]) {
     const values = params.getAll(key)
-    if (values.length > 1) throw new Error(`Duplicate planning field: ${key}.`)
+    if (values.length > 1) throw new Error(formatMessage('Duplicate planning field: {0}.', [key]))
     const value = values[0]
     if (value === undefined) continue
-    if (value.length > 32) throw new Error(`Planning field is too long: ${key}.`)
+    if (value.length > 32) throw new Error(formatMessage('Planning field is too long: {0}.', [key]))
     if (key === 'memory') {
       if (!['dedicated', 'unified', 'multi'].includes(value)) throw new Error('Unknown memory layout in planning link.')
       plan.memory = value as HardwarePlan['memory']
@@ -80,3 +80,4 @@ export function hardwareSummary(p: HardwarePlan): string {
   const m = memoryBudget(p), s = storageBudget(p), c = costBudget(p)
   return `sizeof.ai hardware worksheet\n\nMemory layout: ${p.memory}\nUsable budget: ${m.total.toFixed(2)} GiB (${m.perDevice.toFixed(2)} GiB per device)\nWeight size (${p.source}): ${s.weightsGiB.toFixed(2)} GiB\nRetained variants: ${s.retainedGiB.toFixed(2)} GiB\nPeak disk allowance: ${s.peakGiB.toFixed(2)} GiB\nDownload: ${s.downloadGB.toFixed(2)} GB, ${(s.seconds / 60).toFixed(1)} minutes\nElectricity per 30 days: ${c.electricity.toFixed(2)} currency units\nAPI comparison per 30 days: ${c.api.toFixed(2)} currency units\nHardware payback: ${c.breakEvenMonths === null ? 'not reached with these inputs' : `${c.breakEvenMonths.toFixed(1)} months`}\n\nInputs: ${hardwareSearch(p)}\n\nEstimates, not a compatibility or speed guarantee. Weight size excludes runtime memory. Multi-GPU memory is not automatically pooled. All prices are user inputs in one currency; throughput and equivalent output quality are not validated.\n`
 }
+import { formatMessage, translate } from '../i18n/core'

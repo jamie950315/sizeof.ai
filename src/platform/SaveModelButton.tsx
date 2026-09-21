@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { translate } from '../i18n/core'
 import { addLibraryModel, readLibrary, writeLibrary } from './library'
 
 export default function SaveModelButton({ modelId }: { modelId: string }) {
@@ -6,5 +7,5 @@ export default function SaveModelButton({ modelId }: { modelId: string }) {
   return <><button type="button" onClick={() => {
     try { writeLibrary(addLibraryModel(readLibrary(), modelId)); setMessage('Saved to My library.') }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Could not save to browser storage.') }
-  }}>SAVE MODEL</button>{message && <span role="status">{message}</span>}</>
+  }}>SAVE MODEL</button>{message && <span role="status">{translate(message)}</span>}</>
 }

@@ -439,7 +439,7 @@ export default function ModelDetailPage({ route }: Props) {
         <main className="detail-state">
           <span>HUGGING FACE LOOKUP / ERROR</span>
           <h1>{notFound ? 'Model not found.' : 'Unable to load model.'}</h1>
-          <p>{error}</p>
+          <p>{translate(error)}</p>
           <a href="/"><ArrowLeft size={18} /> Back to sizeof.ai</a>
         </main>
       </div>
@@ -586,7 +586,7 @@ export default function ModelDetailPage({ route }: Props) {
             <SaveModelButton modelId={model.id} />
           </div>
           <div className="detail-tags">
-            {copyError && <p role="alert">{copyError}</p>}
+            {copyError && <p role="alert">{translate(copyError)}</p>}
             {model.license && <span>LICENSE / {model.license}</span>}
             {model.pipelineTag && <span>{model.pipelineTag}</span>}
             {model.libraryName && <span>{model.libraryName}</span>}

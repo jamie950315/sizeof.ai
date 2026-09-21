@@ -84,7 +84,7 @@ export function buildDeploymentPlan(input: DeploymentInput): DeploymentPlan {
   if (shardFiles && (!revision || input.engine !== 'llama-cpp')) throw new Error('A shard manifest requires llama.cpp and a fixed model revision.')
   const directory = revision ? pinnedDirectory(modelId, revision) : undefined
   for (const [name, value, min, max] of [['Context', input.context, 512, 1048576], ['Port', input.port, 1024, 65535]] as const) {
-    if (!/^\d+$/.test(value) || Number(value) < min || Number(value) > max) throw new Error(`${name} must be a whole number between ${min} and ${max}.`)
+    if (!/^\d+$/.test(value) || Number(value) < min || Number(value) > max) throw new Error(formatMessage('{0} must be a whole number between {1} and {2}.', [translate(name), min, max]))
   }
   const context = Number(input.context), port = Number(input.port)
   const quote = (value: string) => `'${value}'` // All interpolated values are validated against closed character sets above/below.
@@ -163,7 +163,7 @@ export function restoreDeployment(search: string): DeploymentInput {
   const input = { ...DEPLOYMENT_DEFAULTS }
   for (const key of Object.keys(input) as (keyof DeploymentInput)[]) {
     const value = params.get(key)
-    if (value === null || params.getAll(key).length !== 1) throw new Error(`The deployment link has a missing or duplicate ${key} field.`)
+    if (value === null || params.getAll(key).length !== 1) throw new Error(formatMessage('The deployment link has a missing or duplicate {0} field.', [key]))
     Object.assign(input, { [key]: value })
   }
   if (revision) input.revision = revision
@@ -182,3 +182,4 @@ export function deploymentMarkdown(input: DeploymentInput): string {
   const downloadStep = plan.download ? `## Download the pinned model\n\nModel commit: ${plan.modelRevision}\nLocal model path: ${plan.localModelPath}\nRuntime version: NOT pinned\n\nRun this first and stop if it fails. Start the server only after it succeeds, from the same working directory.\n\n\`\`\`${input.os === 'windows' ? 'powershell' : 'sh'}\n${plan.download}\n\`\`\`\n\n` : ''
   return `# Local deployment runbook\n\nModel: ${plan.modelId}\nEngine: ${input.engine}\nSystem: ${input.os} / ${input.hardware}\nShell: ${plan.shell}\nReviewed: 2026-09-08\n\n## Before starting\n\n${plan.checklist.map(text => `- [ ] ${text}`).join('\n')}\n\n## Important limits\n\n${plan.warnings.map(text => `- ${text}`).join('\n')}\n\n${downloadStep}## Start the server\n\n\`\`\`${input.os === 'windows' ? 'powershell' : 'sh'}\n${plan.launch}\n\`\`\`\n\n## Check the API (second terminal)\n\n\`\`\`\n${plan.probe}\n\`\`\`\n\n## Test a short completion\n\n\`\`\`\n${plan.client}\n\`\`\`\n\n## Official references\n\n${DEPLOYMENT_SOURCES.map(source => `- [${source.title}](${source.url})`).join('\n')}\n`
 }
+import { formatMessage, translate } from '../i18n/core'
