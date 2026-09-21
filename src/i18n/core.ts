@@ -18,19 +18,7 @@ export function setActiveLocale(locale: Locale) { activeLocale = locale }
 export function resolveLocale(value: unknown): Locale | undefined {
   return LANGUAGES.find(item => item.code === value)?.code
 }
-const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const protectedTerms = new Set(['sizeof', '.ai', 'sizeof.ai', 'GiB', 'GIB', 'GB', 'MB', 'TB', 'KB', 'B', 'L', 'KV', 'KVH', 'VRAM', 'RAM', 'CPU', 'GPU', 'FP16', 'FP32', 'BF16', 'Qwen', 'OpenBMB', 'Unsloth', 'Bartowski', 'Hugging Face', 'MLX', 'GGUF', 'EXL2', 'EXL3', 'CUDA', 'ROCm', 'MTP', 'MLA', 'KDA', 'SSM', 'MoE', 'vLLM', 'llama.cpp', 'macOS', 'Linux', 'Windows', 'Apple', 'NVIDIA'])
-const insensitiveKeys = new Map(Object.keys(messages).map(key => [key.toLowerCase().replaceAll('-', ' '), key]))
-const patterns = Object.keys(messages).filter(key => /\{\d+\}/.test(key) && /[a-z]{2}/i.test(key.replace(/\{\d+\}/g, '')))
-  .sort((a, b) => b.replace(/\{\d+\}/g, '').length - a.replace(/\{\d+\}/g, '').length)
-  .map(key => {
-    const slots: number[] = []
-    const parts = key.split(/(\{\d+\})/g).map(part => {
-      if (/^\{\d+\}$/.test(part)) { slots.push(Number(part.slice(1, -1))); return '([\\s\\S]*?)' }
-      return escapeRegex(part)
-    })
-    return { key, slots, expression: new RegExp(`^${parts.join('')}$`) }
-  })
 
 /** Translate published UI prose only. Identifiers and user-entered data remain unchanged. */
 export function translate(text: string, locale: Locale = activeLocale): string {
@@ -41,19 +29,15 @@ export function translate(text: string, locale: Locale = activeLocale): string {
   if (Object.hasOwn(dictionary, text)) return dictionary[text]
   const trimmed = text.trim()
   if (trimmed !== text && Object.hasOwn(dictionary, trimmed)) return text.replace(trimmed, dictionary[trimmed])
-  const alternate = insensitiveKeys.get(trimmed.toLowerCase().replaceAll('-', ' '))
-  if (alternate && dictionary[alternate]) return text.replace(trimmed, dictionary[alternate])
-  for (const pattern of patterns) {
-    const match = pattern.expression.exec(text)
-    if (!match) continue
-    const values = new Map(pattern.slots.map((slot, index) => [slot, match[index + 1]]))
-    if (!dictionary[pattern.key]) continue
-    return dictionary[pattern.key].replace(/\{(\d+)\}/g, (_, slot: string) => {
-      const value = values.get(Number(slot))
-      return value === undefined ? `{${slot}}` : value
-    })
-  }
   return text
+}
+
+/** Format one explicit source message. Values are opaque and are never translated. */
+export function formatMessage(key: string, values: readonly unknown[], locale: Locale = activeLocale): string {
+  return translate(key, locale).replace(/\{(\d+)\}/g, (placeholder, slot: string) => {
+    const value = values[Number(slot)]
+    return value === undefined ? placeholder : String(value)
+  })
 }
 
 export function localizeNode<T>(value: T): T {

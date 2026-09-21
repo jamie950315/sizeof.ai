@@ -608,7 +608,7 @@ export default function ModelDetailPage({ route }: Props) {
             <section className="detail-sidebar-section" aria-label="Resource profile">
               <span>RESOURCE PROFILE</span>
               <dl>
-                <div><dt>Category</dt><dd>{modelKindLabels[modelKind]}</dd></div>
+                <div><dt>Category</dt><dd>{translate(modelKindLabels[modelKind])}</dd></div>
                 <div><dt>Published tensors</dt><dd>{formatBytes(model.tensorSizeBytes)}</dd></div>
                 <div><dt>Repository storage</dt><dd>{formatBytes(model.repositorySizeBytes)}</dd></div>
               </dl>
@@ -757,7 +757,7 @@ export default function ModelDetailPage({ route }: Props) {
               <div className="result-panel detail-result" role="region" aria-label="Memory summary">
                 <div className="result-topline">
                   <span>{estimate.isLowerBound ? 'ESTIMATED LOWER BOUND' : 'ESTIMATED VRAM'}</span>
-                  <span className={`fit-pill ${fit}`}>{estimate.isLowerBound && fit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[fit]} ON {vram} GB</span>
+                  <span className={`fit-pill ${fit}`}>{translate(estimate.isLowerBound && fit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[fit])} {translate('ON')} {vram} GB</span>
                 </div>
                 <div className="total-number"><span>{estimate.totalGiB.toFixed(2)}</span><small>GiB</small></div>
                 <div
@@ -790,7 +790,7 @@ export default function ModelDetailPage({ route }: Props) {
                     '--memory-weights-offload-opacity': weightsOffloadOpacity,
                   } as CSSProperties}
                 >
-                  {memoryParts.map((part) => <div key={part.label}><span><i className={part.className} />{part.label}</span><strong>{part.value.toFixed(2)} GiB</strong></div>)}
+                  {memoryParts.map((part) => <div key={part.label}><span><i className={part.className} />{translate(part.label)}</span><strong>{part.value.toFixed(2)} GiB</strong></div>)}
                 </div>
                 <p className="estimate-note"><Info size={15} /> {estimate.isLowerBound
                   ? 'This lower bound includes published weights and modeled attention cache. Architecture-specific KDA, linear, recurrent, or SSM state remains engine-dependent and is not included in the fit claim.'
@@ -826,7 +826,7 @@ export default function ModelDetailPage({ route }: Props) {
                 )}
                 <div className="detail-sticky-result" role="status" aria-label="Current memory result">
                   <strong>{estimate.isLowerBound ? `${estimate.totalGiB.toFixed(2)} GiB lower bound` : `${estimate.totalGiB.toFixed(2)} GiB`}</strong>
-                  <span>{estimate.isLowerBound && fit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[fit]} · {vram} GiB capacity</span>
+                  <span>{translate(estimate.isLowerBound && fit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[fit])} · {vram} GiB {translate('capacity')}</span>
                 </div>
               </div>
             </div>

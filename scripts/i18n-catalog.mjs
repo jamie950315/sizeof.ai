@@ -77,22 +77,6 @@ function patchJson(path, data) {
     : `*** Begin Patch\n*** Add File: ${target}\n${content.trimEnd().split('\n').map(line => '+' + line).join('\n')}\n*** End Patch\n`
   process.stdout.write(patch)
 }
-const pause = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-async function request(text, locale) {
-  const query = new URLSearchParams({ client: 'gtx', sl: 'en', tl: locale, dt: 't', q: text })
-  let last
-  for (let attempt = 0; attempt < 8; attempt++) {
-    try {
-      const response = await fetch(`https://translate.googleapis.com/translate_a/single?${query}`, { signal: AbortSignal.timeout(25000) })
-      if (!response.ok) throw new Error(`Translator HTTP ${response.status}`)
-      const data = await response.json()
-      const translated = data[0]?.map(part => part[0] || '').join('')
-      if (!translated) throw new Error('Empty translation')
-      return translated
-    } catch (error) { last = error; await pause(Math.min(500 * 2 ** attempt, 6000)) }
-  }
-  throw last
-}
 export function cleanTranslation(source, text, locale) {
   text = text.trim().replace(/[｛{]\s*(\d+)\s*[｝}]/g, '{$1}')
   const expected = [...source.matchAll(/\{\d+\}/g)].map(match => match[0]).sort().join('|')
@@ -123,56 +107,17 @@ export function cleanTranslation(source, text, locale) {
   }
   return text
 }
-async function batchTranslate(sources, locale) {
-  const input = sources.map((source, i) => `\n§${i}§\n${source}`).join('\n')
-  const translated = await request(input, locale)
-  const segments = translated.split(/§\s*(\d+)\s*§/)
-  const results = {}
-  for (let i = 1; i < segments.length; i += 2) results[Number(segments[i])] = segments[i + 1]
-  const output = []
-  for (let i = 0; i < sources.length; i++) {
-    try { output.push(cleanTranslation(sources[i], results[i] || '', locale)); if (!output.at(-1)) throw new Error('Missing') }
-    catch {
-      let value = await request(sources[i], locale)
-      try { output[i] = cleanTranslation(sources[i], value, locale) }
-      catch {
-        const parts = sources[i].split(/(\{\d+\})/)
-        const translatedParts = []
-        for (const part of parts) translatedParts.push(/^\{\d+\}$/.test(part) || !/[A-Za-z]/.test(part) ? part : await request(part, locale))
-        value = translatedParts.join('')
-        output[i] = cleanTranslation(sources[i], value, locale)
-      }
-    }
-  }
-  return output
-}
 export async function generate(selected = locales) {
   const messages = extractMessages()
   patchJson(resolve(root, 'src/i18n/messages.json'), messages)
   console.error(`Extracted ${Object.keys(messages).length} public messages`)
   const keys = Object.keys(messages)
-  const batches = []
-  for (let i = 0; i < keys.length;) {
-    const batch = []; let length = 0
-    while (i < keys.length && (length + keys[i].length < 3200 || !batch.length) && batch.length < 45) { length += keys[i].length + 12; batch.push(keys[i++]) }
-    batches.push(batch)
-  }
   for (const locale of selected) {
     const path = resolve(root, `src/i18n/locales/${locale}.json`)
     const previous = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {}
-    const output = {}
-    let cursor = 0
-    const workers = Array.from({ length: 3 }, async () => {
-      while (cursor < batches.length) {
-        const index = cursor++; const batch = batches[index]
-        const missing = batch.filter(key => !previous[key])
-        const values = missing.length ? await batchTranslate(missing, locale) : []
-        missing.forEach((key, i) => { previous[key] = values[i] })
-        batch.forEach(key => { output[key] = cleanTranslation(key, previous[key], locale) })
-        if (index % 20 === 0) console.error(`${locale}: batch ${index + 1}/${batches.length}`)
-      }
-    })
-    await Promise.all(workers)
+    const missing = keys.filter(key => !previous[key])
+    if (missing.length) throw new Error(`${locale} requires ${missing.length} reviewed translations; automatic translation is disabled`)
+    const output = Object.fromEntries(keys.map(key => [key, cleanTranslation(key, previous[key], locale)]))
     if (keys.some(key => !output[key])) throw new Error(`Incomplete locale ${locale}`)
     console.error(`${locale}: prepared ${keys.length} translations`)
     patchJson(path, Object.fromEntries(keys.map(key => [key, output[key]])))

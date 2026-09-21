@@ -22,20 +22,23 @@ whitespace normalization and numbered template placeholders. Without `--write`,
 commands print patches rather than changing files; large patch output can be
 truncated by terminal wrappers, so use `--write` for generated catalogs.
 
-Existing translations are reused, then the checked-in technical and Chinese
-terminology glossary is reapplied. New public source copy is machine-translated
-at build time through Google's free `translate.googleapis.com` gtx endpoint,
-without an API key. There are no translation calls from visitors' browsers and
-no credential, private user content, or model-weight uploads. Translation calls
-have bounded request sizes, deadlines, concurrency, and retries; rate limiting
-fails the run rather than evading a provider block or writing an incomplete
-locale. The free endpoint is unofficial and availability is not guaranteed.
+Existing translations are reused and the checked-in terminology normalization
+is reapplied. Automatic translation is disabled. New source messages make the
+catalog command fail until a reviewed translation is supplied for every locale.
+There are no translation requests from the build, server, or visitor browser.
 
 The initial 2026-09-14 catalogs were machine-generated, with model-authored
 completion of a small number of missing public labels and source-context
 technical/Chinese terminology corrections after the endpoint returned HTTP 429.
-They have not received comprehensive native-speaker review. Future linguistic
-corrections should be made directly in locale JSON; generation preserves them.
+They have not received comprehensive native-speaker review. Reviewed corrections
+belong in `src/i18n/reviewed/`; these overrides take precedence over the legacy
+catalog and are not replaced by catalog maintenance.
+
+Runtime translation uses exact message keys only. Interpolated values are opaque
+parameters and are never searched, normalized, or translated. Do not restore
+fuzzy matching, case-insensitive matching, or automatic localization of arbitrary
+React expressions; those mechanisms can corrupt model identifiers, units, user
+content, and technical measurements.
 
 The browser downloads only the selected locale pack; the server loads the full
 catalog set for localized documentation HTML and Markdown. A failed language

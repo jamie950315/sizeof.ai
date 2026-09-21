@@ -19,6 +19,14 @@ module.exports = function ({ types: t }) {
     state.used.add(name)
     return t.callExpression(t.identifier(`__sizeof_${name}`), [value])
   }
+  function message(state, expression) {
+    if (t.isStringLiteral(expression)) return call(state, 'translate', expression)
+    if (!t.isTemplateLiteral(expression)) return expression
+    const key = expression.quasis.map((part, index) => part.value.cooked + (index < expression.expressions.length ? `{${index}}` : '')).join('')
+    state.used.add('formatMessage')
+    return t.callExpression(t.identifier('__sizeof_formatMessage'), [t.stringLiteral(key), t.arrayExpression(expression.expressions)])
+  }
+  const technicalText = text => /^\s*(?:[|/·:(),.-]*\s*)?(?:L|KVH?|GiB|GB|MiB|MB|KiB|KB|B|FP\d+|BF\d+|INT\d+|\d+bit)(?:\s*[|/·:(),.-]\s*)?$/i.test(text)
   const userFields = /^(notes|tags|firstError|hardwareLabel|runtimeVersion|workload|prompt|modelId|revision|filename|name|id|path|repositoryId|sourceModelId|publisher|owner|device|modelRevision|quantization|before|after|left|right)$/
   function localizeExpression(expression, state) {
     if ((t.isMemberExpression(expression) || t.isOptionalMemberExpression(expression)) && t.isIdentifier(expression.property)) {
@@ -37,7 +45,7 @@ module.exports = function ({ types: t }) {
       expression.alternate = localizeExpression(expression.alternate, state)
       return expression
     }
-    return call(state, 'localizeNode', expression)
+    return message(state, expression)
   }
   return {
     visitor: {
@@ -65,7 +73,7 @@ module.exports = function ({ types: t }) {
       JSXText(path, state) {
         if (!state.enabled || protectedPath(path)) return
         const text = clean(path.node.value)
-        if (text.trim()) path.replaceWith(t.jsxExpressionContainer(call(state, 'translate', t.stringLiteral(text))))
+        if (text.trim() && !technicalText(text)) path.replaceWith(t.jsxExpressionContainer(call(state, 'translate', t.stringLiteral(text))))
         path.skip()
       },
       JSXExpressionContainer: {
@@ -84,13 +92,13 @@ module.exports = function ({ types: t }) {
         const value = path.node.value
         if (!value) return
         const expression = t.isStringLiteral(value) ? value : t.isJSXExpressionContainer(value) ? value.expression : null
-        if (expression && !t.isJSXEmptyExpression(expression)) path.node.value = t.jsxExpressionContainer(call(state, href ? 'localizeHref' : 'localizeNode', expression))
+        if (expression && !t.isJSXEmptyExpression(expression)) path.node.value = t.jsxExpressionContainer(href ? call(state, 'localizeHref', expression) : message(state, expression))
       },
       CallExpression(path, state) {
         if (!state.enabled) return
         const callee = path.node.callee
         if (t.isMemberExpression(callee) && t.isIdentifier(callee.object, { name: 'window' }) && t.isIdentifier(callee.property, { name: 'confirm' })) {
-          if (path.node.arguments[0] && !t.isSpreadElement(path.node.arguments[0])) path.node.arguments[0] = call(state, 'translate', path.node.arguments[0])
+          if (path.node.arguments[0] && !t.isSpreadElement(path.node.arguments[0])) path.node.arguments[0] = message(state, path.node.arguments[0])
           path.skip()
         }
         if (t.isMemberExpression(callee) && t.isIdentifier(callee.property, { name: 'writeText' })) {

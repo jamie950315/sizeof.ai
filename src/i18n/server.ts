@@ -10,6 +10,7 @@ import ko from './locales/ko.json'
 import ar from './locales/ar.json'
 import hi from './locales/hi.json'
 import id from './locales/id.json'
+import zhTWReviewed from './reviewed/zh-TW.json'
 import { registerCatalog, type Locale } from './core'
-for (const [locale, catalog] of Object.entries({ 'zh-CN': zhCN, 'zh-TW': zhTW, ja, es, ru, de, fr, pt, ko, ar, hi, id })) registerCatalog(locale as Locale, catalog)
+for (const [locale, catalog] of Object.entries({ 'zh-CN': zhCN, 'zh-TW': { ...zhTW, ...zhTWReviewed }, ja, es, ru, de, fr, pt, ko, ar, hi, id })) registerCatalog(locale as Locale, catalog)
 export { LANGUAGES, resolveLocale, translate, type Locale } from './core'

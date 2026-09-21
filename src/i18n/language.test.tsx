@@ -3,7 +3,8 @@ import './server'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import LanguageFooter, { LanguageProvider, initialLocale, persistLocale, useLanguage } from './LanguageFooter'
-import { LANGUAGES, getActiveLocale, localizeHref, localizeOutput, routingSearch, setActiveLocale, translate } from './core'
+import { LANGUAGES, formatMessage, getActiveLocale, localizeHref, localizeOutput, routingSearch, setActiveLocale, translate } from './core'
+import App from '../App'
 import PlatformRouter from '../platform/PlatformRouter'
 import DocsPage from '../docs/DocsPage'
 import RunComparison from '../platform/RunComparison'
@@ -95,6 +96,20 @@ describe('site-wide persistent language routing', () => {
     expect(output).toContain(command)
     expect(output).toContain(translate('# Local deployment runbook', 'zh-TW'))
     expect(output).not.toContain('## Start the server')
+  })
+  it('keeps technical values opaque and uses only explicit message templates', () => {
+    setActiveLocale('zh-TW')
+    expect(translate('64L / 4 KVH')).toBe('64L / 4 KVH')
+    expect(translate('256K NATIVE')).toBe('256K NATIVE')
+    expect(formatMessage('{0} GiB', [18.3])).toBe('18.3GiB')
+  })
+  it('does not translate catalog measurements as prose', () => {
+    setActiveLocale('zh-TW')
+    render(<App />)
+    expect(screen.getAllByText('64L / 4 KVH').length).toBeGreaterThan(0)
+    expect(screen.getByText((_, node) => node?.textContent === '256K 原生上下文')).toBeVisible()
+    expect(screen.getByText((_, node) => node?.textContent === '27.781B 參數')).toBeVisible()
+    expect(screen.queryByText(/64升|在地化|權權重化|合身性/)).toBeNull()
   })
   it('keeps private observations verbatim even when they match known site messages', async () => {
     setActiveLocale('zh-TW')

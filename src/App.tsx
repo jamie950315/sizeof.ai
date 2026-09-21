@@ -45,6 +45,7 @@ import {
   isSearchResponse,
   type HuggingFaceSearchModel,
 } from './lib/model-search-cache'
+import { translate } from './i18n/core'
 
 const contextPresets = contextLevels
 
@@ -371,7 +372,7 @@ function HomePage() {
                     onChange={(event) => setSearchModelType(event.target.value)}
                   >
                     {modelTypeOptions.map((option) => (
-                      <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                      <option key={option.value || 'all'} value={option.value}>{translate(option.label)}</option>
                     ))}
                   </select>
                 </label>
@@ -487,7 +488,7 @@ function HomePage() {
                 <div className="catalog-name">
                   <span>{item.maker}</span>
                   <strong>{item.name}</strong>
-                  <div>{item.strengths.map((tag) => <i key={tag}>{tag}</i>)}</div>
+                  <div>{item.strengths.map((tag) => <i key={tag}>{translate(tag)}</i>)}</div>
                 </div>
                 <div><small>PARAMETERS</small><strong>{item.parametersB}B</strong></div>
                 <div><small>MAX CONTEXT</small><strong>{formatContext(item.maxContext)}</strong></div>
@@ -538,7 +539,7 @@ function HomePage() {
               <div className="control-block">
                 <div className="label-row">
                   <label>Weight quantization</label>
-                  <span>{quantizations.find((item) => item.id === quantization)?.note}</span>
+                  <span>{translate(quantizations.find((item) => item.id === quantization)?.note ?? '')}</span>
                 </div>
                 <div className="quant-grid">
                   {quantizations.map((item) => (
@@ -632,7 +633,7 @@ function HomePage() {
             <div className="result-panel">
               <div className="result-topline">
                   <span>{estimate.isLowerBound ? 'VRAM LOWER BOUND' : 'ESTIMATED VRAM'}</span>
-                <span className={`fit-pill ${currentFit}`}>{estimate.isLowerBound && currentFit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[currentFit]} ON {vramBudget} GB</span>
+                <span className={`fit-pill ${currentFit}`}>{translate(estimate.isLowerBound && currentFit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[currentFit])} {translate('ON')} {vramBudget} GB</span>
               </div>
               <div className="total-number">
                 <span>{estimate.totalGiB.toFixed(2)}</span>
