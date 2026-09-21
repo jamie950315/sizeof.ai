@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useLanguage } from './i18n/LanguageFooter'
-import { translate } from './i18n/core'
+import { formatMessage, translate } from './i18n/core'
 import PlatformNav from './platform/PlatformNav'
 import SaveModelButton from './platform/SaveModelButton'
 import {
@@ -765,8 +765,8 @@ export default function ModelDetailPage({ route }: Props) {
                   role="img"
                   data-motion="memory-usage"
                   aria-label={estimate.isLowerBound
-                    ? `Modeled lower bound: ${estimate.totalGiB.toFixed(2)} GiB before unmodeled runtime state`
-                    : `Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vram} GiB VRAM${offloadLabel ? `, ${offloadLabel}` : ''}`}
+                    ? formatMessage('Modeled lower bound: {0} GiB before unmodeled runtime state', [estimate.totalGiB.toFixed(2)])
+                    : formatMessage('Memory usage: {0} GiB used of {1} GiB VRAM{2}', [estimate.totalGiB.toFixed(2), vram, offloadLabel ? `, ${offloadLabel}` : ''])}
                 >
                   <div
                     className="memory-bar-used"
