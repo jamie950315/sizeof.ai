@@ -1,4 +1,5 @@
 import type { EvidenceEntry } from '../lib/evidence'
+import { translate } from '../i18n/core'
 
 interface Props {
   entries: EvidenceEntry[]
@@ -12,12 +13,12 @@ export default function EvidenceDrawer({ entries }: Props) {
 
   return (
     <details className="evidence-drawer">
-      <summary>Evidence: {counts.verified} verified, {counts.derived} derived, {counts.unknown} unknown</summary>
+      <summary>{translate('Estimate evidence')}: {counts.verified} {translate('verified')}, {counts.derived} {translate('derived')}, {counts.unknown} {translate('unknown')}</summary>
       <ul aria-label="Estimate evidence">
         {entries.map((entry) => (
           <li key={entry.id} className={`evidence-${entry.kind}`} data-evidence-kind={entry.kind}>
-            <strong>{entry.kind.toUpperCase()} / {entry.label}</strong>
-            <p>{entry.detail}</p>
+            <strong>{translate(entry.kind.toUpperCase())} / {translate(entry.label)}</strong>
+            <p>{translate(entry.detail)}</p>
             {(entry.revision || entry.repositoryUpdatedAt || entry.fetchedAt) && <small>
               {entry.revision ? `Revision ${entry.revision}` : ''}
               {entry.revision && (entry.repositoryUpdatedAt || entry.fetchedAt) ? ' · ' : ''}

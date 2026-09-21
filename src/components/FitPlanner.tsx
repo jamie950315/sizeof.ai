@@ -1,6 +1,7 @@
 import type { ModelSpec } from '../data/models'
 import type { KvPrecisionId, QuantizationId } from '../data/quantizations'
 import { buildFitAdjustments, findMaximumSafeContext, type FitAdjustment } from '../lib/planner'
+import { formatMessage, translate } from '../i18n/core'
 
 interface PlannerProps {
   model: ModelSpec
@@ -31,14 +32,14 @@ const refusalLabels = {
 } as const
 
 function adjustmentLabel(adjustment: FitAdjustment) {
-  if (adjustment.field === 'context') return `Use ${adjustment.value} token context`
-  if (adjustment.field === 'kvPrecision') return `Use ${adjustment.value} KV precision`
-  return `Use ${adjustment.value} weight precision`
+  if (adjustment.field === 'context') return formatMessage('Use {0} token context', [adjustment.value])
+  if (adjustment.field === 'kvPrecision') return formatMessage('Use {0} KV precision', [adjustment.value])
+  return formatMessage('Use {0} weight precision', [adjustment.value])
 }
 
 export default function FitPlanner(props: Props) {
   if (!props.model) {
-    return <section className="fit-planner" aria-label="Fit planner"><h3>Fit planner</h3><p>{props.unavailableReason ?? 'A precise fit plan is unavailable for this model.'}</p></section>
+    return <section className="fit-planner" aria-label="Fit planner"><h3>Fit planner</h3><p>{translate(props.unavailableReason ?? 'A precise fit plan is unavailable for this model.')}</p></section>
   }
   const options = {
     quantization: props.quantization,
@@ -63,7 +64,7 @@ export default function FitPlanner(props: Props) {
   return (
     <section className="fit-planner" aria-label="Fit planner">
       <h3>Fit planner</h3>
-      {refusal ? <p>{refusal}</p> : maximum.kind === 'available'
+      {refusal ? <p>{translate(refusal)}</p> : maximum.kind === 'available'
         ? <p>Maximum safe native context: <strong>{maximum.context} tokens</strong>.</p>
         : <p>The current weight precision does not fit; try a deterministic adjustment.</p>}
       {!refusal && props.totalGiB > props.capacityGiB && adjustments.length > 0 && (

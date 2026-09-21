@@ -1041,7 +1041,7 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
-    await user.click(within(calculator).getByText(/Evidence:/))
+    await user.click(within(calculator).getByText(/Estimate evidence:/))
     expect(within(calculator).getByText(/Repository updated 2026-08-14T15:00:01.000Z/)).toBeInTheDocument()
     expect(within(calculator).queryByText(/Observed 2026-08-14T15:00:01.000Z/)).not.toBeInTheDocument()
     expect(within(calculator).getByText(/UNKNOWN \/ Runtime-specific memory factors/).closest('li')).toHaveClass('evidence-unknown')
