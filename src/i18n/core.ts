@@ -1,4 +1,5 @@
 import messages from './messages.json'
+import { Children, type ReactNode } from 'react'
 
 export const LANGUAGES = [
   { code: 'en', label: 'English' }, { code: 'zh-CN', label: '简体中文' },
@@ -38,6 +39,22 @@ export function formatMessage(key: string, values: readonly unknown[], locale: L
     const value = values[Number(slot)]
     return value === undefined ? placeholder : String(value)
   })
+}
+
+/** Format one complete message while preserving inline React nodes as opaque values. */
+export function formatRichMessage(key: string, values: readonly ReactNode[], locale: Locale = activeLocale): ReactNode[] {
+  const translated = translate(key, locale)
+  const parts: ReactNode[] = []
+  let offset = 0
+  for (const match of translated.matchAll(/\{(\d+)\}/g)) {
+    const index = match.index ?? 0
+    if (index > offset) parts.push(translated.slice(offset, index))
+    const value = values[Number(match[1])]
+    parts.push(value === undefined ? match[0] : value)
+    offset = index + match[0].length
+  }
+  if (offset < translated.length) parts.push(translated.slice(offset))
+  return Children.toArray(parts)
 }
 
 export function localizeNode<T>(value: T): T {

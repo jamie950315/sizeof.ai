@@ -1,5 +1,4 @@
 import { catalogs, registerCatalog, type Locale } from './core'
-import zhTWReviewed from './reviewed/zh-TW.json'
 
 const loaders = {
   'zh-CN': () => import('./locales/zh-CN.json'), 'zh-TW': () => import('./locales/zh-TW.json'),
@@ -15,7 +14,7 @@ export function loadLocale(locale: Locale): Promise<void> {
   const existing = pending.get(locale)
   if (existing) return existing
   const request = loaders[locale as Exclude<Locale, 'en'>]().then(module => {
-    registerCatalog(locale, locale === 'zh-TW' ? { ...module.default, ...zhTWReviewed } : module.default)
+    registerCatalog(locale, module.default)
   }).finally(() => { pending.delete(locale) })
   pending.set(locale, request)
   return request

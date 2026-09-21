@@ -549,7 +549,7 @@ function HomePage() {
                       key={item.id}
                       onClick={() => setQuantization(item.id)}
                     >
-                      {item.label}
+                      {translate(item.label)}
                     </button>
                   ))}
                 </div>
@@ -611,7 +611,7 @@ function HomePage() {
                     onChange={(event) => setKvPrecision(event.target.value as KvPrecisionId)}
                   >
                     {kvPrecisions.map((item) => (
-                      <option value={item.id} key={item.id}>{item.label}</option>
+                      <option value={item.id} key={item.id}>{translate(item.label)}</option>
                     ))}
                   </select>
                 </div>
@@ -676,7 +676,7 @@ function HomePage() {
                 <div>
                   <span>CONFIGURATION</span>
                   <strong>{model.name}</strong>
-                  <p>{quantizations.find((item) => item.id === quantization)?.label} · {formatContext(context)} context · {kvPrecision.toUpperCase()} KV</p>
+                  <p>{translate(quantizations.find((item) => item.id === quantization)?.label ?? '')} · {formatContext(context)} context · {kvPrecision.toUpperCase()} KV</p>
                 </div>
                 <button type="button" className="copy-button" onClick={() => void copyShareLink()}>
                   {copied ? <Check size={17} /> : <Copy size={17} />}
@@ -715,7 +715,7 @@ function HomePage() {
           <div className="recommendation-intro">
             <p>TOP PICKS FOR</p>
             <strong>{vramBudget} GB</strong>
-            <span>{formatContext(context)} context · {quantizations.find((item) => item.id === quantization)?.label}</span>
+            <span>{formatContext(context)} context · {translate(quantizations.find((item) => item.id === quantization)?.label ?? '')}</span>
           </div>
           <div className="recommendation-grid">
             {recommendations.slice(0, 3).map((item, index) => (

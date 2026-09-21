@@ -51,7 +51,7 @@ export default function TroubleshootPage() {
       </div>
       <section className="trouble-notes"><h2><small>03</small> Keep a private scratchpad</h2><label>Private notes<textarea maxLength={4000} value={notes} onChange={e => setNotes(sanitizeDiagnosticNote(e.target.value))} placeholder="Keep the first error and observations. Do not enter credentials or private logs." /></label><p>{notes.length}/4,000 characters · Memory only: lost on reload or leaving this page. Never included in links, copied checklists, or exports. This is not a secret detector or secure vault.</p><button disabled={!notes} onClick={() => setNotes('')}>Clear private notes</button></section>
       <footer className="trouble-actions"><button onClick={() => void copy(true)}>Copy guide link</button><button onClick={() => void copy(false)}>Copy diagnostic checklist</button><button onClick={download}>Export diagnostic checklist</button></footer><p className="trouble-sharing">Sharing includes only the selected stage, symptom, and operating system. Checklists contain guidance, not a diagnosis or your answers.</p>
-      {feedback && <p role={feedback.error ? 'alert' : 'status'}>{feedback.text}</p>}
+      {feedback && <p role={feedback.error ? 'alert' : 'status'}>{translate(feedback.text)}</p>}
     </>}
   </main>
 }

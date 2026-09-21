@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { translate } from '../i18n/core'
 import { costBudget, DEFAULT_HARDWARE_PLAN, hardwareSearch, hardwareSummary, memoryBudget, parseHardwarePlan, storageBudget, type HardwarePlan } from './hardware'
 import './hardware.css'
 
@@ -50,7 +51,7 @@ export default function HardwarePage() {
         {tab === 'cost' && (cost.error ? <p role="alert" className="hardware-error">{cost.error}</p> : cost.value && <><span className="hardware-eyebrow">ELECTRICITY PER 30 DAYS · YOUR CURRENCY</span><div className="hardware-number">{cost.value.electricity.toFixed(2)}</div><dl><div><dt>Energy</dt><dd>{cost.value.energy.toFixed(2)} kWh</dd></div><div><dt>API scenario / 30 days</dt><dd>{cost.value.api.toFixed(2)}</dd></div><div><dt>API minus electricity</dt><dd>{cost.value.monthlySaving.toFixed(2)}</dd></div><div><dt>Hardware payback</dt><dd>{cost.value.breakEvenMonths === null ? 'Not reached' : `${cost.value.breakEvenMonths.toFixed(1)} months`}</dd></div></dl><p className="hardware-caution">Payback is purchase cost divided by positive monthly savings. This excludes idle power outside entered hours, cooling, maintenance, hardware depreciation, and your time. Local and hosted models may differ in quality and speed. Confirm your workload can actually finish in the entered hours.</p><a href="/docs/benchmarking">Measure your real workload →</a></>)}
       </section>
     </div>
-    <footer className="hardware-actions"><button onClick={() => void copy('link')}>Copy planning link</button><button onClick={() => void copy('summary')}>Copy worksheet</button><button onClick={download}>Export worksheet</button><a href="/deploy">Next: deployment guide →</a></footer>{feedback && <p role={feedback.error ? 'alert' : 'status'}>{feedback.text}</p>}
+    <footer className="hardware-actions"><button onClick={() => void copy('link')}>Copy planning link</button><button onClick={() => void copy('summary')}>Copy worksheet</button><button onClick={download}>Export worksheet</button><a href="/deploy">Next: deployment guide →</a></footer>{feedback && <p role={feedback.error ? 'alert' : 'status'}>{translate(feedback.text)}</p>}
     </>}
     <aside className="hardware-footnote"><strong>Keep the units straight.</strong> Memory and disk figures here use binary GiB. Network volumes use decimal GB, and connection speeds use decimal Mbps. No model files are downloaded by this tool. <a href="/docs/hardware">Read the hardware guide.</a></aside>
   </main>

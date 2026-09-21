@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { translate } from '../i18n/core'
 import { ArrowUpRight, Check, Copy, Download, Terminal } from 'lucide-react'
 import { buildDeploymentPlan, DEPLOYMENT_DEFAULTS, DEPLOYMENT_SOURCES, deploymentCompatibility, deploymentMarkdown, deploymentSearch, restoreDeployment, type DeploymentInput } from './deployment'
 import './deploy.css'
@@ -78,7 +79,9 @@ export default function DeployPage() {
         <div className="deploy-output-header"><div><p className="deploy-eyebrow">02 / REVIEW & RUN LOCALLY</p><h2 id="deploy-plan-title">Your deployment runbook</h2></div><Terminal size={24} aria-hidden="true" /></div>
         {!plan || linkError ? <div className="deploy-empty"><Terminal size={36} aria-hidden="true" /><h3>{linkError ? 'Reset the invalid link first' : 'Complete your launch settings'}</h3><p>{linkError || validation}</p><a href="/docs">New to local models? Start with the guides <ArrowUpRight size={14} /></a></div> : <>
           <div className="deploy-summary"><span>{plan.shell}</span><span>{input.engine}</span><span>One local server</span><span>Reviewed 08 Sep 2026</span></div>
-          <p className="deploy-note">{plan.modelRevision ? <>Fixed model revision: <code>{plan.modelRevision}</code>. Run the download step first, then launch from <code>{plan.localModelPath}</code>.</> : 'Unpinned model: upstream files may change. Fill a full model commit for a repeatable download.'}</p>
+          {plan.modelRevision
+            ? <p className="deploy-note">Fixed model revision: <code>{plan.modelRevision}</code>. Run the download step first, then launch from <code>{plan.localModelPath}</code>.</p>
+            : <p className="deploy-note">Unpinned model: upstream files may change. Fill a full model commit for a repeatable download.</p>}
           <details className="deploy-checklist" open><summary>Before you start · {checked.length}/{plan.checklist.length} checked</summary>{plan.checklist.map((item, index) => <label key={item}><input type="checkbox" checked={checked.includes(index)} onChange={() => setChecked(previous => previous.includes(index) ? previous.filter(value => value !== index) : [...previous, index])} /><span>{item}</span></label>)}</details>
           {[...(plan.download ? [['Download fixed model revision', plan.download]] : []), ['Start the server', plan.launch], ['Check the API · second terminal', plan.probe], ['Request a first reply · second terminal', plan.client]].map(([title, command], index) => <section className="deploy-command" key={title}><div><h3><span>0{index + 1}</span>{title}</h3><button aria-label={`Copy ${title.toLowerCase()}`} onClick={() => void copy(command, 'Command copied. Review it before running.')}><Copy size={15} aria-hidden="true" /> Copy</button></div><pre><code>{command}</code></pre></section>)}
           <div className="deploy-actions"><button onClick={() => void copy(deploymentMarkdown(input), 'Runbook copied.')}><Copy size={15} aria-hidden="true" /> Copy runbook</button><button onClick={download}><Download size={15} aria-hidden="true" /> Download .md</button><button onClick={() => void sharePlan()}><ArrowUpRight size={15} aria-hidden="true" /> Share plan</button></div>
@@ -87,9 +90,9 @@ export default function DeployPage() {
           <p className="deploy-hint">Changing launch settings resets unsaved record notes and the reported outcome. Save the current record first if you want to keep it.</p>
           <SaveRunForm key={`${JSON.stringify(input)}:${artifact?.revision ?? ''}`} input={input} artifact={artifact} />
         </>}
-        {feedback.text && <p role={feedback.error ? 'alert' : 'status'} className={feedback.error ? 'deploy-error' : 'deploy-success'}>{!feedback.error && <Check size={15} aria-hidden="true" />} {feedback.text}</p>}
+        {feedback.text && <p role={feedback.error ? 'alert' : 'status'} className={feedback.error ? 'deploy-error' : 'deploy-success'}>{!feedback.error && <Check size={15} aria-hidden="true" />} {translate(feedback.text)}</p>}
       </section>
     </div>
-    <section className="deploy-resources"><div><p className="deploy-eyebrow">LEARN / VERIFY / TROUBLESHOOT</p><h2>Keep the source of truth close.</h2><p>Install from official projects. Preserve the first error. Check actual inference before sharing access.</p><a href="/docs">Browse the learning center →</a></div><ul>{DEPLOYMENT_SOURCES.map(source => <li key={source.url}><a href={source.url} target="_blank" rel="noreferrer">{source.title}<ArrowUpRight size={15} aria-hidden="true" /></a></li>)}</ul></section>
+    <section className="deploy-resources"><div><p className="deploy-eyebrow">LEARN / VERIFY / TROUBLESHOOT</p><h2>Keep the source of truth close.</h2><p>Install from official projects. Preserve the first error. Check actual inference before sharing access.</p><a href="/docs">Browse the learning center →</a></div><ul>{DEPLOYMENT_SOURCES.map(source => <li key={source.url}><a href={source.url} target="_blank" rel="noreferrer">{translate(source.title)}<ArrowUpRight size={15} aria-hidden="true" /></a></li>)}</ul></section>
   </main>
 }

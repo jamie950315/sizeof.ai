@@ -512,7 +512,7 @@ export default function ModelDetailPage({ route }: Props) {
         </>}
       </dl>
       <div className="detail-list-source">
-        <span>Hugging Face public API + config.json{model.configSourceId ? ` / ARCHITECTURE FROM ${model.configSourceId}` : ''}</span>
+        <span>{model.configSourceId ? `Hugging Face public API + config.json / ARCHITECTURE FROM ${model.configSourceId}` : 'Hugging Face public API + config.json'}</span>
         <a href={model.sourceUrl} target="_blank" rel="noreferrer">VIEW ORIGINAL <ArrowUpRight size={14} /></a>
       </div>
     </section>
@@ -674,7 +674,7 @@ export default function ModelDetailPage({ route }: Props) {
                       key="estimated"
                     >
                       {quantizations.map((item) => (
-                        <button type="button" className={quantization === item.id ? 'active' : ''} key={item.id} onClick={() => chooseQuantization(item.id)}>{item.label}</button>
+                        <button type="button" className={quantization === item.id ? 'active' : ''} key={item.id} onClick={() => chooseQuantization(item.id)}>{translate(item.label)}</button>
                       ))}
                     </div>
                   )}
@@ -732,7 +732,7 @@ export default function ModelDetailPage({ route }: Props) {
                   <div className="control-block compact">
                     <label htmlFor="detail-kv">KV cache precision</label>
                     <select id="detail-kv" value={kvPrecision} onChange={(event) => setKvPrecision(event.target.value as KvPrecisionId)}>
-                      {kvPrecisions.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}
+                      {kvPrecisions.map((item) => <option value={item.id} key={item.id}>{translate(item.label)}</option>)}
                     </select>
                   </div>
                   <div className="control-block compact">
@@ -835,7 +835,7 @@ export default function ModelDetailPage({ route }: Props) {
           <section className="detail-calculator resource-estimate" aria-label="Model load estimate">
             <div className="detail-section-title">
               <span>01 / STATIC MODEL MEMORY</span>
-              <h2>{resourceEstimate.title}.</h2>
+              <h2>{translate(resourceEstimate.title)}.</h2>
             </div>
             <div className="calculator-grid detail-calc-grid">
               <div className="controls-panel resource-controls">
@@ -855,7 +855,7 @@ export default function ModelDetailPage({ route }: Props) {
                 )}
                 <div className="resource-summary">
                   <span>WHAT THIS COUNTS</span>
-                  <p>{resourceEstimate.description}</p>
+                  <p>{translate(resourceEstimate.description)}</p>
                 </div>
                 {resourceEstimate.baseModelId && <div className="resource-base">DECLARED {resourceEstimate.kind === 'speculative-draft' ? 'TARGET' : 'BASE'} / {resourceEstimate.baseModelId}</div>}
                 {artifactPanel}
@@ -867,12 +867,12 @@ export default function ModelDetailPage({ route }: Props) {
                 <div className="breakdown-list">
                   {selectedResourceOption.components.map((component) => (
                     <div key={component.id}>
-                      <span>{component.label}{component.path ? ` / ${component.path}` : ''}</span>
+                      <span>{translate(component.label)}{component.path ? ` / ${component.path}` : ''}</span>
                       <strong>{formatBytes(component.sizeBytes)}</strong>
                     </div>
                   ))}
                 </div>
-                <p className="estimate-note"><Info size={15} /> {resourceEstimate.note}</p>
+                <p className="estimate-note"><Info size={15} /> {translate(resourceEstimate.note)}</p>
                 <FitPlanner unavailableReason="This resource-only model does not have a safe autoregressive fit plan." />
               </div>
             </div>

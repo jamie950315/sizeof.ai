@@ -26,6 +26,31 @@ module.exports = function ({ types: t }) {
     state.used.add('formatMessage')
     return t.callExpression(t.identifier('__sizeof_formatMessage'), [t.stringLiteral(key), t.arrayExpression(expression.expressions)])
   }
+  function mixedMessage(children, state) {
+    const inline = new Set(['a', 'br', 'button', 'code', 'em', 'kbd', 'small', 'span', 'strong'])
+    if (!children.some(child => t.isJSXExpressionContainer(child) || t.isJSXElement(child))) return null
+    if (!children.every(child => t.isJSXText(child)
+      || t.isJSXExpressionContainer(child) && !t.isJSXEmptyExpression(child.expression)
+      || t.isJSXElement(child) && (child.openingElement.selfClosing || inline.has(tag(child.openingElement.name))))) return null
+    const expressions = []
+    let key = ''
+    for (const child of children) {
+      if (t.isJSXText(child)) key += clean(child.value)
+      else if (t.isJSXElement(child)) {
+        key += `{${expressions.length}}`
+        expressions.push(child)
+      }
+      else {
+        if (t.isJSXElement(child.expression) || t.isJSXFragment(child.expression)
+          || t.isConditionalExpression(child.expression) || t.isLogicalExpression(child.expression)) return null
+        key += `{${expressions.length}}`
+        expressions.push(child.expression)
+      }
+    }
+    if (!/[A-Za-z]/.test(key) || technicalText(key)) return null
+    state.used.add('formatRichMessage')
+    return t.callExpression(t.identifier('__sizeof_formatRichMessage'), [t.stringLiteral(key), t.arrayExpression(expressions)])
+  }
   const technicalText = text => /^\s*(?:[|/·:(),.-]*\s*)?(?:L|KVH?|GiB|GB|MiB|MB|KiB|KB|B|FP\d+|BF\d+|INT\d+|\d+bit)(?:\s*[|/·:(),.-]\s*)?$/i.test(text)
   const userFields = /^(notes|tags|firstError|hardwareLabel|runtimeVersion|workload|prompt|modelId|revision|filename|name|id|path|repositoryId|sourceModelId|publisher|owner|device|modelRevision|quantization|before|after|left|right)$/
   function localizeExpression(expression, state) {
@@ -60,6 +85,11 @@ module.exports = function ({ types: t }) {
         enter(path, state) {
           if (!state.enabled || protectedPath(path)) return
           const opening = path.node.openingElement
+          const combined = mixedMessage(path.node.children, state)
+          if (combined) {
+            path.node.children = [t.jsxExpressionContainer(combined)]
+            return
+          }
           if (tag(opening.name) === 'option' && !opening.attributes.some(a => t.isJSXAttribute(a) && tag(a.name) === 'value')) {
             const children = path.node.children.filter(child => !t.isJSXText(child) || clean(child.value).trim())
             if (children.length === 1) {
@@ -68,6 +98,13 @@ module.exports = function ({ types: t }) {
               else if (t.isJSXExpressionContainer(child)) opening.attributes.push(t.jsxAttribute(t.jsxIdentifier('value'), t.jsxExpressionContainer(t.cloneNode(child.expression, true))))
             }
           }
+        },
+      },
+      JSXFragment: {
+        enter(path, state) {
+          if (!state.enabled || protectedPath(path)) return
+          const combined = mixedMessage(path.node.children, state)
+          if (combined) path.node.children = [t.jsxExpressionContainer(combined)]
         },
       },
       JSXText(path, state) {

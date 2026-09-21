@@ -22,17 +22,20 @@ whitespace normalization and numbered template placeholders. Without `--write`,
 commands print patches rather than changing files; large patch output can be
 truncated by terminal wrappers, so use `--write` for generated catalogs.
 
-Existing translations are reused and the checked-in terminology normalization
-is reapplied. Automatic translation is disabled. New source messages make the
-catalog command fail until a reviewed translation is supplied for every locale.
-There are no translation requests from the build, server, or visitor browser.
+Every locale file is one complete catalog of explicit full-message values. New
+or corrected translations must be written from the full English message and its
+product context; do not derive
+it from another locale, concatenate translated fragments, apply character or
+terminology substitutions, or use an automatic translation service. Catalog
+maintenance only validates completeness and placeholders. It never rewrites a
+translation. New source messages make the build fail until every locale supplies
+an explicit reviewed value. There are no translation requests from the build,
+server, or visitor browser, and there is no legacy override layer.
 
-The initial 2026-09-14 catalogs were machine-generated, with model-authored
-completion of a small number of missing public labels and source-context
-technical/Chinese terminology corrections after the endpoint returned HTTP 429.
-They have not received comprehensive native-speaker review. Reviewed corrections
-belong in `src/i18n/reviewed/`; these overrides take precedence over the legacy
-catalog and are not replaced by catalog maintenance.
+Mixed JSX prose is extracted as one message with numbered opaque parameters.
+For example, a review date inside a sentence is `{0}`; the surrounding sentence
+is translated as one unit while the date is preserved. Short fragments are not
+assembled into a sentence at runtime.
 
 Runtime translation uses exact message keys only. Interpolated values are opaque
 parameters and are never searched, normalized, or translated. Do not restore

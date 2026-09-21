@@ -41,6 +41,6 @@ export default function RunComparison({ left, right }: { left: DeploymentRun; ri
     </table></div>}
     <p className="run-diff-privacy">Exports include both records’ private notes and error summaries, including fields hidden by the filter. Review them before sharing. Nothing is uploaded.</p>
     <div className="platform-actions"><button onClick={() => void copy()}>Copy comparison</button><button onClick={download}>Download comparison</button></div>
-    {feedback && <p role={feedback.error ? 'alert' : 'status'}>{feedback.text}</p>}
+    {feedback && <p role={feedback.error ? 'alert' : 'status'}>{translate(feedback.text)}</p>}
   </section>
 }

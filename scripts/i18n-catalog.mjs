@@ -1,11 +1,14 @@
 /** Build-time translation of public checked-in copy only. No runtime translation requests. */
 import * as ts from 'typescript/unstable/ast'
 import { API } from 'typescript/unstable/sync'
+import { transformSync } from '@babel/core'
+import { createRequire } from 'node:module'
 import { readdirSync, readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, relative, dirname } from 'node:path'
 
 export const locales = ['zh-CN', 'zh-TW', 'ja', 'es', 'ru', 'de', 'fr', 'pt', 'ko', 'ar', 'hi', 'id']
 const root = resolve(import.meta.dirname, '..')
+const jsxLocalization = createRequire(import.meta.url)('./i18n-jsx.cjs')
 export function normalizeJsx(text) {
   return text.split(/\r?\n/).map((line, i, lines) => {
     let value = line.replace(/\t/g, ' ')
@@ -16,9 +19,10 @@ export function normalizeJsx(text) {
 }
 function human(text) {
   return /[A-Za-z]/.test(text) && !/^https?:|^[./]|^#[\da-f]{3,8}$|^\w+:\/\//i.test(text)
-    && (/[\s]/.test(text) || /^[A-Za-z][A-Za-z -]*$/.test(text))
+    && !(!/\s/.test(text) && (/[\/,]/.test(text) || /\.[A-Za-z0-9]/.test(text) || /^[a-z][a-z-]*[.,:]$/.test(text)))
+    && (/[\s]/.test(text) || /^[A-Za-z][A-Za-z .,:;!?…’'()-]*$/.test(text))
     && !/^(?:import |export |curl |python |pip |npm |npx |uv |git |docker |hf |llama-server |vllm |mlx_lm)/.test(text)
-    && !/<(?:!DOCTYPE|html|script|style|svg)\b/i.test(text)
+    && !/<[!?/]?[a-z][^>]*>/i.test(text)
 }
 export function extractMessages() {
   const found = new Set(['Language', 'Choose language', 'Translation unavailable. Please try again.', 'Loading translation…'])
@@ -44,14 +48,54 @@ export function extractMessages() {
         }
       }
       const walk = (node) => {
+        if (ts.isJsxAttribute(node) && node.initializer && ts.isStringLiteral(node.initializer)) {
+          const attribute = String(node.name.escapedText ?? node.name.text ?? '')
+          if (['aria-label', 'aria-description', 'aria-valuetext', 'title', 'alt', 'placeholder', 'label'].includes(attribute)) add(node.initializer.text)
+        }
+        if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
+          const children = node.children.filter(child => !ts.isJsxText(child) || normalizeJsx(child.text))
+          const inline = new Set(['a', 'br', 'button', 'code', 'em', 'kbd', 'small', 'span', 'strong'])
+          const mixed = children.some(child => ts.isJsxExpression(child) || ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child))
+            && children.every(child => ts.isJsxText(child) || ts.isJsxExpression(child) && child.expression
+              && !ts.isConditionalExpression(child.expression) && !ts.isBinaryExpression(child.expression)
+              && !ts.isJsxElement(child.expression) && !ts.isJsxFragment(child.expression)
+              || ts.isJsxElement(child) && inline.has(child.openingElement.tagName.getText(source))
+              || ts.isJsxSelfClosingElement(child))
+          if (mixed) {
+            let slot = 0
+            const key = children.map(child => ts.isJsxText(child) ? normalizeJsx(child.text) : `{${slot++}}`).join('')
+            add(key)
+            for (const child of children) {
+              if (ts.isJsxExpression(child) && child.expression) child.expression.forEachChild(walk)
+              else if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) walk(child)
+            }
+            return
+          }
+        }
         if (ts.isJsxText(node)) add(normalizeJsx(node.text))
-        else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) add(node.text)
+        else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+          const attribute = ts.isJsxAttribute(node.parent) ? String(node.parent.name.escapedText ?? node.parent.name.text ?? '') : undefined
+          if (!attribute || ['aria-label', 'aria-description', 'aria-valuetext', 'title', 'alt', 'placeholder', 'label'].includes(String(attribute))) add(node.text)
+        }
         else if (ts.isTemplateExpression(node)) {
           add(node.head.text + node.templateSpans.map((span, i) => `{${i}}${span.literal.text}`).join(''))
         }
         node.forEachChild(walk)
       }
       walk(source)
+      if (/\.tsx$/.test(item.name)) {
+        const compiled = transformSync(readFileSync(path, 'utf8'), {
+          filename: path, configFile: false, babelrc: false,
+          parserOpts: { plugins: ['typescript', 'jsx'] }, plugins: [jsxLocalization],
+        })?.code ?? ''
+        for (const match of compiled.matchAll(/__sizeof_(?:translate|format(?:Rich)?Message)\(((?:"(?:\\.|[^"\\])*")|(?:'(?:\\.|[^'\\])*'))/g)) {
+          const quoted = match[1]
+          const key = quoted.startsWith('"') ? JSON.parse(quoted.replace(/\\x([\da-f]{2})/gi, '\\u00$1')) : quoted.slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, '\\')
+          const normalized = key.trim()
+          if (human(normalized) || /\{\d+\}/.test(normalized) && /[A-Za-z]{2}/.test(normalized)
+            && !/^(?:sizeof\{\d+\}|\{\d+\}-bit|\{\d+\}\/)/.test(normalized)) found.add(normalized)
+        }
+      }
     }
   }
   for (const dir of ['src', 'worker']) visitDir(resolve(root, dir))
@@ -77,34 +121,11 @@ function patchJson(path, data) {
     : `*** Begin Patch\n*** Add File: ${target}\n${content.trimEnd().split('\n').map(line => '+' + line).join('\n')}\n*** End Patch\n`
   process.stdout.write(patch)
 }
-export function cleanTranslation(source, text, locale) {
-  text = text.trim().replace(/[｛{]\s*(\d+)\s*[｝}]/g, '{$1}')
+export function validateTranslation(source, text) {
+  text = text.trim()
   const expected = [...source.matchAll(/\{\d+\}/g)].map(match => match[0]).sort().join('|')
   const actual = [...text.matchAll(/\{\d+\}/g)].map(match => match[0]).sort().join('|')
   if (expected !== actual) throw new Error('Placeholder mismatch')
-  if (/^(?:B|K|M|T|L|[KMGT]i?B|GIB|KV|VRAM|RAM|CPU|GPU|LLM|MLA|MTP|SSM|KDA|VAE|FP\d+|BF\d+|INT\d+|GGUF|MLX|EXL\d|NInfer|vLLM|OpenAI|OpenBMB|Qwen|sizeof|sizeof\.ai|\.ai|KAT-Coder|Hugging Face|Unsloth|Bartowski|LM Studio Community|mlx-community|llama\.cpp|LlamaForCausalLM|MistralForCausalLM|MuseGlimmerForConditionalGeneration)$/.test(source)
-    || /^(?:--|-[A-Za-z] |Access-Control-|Cloudflare-CDN-|Content-|Cache-Control|Proxy-Authorization|Referrer-Policy|Retry-After|Set-Cookie|User-[Aa]gent|X-|Allow:|Sitemap:|; Secure)/.test(source)) return source
-  if (locale === 'zh-TW' || locale === 'zh-CN') {
-    const traditional = locale === 'zh-TW'
-    text = text.replace(/模特兒|模特儿|模特/g, '模型').replace(/擁抱臉|拥抱脸|抱臉|抱脸/g, 'Hugging Face')
-    if (/models?/i.test(source)) text = text.replace(/型號|型号/g, '模型')
-    if (/weights?/i.test(source)) text = text.replace(/重量/g, traditional ? '權重' : '权重')
-    if (/context/i.test(source)) text = text.replace(/背景|語境|语境/g, '上下文')
-    if (/runtime/i.test(source)) text = text.replace(/運行時|運行時間|运行时|运行时间/g, traditional ? '執行階段' : '运行时')
-    if (/\bapply\b/i.test(source)) text = text.replace(/申請|申请/g, traditional ? '套用' : '应用')
-    if (/\bshell\b/i.test(source)) text = text.replace(/外殼|外壳/g, traditional ? '殼層' : 'Shell')
-    if (/\blocal\b/i.test(source) && traditional) text = text.replace(/本地/g, '本機')
-    if (/multimodal/i.test(source)) text = text.replace(/多式聯運|多式联运/g, traditional ? '多模態' : '多模态')
-    if (/tokens?/i.test(source) && !/credential|access|auth|hugging face|api key/i.test(source)) text = text.replace(/令牌/g, traditional ? '詞元' : '词元')
-    if (/calculator/i.test(source)) text = text.replace(/計算機|计算机/g, traditional ? '計算器' : '计算器')
-    if (traditional) text = text.replace(/內存|記憶空間/g, '記憶體').replace(/緩存/g, '快取').replace(/軟件/g, '軟體').replace(/硬件/g, '硬體')
-    const glossary = traditional
-      ? { 'memory profile': '記憶體設定', 'model weights': '模型權重', 'weights': '權重', 'context': '上下文', 'runtime': '執行階段', 'runtime buffer': '執行階段緩衝區', 'apply': '套用', 'shell': '殼層', 'local models': '本機模型', 'model index': '模型索引', 'models': '模型', 'model': '模型', 'memory': '記憶體', 'language': '語言', 'choose language': '選擇語言' }
-      : { 'memory profile': '内存设置', 'model weights': '模型权重', 'weights': '权重', 'context': '上下文', 'runtime': '运行时', 'runtime buffer': '运行时缓冲区', 'apply': '应用', 'shell': 'Shell', 'local models': '本地模型', 'model index': '模型索引', 'models': '模型', 'model': '模型', 'memory': '内存', 'language': '语言', 'choose language': '选择语言' }
-    Object.assign(glossary, traditional ? { 'arch': '架構', 'architecture': '架構', 'calculator': '計算器', 'my library': '我的模型庫', 'llm memory, measured': 'LLM 記憶體估算', 'hugging face models': 'Hugging Face 模型', 'multimodal': '多模態' } : { 'arch': '架构', 'architecture': '架构', 'calculator': '计算器', 'my library': '我的模型库', 'llm memory, measured': 'LLM 内存估算', 'hugging face models': 'Hugging Face 模型', 'multimodal': '多模态' })
-    const canonical = glossary[source.toLowerCase().replace(/\.$/, '')]
-    if (canonical) text = canonical + (source.endsWith('.') ? '。' : '')
-  }
   return text
 }
 export async function generate(selected = locales) {
@@ -117,7 +138,7 @@ export async function generate(selected = locales) {
     const previous = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {}
     const missing = keys.filter(key => !previous[key])
     if (missing.length) throw new Error(`${locale} requires ${missing.length} reviewed translations; automatic translation is disabled`)
-    const output = Object.fromEntries(keys.map(key => [key, cleanTranslation(key, previous[key], locale)]))
+    const output = Object.fromEntries(keys.map(key => [key, validateTranslation(key, previous[key])]))
     if (keys.some(key => !output[key])) throw new Error(`Incomplete locale ${locale}`)
     console.error(`${locale}: prepared ${keys.length} translations`)
     patchJson(path, Object.fromEntries(keys.map(key => [key, output[key]])))
