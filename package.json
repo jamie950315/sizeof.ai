@@ -26,12 +26,15 @@
     "deploy": "npm run build && wrangler deploy",
     "cf:check:testnet": "wrangler deploy --dry-run --env testnet",
     "deploy:testnet": "npm run build && wrangler deploy --env testnet",
+    "cf:check:testnet2": "wrangler deploy --dry-run --env testnet2",
+    "deploy:testnet2": "npm run build && wrangler deploy --env testnet2",
     "deploy:docs": "npm run build && wrangler deploy --config wrangler.docs.jsonc",
     "cf:check:docs": "wrangler deploy --dry-run --config wrangler.docs.jsonc"
   },
   "dependencies": {
-    "@fontsource-variable/archivo": "latest",
-    "@fontsource-variable/jetbrains-mono": "latest",
+    "@fontsource-variable/martian-mono": "^5.3.0",
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
     "@modelcontextprotocol/server": "2.0.0",
     "lucide-react": "latest",
     "react": "latest",

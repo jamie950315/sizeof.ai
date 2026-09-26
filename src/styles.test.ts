@@ -24,15 +24,13 @@ describe('mobile sticky result CSS', () => {
     expect(stylesheet).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.compare-mobile-selector[\s\S]*?transition: none;/)
   })
 
-  it('collapses live search rows to explicit mobile tracks without implicit columns', () => {
-    expect(stylesheet).toMatch(/@media \(max-width: 900px\) \{[\s\S]*?\.search-results-table \.catalog-row \{ grid-template-columns: minmax\(0, 1fr\) auto auto auto; \}/)
-    expect(stylesheet).toMatch(/\.search-results-table \.catalog-row > div:nth-child\(2\), \.search-results-table \.catalog-row > div:nth-child\(3\) \{ display: none; \}/)
+  it('drops secondary search statistics before the model name gets cramped', () => {
+    expect(stylesheet).toMatch(/@media \(max-width: 1100px\) \{[\s\S]*?\.result-row > \.result-stat\.likes, \.result-row > \.result-stat\.task \{ display: none; \}/)
   })
 
-  it.each([390, 320])('uses exactly two populated search-row tracks at %ipx', (width) => {
+  it.each([390, 320])('keeps only the name, sizing status and actions in search rows at %ipx', (width) => {
     expect(width).toBeLessThanOrEqual(620)
-    expect(stylesheet).toMatch(/@media \(max-width: 620px\) \{[\s\S]*?\.search-results-table \.catalog-row \{ grid-template-columns: minmax\(0, 1fr\) auto; \}/)
-    expect(stylesheet).toMatch(/@media \(max-width: 620px\) \{[\s\S]*?\.search-results-table \.catalog-row > div:nth-child\(2\), \.search-results-table \.catalog-row > div:nth-child\(3\), \.search-results-table \.catalog-row > div:nth-child\(4\), \.search-results-table \.catalog-row > div:nth-child\(5\) \{ display: none; \}/)
+    expect(stylesheet).toMatch(/@media \(max-width: 620px\) \{[\s\S]*?\.result-row \{ grid-template-columns: minmax\(0, 1fr\) auto;[\s\S]*?\.result-row > \.result-stat \{ display: none; \}[\s\S]*?\.result-row > \.result-stat\.sizing \{ display: grid;/)
   })
 
   it('keeps serving disclosure responsive and removes its motion for reduced-motion users', () => {

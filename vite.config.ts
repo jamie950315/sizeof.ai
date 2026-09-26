@@ -18,6 +18,10 @@ export default defineConfig({
       return result?.code ? { code: result.code, map: result.map } : undefined
     },
   }, react()],
+  server: {
+    // Local UI work reads live public data from the testnet Worker API.
+    proxy: { '/api': { target: 'https://testnet.sizeof.ai', changeOrigin: true } },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',

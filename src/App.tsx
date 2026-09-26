@@ -1,19 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
-  ArrowDownRight,
+  ArrowDown,
+  ArrowRight,
   ArrowUpRight,
   Check,
-  Columns2,
   ChevronDown,
   ChevronUp,
-  Code2,
-  Copy,
-  Cpu,
-  Database,
-  Gauge,
+  Columns2,
   Info,
-  MemoryStick,
-  Search,
+  Link2,
 } from 'lucide-react'
 import { models } from './data/models'
 import { useCopy } from './lib/use-copy'
@@ -28,7 +23,8 @@ import {
 } from './data/quantizations'
 import { estimateVram, rankModelsForVram, type Fit } from './lib/estimator'
 import { contextLevels, maximumContext, normalizedContext, stepContext } from './lib/context-stepper'
-import { getMemoryBarPartPercents, getMemoryBarUsage } from './lib/memory-bar'
+import { getMemoryBarUsage } from './lib/memory-bar'
+import MemoryGauge, { offloadText } from './components/MemoryGauge'
 import { vramPresets } from './lib/vram-presets'
 import { searchSizingStatusForTask } from './lib/model-task'
 import {
@@ -89,16 +85,18 @@ function sortSearchModels(items: HuggingFaceSearchModel[], query: string) {
   })
 }
 
-function formatGiB(value: number, digits = 2) {
-  return `${value.toFixed(digits)} GiB`
-}
-
 function formatContext(value: number) {
   return value >= 1024 ? `${Math.round(value / 1024)}K` : String(value)
 }
 
 function formatCompactNumber(value: number) {
   return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
+}
+
+const scaleSteps = [8, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1536, 2048]
+
+function niceScaleMax(value: number) {
+  return scaleSteps.find((step) => step >= value) ?? Math.ceil(value / 512) * 512
 }
 
 function modelDetailPath(sourceUrl: string) {
@@ -167,16 +165,17 @@ function HomePage() {
     window.history.replaceState(null, '', `${window.location.pathname}?${query}`)
   }, [modelId, quantization, context, kvPrecision])
 
-  const recommendations = useMemo(
-    () =>
-      rankModelsForVram(models, {
-        vramGiB: vramBudget,
-        context,
-        quantization,
-        kvPrecision,
-      }).filter((item) => item.fit !== 'too-large' && !item.estimate.isLowerBound),
+  const ranked = useMemo(
+    () => rankModelsForVram(models, { vramGiB: vramBudget, context, quantization, kvPrecision }),
     [context, kvPrecision, quantization, vramBudget],
   )
+  const recommendations = ranked.filter((item) => item.fit !== 'too-large' && !item.estimate.isLowerBound)
+  const indexRows = [...ranked].sort((a, b) => a.estimate.totalGiB - b.estimate.totalGiB)
+
+  function selectModel(id: string) {
+    setModelId(id)
+    document.querySelector('#calculator')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   async function copyShareLink() {
     await copy(window.location.href)
@@ -318,55 +317,44 @@ function HomePage() {
     { label: 'Runtime buffer', value: estimate.runtimeGiB, className: 'runtime' },
   ]
   const memoryBarUsage = getMemoryBarUsage(estimate.totalGiB, vramBudget)
-  const memoryBarPartPercents = getMemoryBarPartPercents(memoryParts.map((part) => part.value))
-  const offloadLabel = memoryBarUsage.offloadGiB > 0
-    ? `OFFLOAD ${formatGiB(memoryBarUsage.offloadGiB)}`
-    : null
+  const offloadLabel = memoryBarUsage.offloadGiB > 0 ? offloadText(memoryBarUsage.offloadGiB) : null
   const localizedSearchError = searchError ? translate(searchError) : ''
+  const quantizationLabel = translate(quantizations.find((item) => item.id === quantization)?.label ?? '')
+  const scaleMax = niceScaleMax(Math.max(vramBudget, ...indexRows.map((item) => item.estimate.totalGiB)) * 1.06)
+  const topPick = recommendations[0]
 
   return (
     <div className="site-shell">
-      <header className="site-header">
-        <a className="brand" href="#top" aria-label="sizeof.ai home">
-          <span className="brand-bracket">[</span> sizeof<span>.ai</span>{' '}
-          <span className="brand-bracket">]</span>
-        </a>
-        <nav aria-label="Main navigation">
-          <a href="#calculator">Calculator</a>
-          <a href="#recommendations">VRAM fit</a>
-          <a href="#catalog">Models</a>
-        </nav>
-        <a className="source-link" href="#method" aria-label="Calculation method">
-          <Code2 size={17} />
-          <span>Method</span>
-        </a>
-      </header>
       <PlatformNav />
 
       <main id="top" className="home-main">
         <section className="home-search-explorer" aria-label="Model search explorer">
-          <div className="hero-search home-search-bar" role="region" aria-label="Hugging Face model search">
+          <div className="hero-search" role="region" aria-label="Hugging Face model search">
+            <p className="hero-caption">Type any public Hugging Face model. See how much memory it needs before you download a single file.</p>
             <form onSubmit={searchHuggingFace}>
-              <div className="hero-search-main">
-                <Search size={22} />
-                <input
-                  type="search"
-                  aria-label="Search Hugging Face models"
-                  placeholder="Search any Hugging Face model"
-                  value={catalogQuery}
-                  onChange={(event) => setCatalogQuery(event.target.value)}
-                  maxLength={80}
-                />
-                <button
-                  type="submit"
-                  aria-label="Search Hugging Face"
-                >
-                  {searchState === 'loading' ? 'SEARCHING' : 'SEARCH'} <ArrowUpRight size={17} />
+              <div className="hero-call">
+                <span className="fn" aria-hidden="true">sizeof</span>
+                <span className="paren" aria-hidden="true">(</span>
+                <div className="hero-call-field">
+                  <input
+                    type="search"
+                    aria-label="Search Hugging Face models"
+                    placeholder="Qwen/Qwen3.8-27B"
+                    value={catalogQuery}
+                    onChange={(event) => setCatalogQuery(event.target.value)}
+                    maxLength={80}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+                <span className="paren" aria-hidden="true">)</span>
+                <button type="submit" className="hero-call-submit" aria-label="Search Hugging Face">
+                  <ArrowRight aria-hidden="true" />
                 </button>
               </div>
               <div className="hero-search-filters">
                 <label>
-                  <span>MODEL TYPE</span>
+                  <span>Model type</span>
                   <select
                     aria-label="Filter by model type"
                     value={searchModelType}
@@ -378,11 +366,11 @@ function HomePage() {
                   </select>
                 </label>
                 <label>
-                  <span>AUTHOR</span>
+                  <span>Author</span>
                   <input
                     type="text"
                     aria-label="Filter by author"
-                    placeholder="ANY AUTHOR"
+                    placeholder="Any author"
                     value={searchAuthor}
                     onChange={(event) => setSearchAuthor(event.target.value)}
                     maxLength={96}
@@ -391,24 +379,25 @@ function HomePage() {
                 <p>Results update as you type.</p>
               </div>
             </form>
+            <p className="hero-shortcut home-url-tool" aria-label="Hugging Face URL shortcut">
+              <span>Keep the owner and model path. Replace only the Hugging Face domain with sizeof.ai.</span>
+              <code>huggingface.co/Qwen/Qwen3.8-27B</code>
+              <span aria-hidden="true">→</span>
+              <code><strong>sizeof.ai</strong>/Qwen/Qwen3.8-27B</code>
+              <a href="/Qwen/Qwen3.8-27B" aria-label="Try the model detail page">Try it</a>
+            </p>
           </div>
         </section>
 
         {(submittedCatalogQuery || searchState !== 'idle') && (
           <section id="search-results" className="search-results-section" aria-label="Hugging Face search results">
             <div className="search-results-heading">
-              <div>
-                <span>SEARCH RESULT</span>
-                <h2>“{submittedCatalogQuery}”</h2>
-              </div>
+              <h2>Results for <span className="query">{submittedCatalogQuery}</span></h2>
               <p>{searchResults
-                ? `${String(searchResults.length).padStart(2, '0')} MODELS FOUND`
-                : 'LIVE HUGGING FACE DATA'}</p>
+                ? `${searchResults.length} models found`
+                : searchState === 'loading' ? 'Searching…' : 'Live Hugging Face data'}</p>
             </div>
-            <div className="catalog-table search-results-table">
-              <div className="catalog-header">
-                <span>MODEL</span><span>DOWNLOADS</span><span>LIKES</span><span>TASK</span><span>SIZING</span><span />
-              </div>
+            <div className="result-list search-results-table">
               {searchState === 'loading' && !searchResults && (
                 <div className="catalog-state" role="status"><span className="pulse-dot" /> Searching Hugging Face for “{submittedCatalogQuery}”…</div>
               )}
@@ -419,23 +408,18 @@ function HomePage() {
                 <div className="catalog-state">No Hugging Face models matched “{submittedCatalogQuery}”.</div>
               )}
               {searchResults?.map((item) => (
-                <article key={item.id} className="catalog-row hf-search-row">
-                  <div className="catalog-name">
-                    <span>{item.owner}</span>
-                    <strong>{item.name}</strong>
-                    <div>
-                      <i>{item.owner}</i>
-                      {item.gated && <i>GATED</i>}
-                    </div>
+                <article key={item.id} className="result-row hf-search-row">
+                  <div className="result-name">
+                    <a href={`/${item.owner}/${item.name}`} aria-label={`Open ${item.id}`}>{item.name}</a>
+                    <small><span>{item.owner}</span>{item.gated && <span className="tag tag-warn">GATED</span>}</small>
                   </div>
-                  <div><small>DOWNLOADS</small><strong>{formatCompactNumber(item.downloads)}</strong></div>
-                  <div><small>LIKES</small><strong>{formatCompactNumber(item.likes)}</strong></div>
-                  <div><small>TASK</small><strong>{item.task?.replaceAll('-', ' ') ?? 'UNSPECIFIED'}</strong></div>
-                  <div><small>SIZING</small><strong>{searchSizingStatus(item)}</strong></div>
-                  <div className="catalog-actions">
-                    <a className="catalog-open-model" href={`/${item.owner}/${item.name}`} aria-label={`Open ${item.id}`}>OPEN</a>
-                    <a className="catalog-compare-action" href={comparePath(item.id)} aria-label={`Compare ${item.id}`}><Columns2 size={17} /><span className="catalog-compare-label">COMPARE</span></a>
-                    <a href={`https://huggingface.co/${item.id}`} target="_blank" rel="noreferrer" aria-label={`${item.id} on Hugging Face`}><ArrowUpRight size={17} /></a>
+                  <div className="result-stat downloads"><small>Downloads</small><strong>{formatCompactNumber(item.downloads)}</strong></div>
+                  <div className="result-stat likes"><small>Likes</small><strong>{formatCompactNumber(item.likes)}</strong></div>
+                  <div className="result-stat task"><small>Task</small><strong>{item.task?.replaceAll('-', ' ') ?? 'UNSPECIFIED'}</strong></div>
+                  <div className="result-stat sizing"><small>Sizing</small><strong>{searchSizingStatus(item)}</strong></div>
+                  <div className="result-actions">
+                    <a className="icon-btn catalog-compare-action" href={comparePath(item.id)} aria-label={`Compare ${item.id}`}><Columns2 aria-hidden="true" /><span className="catalog-compare-label">Compare</span></a>
+                    <a className="icon-btn" href={`https://huggingface.co/${item.id}`} target="_blank" rel="noreferrer" aria-label={`${item.id} on Hugging Face`}><ArrowUpRight aria-hidden="true" /></a>
                   </div>
                 </article>
               ))}
@@ -451,7 +435,7 @@ function HomePage() {
                 disabled={searchState !== 'idle'}
                 onClick={() => void loadMoreSearchResults()}
               >
-                {searchState === 'loading-more' ? 'LOADING' : 'LOAD MORE MODELS'} <ArrowDownRight size={18} />
+                {searchState === 'loading-more' ? 'Loading…' : 'Load more models'} <ArrowDown aria-hidden="true" />
               </button>
             )}
             <span className="visually-hidden" role="status" aria-live="polite">
@@ -460,80 +444,30 @@ function HomePage() {
           </section>
         )}
 
-        <section id="catalog" className="catalog-section" aria-label="Model catalog">
-          <div className="section-heading">
-            <div>
-              <span className="section-index">03</span>
-              <p>MODEL INDEX</p>
-            </div>
-            <h2>Curated model index</h2>
-          </div>
-          <div className="catalog-toolbar">
-            <span>{String(models.length).padStart(2, '0')} TEXT-OUTPUT MODELS</span>
-            <span>{String(quantizations.length).padStart(2, '0')} QUANTIZATIONS</span>
-            <span>UPDATED 22 AUG 2026</span>
-          </div>
-          <div className="catalog-table">
-            <div className="catalog-header">
-              <span>MODEL</span><span>PARAMETERS</span><span>MAX CONTEXT</span><span>ARCHITECTURE</span><span />
-            </div>
-            {models.map((item) => (
-              <article key={item.id} className={`catalog-row${modelId === item.id ? ' selected' : ''}`}>
-                <button
-                  type="button"
-                  className="catalog-row-select"
-                  aria-label={`Select ${item.name}`}
-                  aria-pressed={modelId === item.id}
-                  onClick={() => setModelId(item.id)}
-                />
-                <div className="catalog-name">
-                  <span>{item.maker}</span>
-                  <strong>{item.name}</strong>
-                  <div>{item.strengths.map((tag) => <i key={tag}>{translate(tag)}</i>)}</div>
-                </div>
-                <div><small>PARAMETERS</small><strong>{item.parametersB}B</strong></div>
-                <div><small>MAX CONTEXT</small><strong>{formatContext(item.maxContext)}</strong></div>
-                <div><small>ARCHITECTURE</small><strong>{item.layers}L / {item.kvHeads} KVH</strong></div>
-                <div className="catalog-actions">
-                  <a className="catalog-open-model" href={modelDetailPath(item.sourceUrl)} target="_blank" rel="noreferrer" aria-label={`Size ${item.name} (opens in new tab)`}>SIZE IT</a>
-                  <a className="catalog-compare-action" href={comparePath(new URL(item.sourceUrl).pathname.slice(1))} aria-label={`Compare ${item.name}`}><Columns2 size={17} /><span className="catalog-compare-label">COMPARE</span></a>
-                  <a href={item.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${item.name} source`}><ArrowUpRight size={17} /></a>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section id="calculator" className="calculator-section" aria-label="VRAM calculator">
-          <div className="section-heading">
-            <div>
-              <span className="section-index">01</span>
-              <p>SELECTED MODEL</p>
-            </div>
+        <section id="calculator" className="bench" aria-label="VRAM calculator">
+          <div className="section-title">
             <h2>VRAM calculator</h2>
+            <p>Choose a curated model, then change the settings. The index below follows along.</p>
           </div>
 
-          <div className="calculator-grid">
+          <div className="bench-grid">
             <div className="controls-panel">
               <div className="control-block">
                 <label htmlFor="model-select">Model</label>
-                <div className="select-wrap">
-                  <select
-                    id="model-select"
-                    aria-label="Model"
-                    value={modelId}
-                    onChange={(event) => setModelId(event.target.value)}
-                  >
-                    {models.map((item) => (
-                      <option value={item.id} key={item.id}>{item.name}</option>
-                    ))}
-                  </select>
-                  <ArrowDownRight size={18} />
-                </div>
+                <select
+                  id="model-select"
+                  aria-label="Model"
+                  value={modelId}
+                  onChange={(event) => setModelId(event.target.value)}
+                >
+                  {models.map((item) => (
+                    <option value={item.id} key={item.id}>{item.name}</option>
+                  ))}
+                </select>
                 <div className="model-meta">
-                  <span>{model.maker}</span>
-                  <span>{model.parametersB}B PARAMS</span>
-                  <span>{formatContext(model.maxContext)} NATIVE</span>
+                  <span className="tag">{model.maker}</span>
+                  <span className="tag">{model.parametersB}B</span>
+                  <span className="tag">{formatContext(model.maxContext)} native</span>
                 </div>
               </div>
 
@@ -548,6 +482,7 @@ function HomePage() {
                       className={quantization === item.id ? 'active' : ''}
                       type="button"
                       key={item.id}
+                      aria-pressed={quantization === item.id}
                       onClick={() => setQuantization(item.id)}
                     >
                       {translate(item.label)}
@@ -559,7 +494,7 @@ function HomePage() {
               <div className="control-block context-block">
                 <div className="label-row">
                   <label htmlFor="context-input">Context window</label>
-                  <span>TOKENS</span>
+                  <span>tokens</span>
                 </div>
                 <div className="context-input-row">
                   <input
@@ -579,10 +514,10 @@ function HomePage() {
                   />
                   <div className="context-stepper" aria-label="Adjust context window">
                     <button type="button" aria-label="Increase context window" onClick={() => setContext((current) => stepContext(current, 'up'))}>
-                      <ChevronUp size={18} />
+                      <ChevronUp aria-hidden="true" />
                     </button>
                     <button type="button" aria-label="Decrease context window" onClick={() => setContext((current) => stepContext(current, 'down'))}>
-                      <ChevronDown size={18} />
+                      <ChevronDown aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -633,155 +568,152 @@ function HomePage() {
 
             <div className="result-panel">
               <div className="result-topline">
-                  <span>{estimate.isLowerBound ? 'VRAM LOWER BOUND' : 'ESTIMATED VRAM'}</span>
-                <span className={`fit-pill ${currentFit}`}>{translate(estimate.isLowerBound && currentFit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[currentFit])} {translate('ON')} {vramBudget} GB</span>
+                <span>{estimate.isLowerBound ? 'VRAM lower bound' : 'Estimated VRAM'}</span>
+                <span className={`fit-pill ${estimate.isLowerBound && currentFit !== 'too-large' ? 'unverified' : currentFit}`}>{translate(estimate.isLowerBound && currentFit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[currentFit])} {translate('ON')} {vramBudget} GiB</span>
               </div>
               <div className="total-number">
                 <span>{estimate.totalGiB.toFixed(2)}</span>
                 <small>GiB</small>
               </div>
-              <div
-                className="memory-bar"
-                role="img"
-                data-motion="memory-usage"
-                aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vramBudget} GiB VRAM${offloadLabel ? `, ${offloadLabel}` : ''}`}
-              >
-                <div
-                  className="memory-bar-used"
-                  style={{
-                    width: `${memoryBarUsage.usedPercent}%`,
-                    '--memory-weights-offload-opacity': memoryBarUsage.weightsOffloadOpacity,
-                  } as CSSProperties}
-                >
-                  {memoryParts.map((part, index) => (
-                    <span
-                      className={part.className}
-                      key={part.label}
-                      style={{ width: `${memoryBarPartPercents[index]}%` }}
-                    />
-                  ))}
-                  <span
-                    className="memory-bar-risk"
-                    aria-hidden="true"
-                    style={{ opacity: memoryBarUsage.riskOpacity }}
-                  />
-                </div>
-                <span
-                  className="memory-bar-remaining"
-                  aria-hidden="true"
-                  style={{ width: `${memoryBarUsage.remainingPercent}%` }}
-                />
-                {offloadLabel && <span className="memory-bar-offload">{offloadLabel}</span>}
-              </div>
+              <MemoryGauge
+                parts={memoryParts}
+                totalGiB={estimate.totalGiB}
+                capacityGiB={vramBudget}
+                ariaLabel={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vramBudget} GiB VRAM${offloadLabel ? `, ${offloadLabel}` : ''}`}
+              />
+              <ul className="gauge-legend" aria-label="Memory breakdown">
+                {memoryParts.map((part) => (
+                  <li key={part.label}><i className={part.className} aria-hidden="true" />{translate(part.label)} <strong>{part.value.toFixed(2)}</strong></li>
+                ))}
+              </ul>
               <div className="result-model">
                 <div>
-                  <span>CONFIGURATION</span>
+                  <span>Configuration</span>
                   <strong>{model.name}</strong>
-                  <p>{translate(quantizations.find((item) => item.id === quantization)?.label ?? '')} · {formatContext(context)} context · {kvPrecision.toUpperCase()} KV</p>
+                  <p>{quantizationLabel} · {formatContext(context)} context · {kvPrecision.toUpperCase()} KV</p>
                 </div>
                 <button type="button" className="copy-button" onClick={() => void copyShareLink()}>
-                  {copied ? <Check size={17} /> : <Copy size={17} />}
-                  {copied ? 'COPIED' : 'COPY LINK'}
+                  {copied ? <Check aria-hidden="true" /> : <Link2 aria-hidden="true" />}
+                  {copied ? 'Copied' : 'Copy link'}
                 </button>
               </div>
-              {copyError && <p role="alert">{translate(copyError)}</p>}
+              {copyError && <p role="alert" className="callout callout-error">{translate(copyError)}</p>}
               <p className="estimate-note">
-                <Info size={15} /> {estimate.isLowerBound ? 'Lower bound only: some runtime memory is unknown, so fitting within this capacity is not guaranteed.' : 'Includes weights, KV cache, and runtime allowance. Actual use varies by engine and GPU offload.'}
+                <Info aria-hidden="true" /> {estimate.isLowerBound ? 'Lower bound only: some runtime memory is unknown, so fitting within this capacity is not guaranteed.' : 'Includes weights, KV cache, and runtime allowance. Actual use varies by engine and GPU offload.'}
               </p>
             </div>
           </div>
         </section>
 
-        <section id="recommendations" className="recommendation-section">
-          <div className="section-heading light">
+        <section id="catalog" className="index-section" aria-label="Model catalog">
+          <div className="index-head">
             <div>
-              <span className="section-index">02</span>
-              <p>VRAM FIT</p>
+              <h2>Curated model index</h2>
+              <p>Every model at {quantizationLabel} and {formatContext(context)} context, measured against your {vramBudget} GiB.</p>
             </div>
-            <h2>Models for {vramBudget} GB</h2>
+            <p className="meta">{models.length} text-output models · {quantizations.length} quantizations · Updated 22 Aug 2026</p>
           </div>
-          <div className="vram-strip" aria-label="VRAM capacity">
-            {vramPresets.map((value) => (
-              <button
-                type="button"
-                key={value}
-                className={vramBudget === value ? 'active' : ''}
-                onClick={() => setVramBudget(value)}
-              >
-                <span>{value}</span> GB
-              </button>
-            ))}
-          </div>
-
-          <div className="recommendation-intro">
-            <p>TOP PICKS FOR</p>
-            <strong>{vramBudget} GB</strong>
-            <span>{formatContext(context)} context · {translate(quantizations.find((item) => item.id === quantization)?.label ?? '')}</span>
-          </div>
-          <div className="recommendation-grid">
-            {recommendations.slice(0, 3).map((item, index) => (
-              <article className="recommendation-card" key={item.model.id}>
-                <div className="card-rank">0{index + 1}</div>
-                <div className="card-maker">{item.model.maker}</div>
-                <h3>{item.model.name}</h3>
-                <div className="card-tags">
-                  {item.model.strengths.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
-                </div>
-                <div className="card-memory">
-                  <div>
-                    <span>EST. VRAM</span>
-                    <strong>{item.estimate.totalGiB.toFixed(1)} GB</strong>
-                  </div>
-                  <div>
-                    <span>HEADROOM</span>
-                    <strong>{item.headroomGiB.toFixed(1)} GB</strong>
-                  </div>
-                </div>
-                <button type="button" onClick={() => { setModelId(item.model.id); document.querySelector('#calculator')?.scrollIntoView({ behavior: 'smooth' }) }}>
-                  CALCULATE <ArrowUpRight size={17} />
+          <div id="recommendations" className="index-controls">
+            <div className="vram-strip" role="group" aria-label="VRAM capacity">
+              {vramPresets.map((value) => (
+                <button
+                  type="button"
+                  key={value}
+                  className={vramBudget === value ? 'active' : ''}
+                  aria-pressed={vramBudget === value}
+                  onClick={() => setVramBudget(value)}
+                >
+                  {value}
                 </button>
-              </article>
-            ))}
-            {recommendations.length === 0 && (
-              <div className="empty-recommendation">No catalog model has a verified fit for this setup. Models with incomplete runtime memory are excluded.</div>
-            )}
+              ))}
+            </div>
+            <p className="top-pick" aria-live="polite">
+              {topPick
+                ? <>Largest verified fit on {vramBudget} GiB: <button type="button" onClick={() => selectModel(topPick.model.id)}>{topPick.model.name}</button> · {topPick.estimate.totalGiB.toFixed(1)} GiB, {topPick.headroomGiB.toFixed(1)} GiB headroom</>
+                : 'No catalog model has a verified fit for this setup. Models with incomplete runtime memory are excluded.'}
+            </p>
           </div>
-        </section>
-
-        <section className="hf-shortcut home-url-tool" aria-label="Hugging Face URL shortcut">
-          <div className="hf-shortcut-copy">
-            <span>HUGGING FACE URL SHORTCUT</span>
-            <h2>Open a model by URL</h2>
-            <p>Keep the owner and model path. Replace only the Hugging Face domain with sizeof.ai.</p>
+          <div className="ruler">
+            <div className="ruler-scale" aria-hidden="true">
+              <span>Model</span>
+              <div className="gauge-scale">
+                {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
+                  <span key={ratio} style={{ left: `${ratio * 100}%` }}>{ratio === 1 ? `${scaleMax} GiB` : scaleMax * ratio}</span>
+                ))}
+              </div>
+              <span>Total</span>
+              <span />
+            </div>
+            {indexRows.map((item) => {
+              const lowerBound = item.estimate.isLowerBound
+              const state = lowerBound && item.fit !== 'too-large' ? 'lower-bound' : item.fit
+              return (
+                <article key={item.model.id} className={`catalog-row${modelId === item.model.id ? ' selected' : ''}`}>
+                  <button
+                    type="button"
+                    className="catalog-row-select"
+                    aria-label={`Select ${item.model.name}`}
+                    aria-pressed={modelId === item.model.id}
+                    onClick={() => setModelId(item.model.id)}
+                  />
+                  <div className="catalog-name">
+                    <span>{item.model.maker}</span>
+                    <strong>{item.model.name}</strong>
+                    <small>{item.model.parametersB}B · {formatContext(item.model.maxContext)} · {item.model.layers}L / {item.model.kvHeads} KVH</small>
+                  </div>
+                  <div className="ruler-track" aria-hidden="true">
+                    <span className={`ruler-bar ${state}`} style={{ width: `${Math.min(100, (item.estimate.totalGiB / scaleMax) * 100)}%` }} />
+                    <span className="ruler-cap" style={{ insetInlineStart: `${(vramBudget / scaleMax) * 100}%` }} />
+                  </div>
+                  <div className={`catalog-value ${state}`}>
+                    {lowerBound ? '≥ ' : ''}{item.estimate.totalGiB.toFixed(1)} GiB
+                    <small>{translate(lowerBound && item.fit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[item.fit])}</small>
+                  </div>
+                  <div className="catalog-actions">
+                    <a className="icon-btn icon-btn-strong catalog-open-model" href={modelDetailPath(item.model.sourceUrl)} target="_blank" rel="noreferrer" aria-label={`Size ${item.model.name} (opens in new tab)`}>Details</a>
+                    <a className="icon-btn catalog-compare-action" href={comparePath(new URL(item.model.sourceUrl).pathname.slice(1))} aria-label={`Compare ${item.model.name}`}><Columns2 aria-hidden="true" /><span className="catalog-compare-label">Compare</span></a>
+                    <a className="icon-btn" href={item.model.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${item.model.name} source`}><ArrowUpRight aria-hidden="true" /></a>
+                  </div>
+                </article>
+              )
+            })}
           </div>
-          <div className="hf-url-swap">
-            <code>huggingface.co/Qwen/Qwen3.8-27B</code>
-            <ArrowDownRight size={24} />
-            <code><strong>sizeof.ai</strong>/Qwen/Qwen3.8-27B</code>
-            <a href="/Qwen/Qwen3.8-27B" aria-label="Try the model detail page">TRY IT <ArrowUpRight size={17} /></a>
+          <div className="ruler-legend" aria-label="Legend">
+            <span><i className="ruler-bar comfortable legend-static" />Comfortable, under 85%</span>
+            <span><i className="ruler-bar tight legend-static" />Tight, 85–100%</span>
+            <span><i className="ruler-bar too-large legend-static" />Too large, needs offload</span>
+            <span><i className="ruler-bar lower-bound legend-static" />Lower bound, fit not verified</span>
+            <span><i className="cap" />Your capacity</span>
           </div>
         </section>
 
         <section id="method" className="method-section">
-          <div className="method-title">
-            <span>HOW IT WORKS</span>
-            <h2>Methodology</h2>
-            <p>No mystery score. Every estimate is built from the model architecture and a small set of visible assumptions.</p>
-          </div>
-          <div className="method-grid">
-            <div><Database /><span>01</span><h3>Weights</h3><p>Parameter count × effective bits per weight for the selected GGUF quantization.</p></div>
-            <div><MemoryStick /><span>02</span><h3>KV cache</h3><p>KV-bearing attention layers × KV heads × head dimension × context × cache precision, for batch size one. Local/sliding-window caches and hybrid state buffers vary by engine and are not separately modeled, so actual use can differ.</p></div>
-            <div><Cpu /><span>03</span><h3>Runtime</h3><p>A practical allowance for compute buffers, metadata, and inference-engine workspace.</p></div>
-            <div><Gauge /><span>04</span><h3>Fit</h3><p>Under 85% is comfortable; 85–100% is tight; over capacity requires partial CPU offload.</p></div>
+          <div className="method-inner">
+            <div className="method-title">
+              <h2>Methodology</h2>
+              <p>No mystery score. Every estimate is built from the model architecture and a small set of visible assumptions.</p>
+            </div>
+            <div className="equations">
+              <div className="equation">
+                <div><h3>Weights</h3><code>{'weights = params × bits_per_weight ÷ 8'}</code></div>
+                <p>Parameter count × effective bits per weight for the selected GGUF quantization.</p>
+              </div>
+              <div className="equation">
+                <div><h3>KV cache</h3><code>{'kv = 2 × kv_layers × kv_heads\n     × head_dim × context × bytes'}</code></div>
+                <p>KV-bearing attention layers × KV heads × head dimension × context × cache precision, for batch size one. Local/sliding-window caches and hybrid state buffers vary by engine and are not separately modeled, so actual use can differ.</p>
+              </div>
+              <div className="equation">
+                <div><h3>Runtime</h3><code>{'runtime = buffers + workspace'}</code></div>
+                <p>A practical allowance for compute buffers, metadata, and inference-engine workspace.</p>
+              </div>
+              <div className="equation">
+                <div><h3>Fit</h3><code>{'total ÷ capacity  <85% · ≤100% · >100%'}</code></div>
+                <p>Under 85% is comfortable; 85–100% is tight; over capacity requires partial CPU offload.</p>
+              </div>
+            </div>
           </div>
         </section>
       </main>
-
-      <footer>
-        <div className="brand"><span className="brand-bracket">[</span> sizeof<span>.ai</span> <span className="brand-bracket">]</span></div>
-        <div><a href="#calculator">Calculator</a><a href="#catalog">Model data</a><a href="#method">Method</a></div>
-        <span>ESTIMATES, NOT GUARANTEES · 2026</span>
-      </footer>
     </div>
   )
 }

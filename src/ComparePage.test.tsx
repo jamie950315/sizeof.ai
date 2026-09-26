@@ -75,10 +75,10 @@ describe('model comparison workspace', () => {
     expect(screen.getAllByRole('region', { name: /Comparison for / }).map((card) => card.getAttribute('aria-label'))).toEqual([
       'Comparison for Qwen/One', 'Comparison for Meta/Two',
     ])
-    expect(screen.getAllByText('TOTAL').length).toBe(2)
+    expect(screen.getAllByText('Total').length).toBe(2)
     expect(window.location.search).toContain('compare=1')
     expect(screen.getByRole('link', { name: 'sizeof.ai home' })).toHaveAttribute('href', '/')
-    expect(screen.getByRole('link', { name: 'Model index' })).toHaveAttribute('href', '/#catalog')
+    expect(screen.getByRole('link', { name: 'Models' })).toHaveAttribute('href', '/')
   })
 
   it('offers curated models in searchable selectors and accepts Hugging Face and sizeof.ai URLs', async () => {
@@ -103,8 +103,8 @@ describe('model comparison workspace', () => {
 
     expect(screen.queryByText(/Llama-3\.3-70B-Instruct/)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Compare Qwen3.8 27B with Ornith 1.5 35B A3B' }))
-    expect(await screen.findByRole('region', { name: 'Comparison for Qwen/Qwen3.8-27B' })).toHaveTextContent('TOTAL')
-    expect(screen.getByRole('region', { name: 'Comparison for ornith-ai/Ornith-1.5-35B-A3B' })).toHaveTextContent('TOTAL')
+    expect(await screen.findByRole('region', { name: 'Comparison for Qwen/Qwen3.8-27B' })).toHaveTextContent('Total')
+    expect(screen.getByRole('region', { name: 'Comparison for ornith-ai/Ornith-1.5-35B-A3B' })).toHaveTextContent('Total')
   })
 
   it('provides an accessible comparison export menu after public models load', async () => {
@@ -141,9 +141,9 @@ describe('model comparison workspace', () => {
 
     render(<ComparePage />)
     const card = await screen.findByRole('region', { name: 'Comparison for Qwen/One' })
-    expect(within(card).getByText('TOTAL').parentElement).toHaveTextContent(`${expected.totalGiB.toFixed(2)} GiB`)
-    expect(within(card).getByText('WEIGHTS').parentElement).toHaveTextContent(`${expected.weightsGiB.toFixed(2)} GiB`)
-    expect(within(card).getByText('HEADROOM / FIT').parentElement).toHaveTextContent(`${(32 - expected.totalGiB).toFixed(2)} GiB`)
+    expect(within(card).getByText('Total').parentElement).toHaveTextContent(`${expected.totalGiB.toFixed(2)} GiB`)
+    expect(within(card).getByText('Weights').parentElement).toHaveTextContent(`${expected.weightsGiB.toFixed(2)} GiB`)
+    expect(within(card).getByText('Headroom / fit').parentElement).toHaveTextContent(`${(32 - expected.totalGiB).toFixed(2)} GiB`)
 
     await user.click(screen.getByRole('button', { name: 'Export comparison' }))
     await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
@@ -167,7 +167,7 @@ describe('model comparison workspace', () => {
     }))
     render(<ComparePage />)
 
-    expect(await screen.findByRole('region', { name: 'Comparison for Qwen/One' })).toHaveTextContent('TOTAL')
+    expect(await screen.findByRole('region', { name: 'Comparison for Qwen/One' })).toHaveTextContent('Total')
     expect(await screen.findByRole('region', { name: 'Comparison for Meta/Two' })).toHaveTextContent('This public model is unavailable.')
   })
 
@@ -209,7 +209,7 @@ describe('model comparison workspace', () => {
 
     const cards = await screen.findAllByRole('region', { name: /Comparison for / })
     expect(within(cards[0]).getByText(/^Not comparable —/)).toBeInTheDocument()
-    expect(within(cards[0]).queryByText('KV CACHE')).not.toBeInTheDocument()
+    expect(within(cards[0]).queryByText('KV cache')).not.toBeInTheDocument()
   })
 
   it('limits the builder to four models and copies the reproducible URL', async () => {
@@ -285,8 +285,8 @@ describe('model comparison workspace', () => {
 
     await user.click(within(cards[0]).getByRole('button', { name: '16bit for Qwen/One' }))
 
-    expect(within(cards[0]).getByText('TOTAL')).toBeInTheDocument()
-    expect(within(cards[1]).getByText('TOTAL')).toBeInTheDocument()
+    expect(within(cards[0]).getByText('Total')).toBeInTheDocument()
+    expect(within(cards[1]).getByText('Total')).toBeInTheDocument()
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
@@ -343,7 +343,7 @@ describe('model comparison workspace', () => {
   it('keeps only the remaining model in the builder and URL after comparison drops below two', async () => {
     const user = userEvent.setup()
     const view = render(<ComparePage />)
-    await screen.findAllByText('TOTAL')
+    await screen.findAllByText('Total')
 
     await user.click(screen.getByRole('button', { name: 'Remove Meta/Two' }))
 
@@ -373,7 +373,7 @@ describe('model comparison workspace', () => {
         : Promise.resolve(Response.json(safeModel(id)))
     }))
     render(<ComparePage />)
-    await screen.findAllByText('TOTAL')
+    await screen.findAllByText('Total')
     expect(requests).toEqual(['Qwen/One', 'Meta/Two'])
 
     offline = true
@@ -381,8 +381,8 @@ describe('model comparison workspace', () => {
     await user.type(screen.getByRole('textbox', { name: 'Model 3 ID or URL' }), 'Org/Three')
     await user.click(screen.getByRole('button', { name: 'Add Org/Three' }))
     expect(await screen.findByRole('region', { name: 'Comparison for Org/Three' })).toHaveTextContent('This public model is unavailable.')
-    expect(screen.getByRole('region', { name: 'Comparison for Qwen/One' })).toHaveTextContent('TOTAL')
-    expect(screen.getByRole('region', { name: 'Comparison for Meta/Two' })).toHaveTextContent('TOTAL')
+    expect(screen.getByRole('region', { name: 'Comparison for Qwen/One' })).toHaveTextContent('Total')
+    expect(screen.getByRole('region', { name: 'Comparison for Meta/Two' })).toHaveTextContent('Total')
     expect(requests).toEqual(['Qwen/One', 'Meta/Two', 'Org/Three'])
 
     await user.click(screen.getByRole('button', { name: 'Remove Org/Three' }))
@@ -392,7 +392,7 @@ describe('model comparison workspace', () => {
   it('focuses the fourth pending model input when its add control reaches the cap', async () => {
     const user = userEvent.setup()
     render(<ComparePage />)
-    await screen.findAllByText('TOTAL')
+    await screen.findAllByText('Total')
     await user.click(screen.getByRole('button', { name: 'Add model' }))
     await user.type(screen.getByRole('textbox', { name: 'Model 3 ID or URL' }), 'Org/Three')
     await user.click(screen.getByRole('button', { name: 'Add Org/Three' }))
@@ -415,7 +415,7 @@ describe('model comparison workspace', () => {
   it('completes the initial two-model load after StrictMode replays effects', async () => {
     render(<StrictMode><ComparePage /></StrictMode>)
 
-    expect(await screen.findAllByText('TOTAL')).toHaveLength(2)
+    expect(await screen.findAllByText('Total')).toHaveLength(2)
   })
 
   it('keeps no more than two requests active while third and fourth models are added', async () => {
@@ -469,7 +469,7 @@ describe('model comparison workspace', () => {
 
     pending.get('Qwen/One')!.resolve(Response.json(safeModel('Qwen/One')))
     pending.get('Meta/Two')!.resolve(Response.json(safeModel('Meta/Two')))
-    await screen.findAllByText('TOTAL')
+    await screen.findAllByText('Total')
     expect(requested).toEqual(['Qwen/One', 'Meta/Two'])
   })
 

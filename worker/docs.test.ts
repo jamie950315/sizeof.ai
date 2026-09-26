@@ -14,6 +14,19 @@ describe('independent documentation site', () => {
     expect(html).toContain(docsArticles.find(article => article.slug === 'getting-started')!.sections[0].paragraphs[0])
     expect(html).not.toContain('href="https://sizeof.ai/"')
   })
+  it('links the no-JavaScript workspace action to the deployment serving the docs', async () => {
+    const embedded = await (await handleDocsRequest(new Request('https://testnet2.0ruka.dev/docs/getting-started'), env, { pathPrefix: '/docs', publicOrigin: 'https://testnet2.0ruka.dev' })).text()
+    expect(embedded).toContain('href="https://testnet2.0ruka.dev/start?lang=en"')
+    expect(embedded).not.toContain('https://testnet.sizeof.ai/start')
+    expect(embedded).toContain('href="/docs/?lang=en"')
+    const standalone = await (await handleDocsRequest(new Request('https://docs.sizeof.ai/getting-started?lang=ja'), env)).text()
+    expect(standalone).toContain('href="https://testnet.sizeof.ai/start?lang=ja"')
+  })
+  it('styles the no-JavaScript fallback with self-contained light and dark themes', async () => {
+    const html = await (await handleDocsRequest(new Request('https://docs.sizeof.ai/kv-cache'), env)).text()
+    expect(html).toMatch(/<div id="root"><main class="nj"><style>[^<]*prefers-color-scheme:dark[^<]*<\/style>/)
+    expect(html).not.toMatch(/<link[^>]+stylesheet/)
+  })
   it('exposes all guides through sitemap and machine-readable Markdown', async () => {
     const sitemap = await (await handleDocsRequest(new Request('https://docs.sizeof.ai/sitemap.xml'), env)).text()
     for (const article of docsArticles) expect(sitemap).toContain(`/${article.slug}</loc>`)

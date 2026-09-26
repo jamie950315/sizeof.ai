@@ -53,6 +53,8 @@ async function fetchStatus(signal: AbortSignal): Promise<DataStatus> {
 }
 const shownDate = (value: string | null) => value ? new Date(value).toLocaleString() : 'Unknown'
 const yesNo = (value: boolean | null, yes: string, no: string) => value === null ? 'Unknown' : value ? yes : no
+type Signal = 'ok' | 'warn' | 'unknown'
+const signal = (value: boolean | null, good: boolean): Signal => value === null ? 'unknown' : value === good ? 'ok' : 'warn'
 
 export default function StatusPage() {
   const [data, setData] = useState<DataStatus | null>(null)
@@ -76,21 +78,28 @@ export default function StatusPage() {
     }
   }
   useEffect(() => { void refresh(); return () => { request.current?.abort(); request.current = null } }, [])
-  return <main className="status-page">
-    <header className="status-intro"><span>DATA TRANSPARENCY</span><h1>What is up to date?</h1><p>Check the model-name lists used by search. Matching copies mean the two regions share a published list—not that every Hugging Face model is present.</p><button onClick={() => void refresh()} disabled={busy}>{busy ? 'Checking…' : 'Refresh status'}</button></header>
-    {busy && <p role="status">Checking both regional search routes…</p>}
-    {error && <p role="alert" className="status-warning">{translate(error)}</p>}
+  const alignment: Signal | undefined = data ? data.alignment === 'aligned' ? 'ok' : data.alignment === 'different' ? 'warn' : 'unknown' : undefined
+  return <main className="page status-page">
+    <header className="page-head status-head">
+      <h1>Data status</h1>
+      <p className="lede">Check the model-name lists used by search. Matching copies mean the two regions share a published list—not that every Hugging Face model is present.</p>
+      <div><button type="button" className="btn" onClick={() => void refresh()} disabled={busy}>{busy ? 'Checking…' : 'Refresh status'}</button></div>
+    </header>
+    {busy && <p role="status" className="status-checking">Checking both regional search routes…</p>}
+    {error && <p role="alert" className="platform-alert">{translate(error)}</p>}
     {data && <>
-      <section className="status-alignment" aria-label="Regional agreement"><h2>{data.alignment === 'aligned' ? 'Both regions share the same list' : data.alignment === 'different' ? 'Regional lists currently differ' : 'Regional agreement is unknown'}</h2><p>{data.alignment === 'different' ? 'An update may still be transferring or loading. A difference alone does not identify the cause.' : data.alignment === 'unknown' ? 'At least one route or list could not be compared. An unreachable route is not proof that its machine has stopped.' : 'The published generation and model count match at this check.'}</p><small>Checked {shownDate(data.checkedAt)} · times shown in your local time zone · refresh is manual</small></section>
+      <section className="status-summary" data-state={alignment} aria-label="Regional agreement"><h2>{data.alignment === 'aligned' ? 'Both regions share the same list' : data.alignment === 'different' ? 'Regional lists currently differ' : 'Regional agreement is unknown'}</h2><p>{data.alignment === 'different' ? 'An update may still be transferring or loading. A difference alone does not identify the cause.' : data.alignment === 'unknown' ? 'At least one route or list could not be compared. An unreachable route is not proof that its machine has stopped.' : 'The published generation and model count match at this check.'}</p><small>Checked {shownDate(data.checkedAt)} · times shown in your local time zone · refresh is manual</small></section>
       <div className="status-regions">{data.regions.map(region => <section className="status-region" key={region.id} aria-label={region.label}>
-        <h2>{region.label}</h2><p className={region.reachable && region.ready ? 'status-good' : 'status-warning'}>{!region.reachable ? 'Search route could not be reached' : yesNo(region.ready, 'Search list ready', 'Search list not ready')}</p>
-        {region.error && <p className="status-warning">{region.error}</p>}
-        <div className="status-count">{region.models === null ? 'Unknown' : region.models.toLocaleString()}<small>model names</small></div>
-        <dl><div><dt>List updated</dt><dd>{shownDate(region.updatedAt)}</dd></div><div><dt>Update age</dt><dd>{yesNo(region.stale, 'Older than 8 hours', 'Within 8 hours')}</dd></div><div><dt>Synchronization</dt><dd>{yesNo(region.syncHealthy, 'Latest check healthy', 'Needs attention')}</dd></div><div><dt>Latest successful synchronization</dt><dd>{shownDate(region.lastSyncAt)}</dd></div><div><dt>Initial backfill finished</dt><dd>{yesNo(region.initialBackfillComplete, 'Yes — not a live completeness guarantee', 'Not yet confirmed complete')}</dd></div><div><dt>Last complete backfill</dt><dd>{shownDate(region.lastFullBackfillAt)}</dd></div></dl>
-        <details><summary>Published list identifier</summary><code>{region.generation ?? translate('Unknown')}</code></details>
+        <header className="status-region-head"><h2>{region.label}</h2><p className="status-signal" data-state={!region.reachable ? 'warn' : signal(region.ready, true)}>{!region.reachable ? 'Search route could not be reached' : yesNo(region.ready, 'Search list ready', 'Search list not ready')}</p></header>
+        {region.error && <p className="status-region-error">{region.error}</p>}
+        <div className="total-number status-count"><span>{region.models === null ? 'Unknown' : region.models.toLocaleString()}</span><small>model names</small></div>
+        <dl className="spec status-rows"><div><dt>List updated</dt><dd>{shownDate(region.updatedAt)}</dd></div><div data-state={signal(region.stale, false)}><dt>Update age</dt><dd>{yesNo(region.stale, 'Older than 8 hours', 'Within 8 hours')}</dd></div><div data-state={signal(region.syncHealthy, true)}><dt>Synchronization</dt><dd>{yesNo(region.syncHealthy, 'Latest check healthy', 'Needs attention')}</dd></div><div><dt>Latest successful synchronization</dt><dd>{shownDate(region.lastSyncAt)}</dd></div><div data-state={signal(region.initialBackfillComplete, true)}><dt>Initial backfill finished</dt><dd>{yesNo(region.initialBackfillComplete, 'Yes — not a live completeness guarantee', 'Not yet confirmed complete')}</dd></div><div><dt>Last complete backfill</dt><dd>{shownDate(region.lastFullBackfillAt)}</dd></div></dl>
+        <details className="disclosure"><summary>Published list identifier</summary><code>{region.generation ?? translate('Unknown')}</code></details>
       </section>)}</div>
-      <section className="status-explanation"><h2>Coverage has limits</h2><p>{data.coverageNote}</p><p>The eight-hour age marker is an attention threshold, not an update-time promise. A completed backfill is a historical crawl result, not proof of zero missing, renamed, deleted, or newly public models today.</p></section>
     </>}
-    <section className="status-explanation"><h2>Three different update clocks</h2><ul><li><strong>Search names:</strong> the regional lists above contain model names and ranking facts, not downloaded model weights.</li><li><strong>Model details:</strong> architecture and artifact information load separately through the model service and its cache. Search freshness does not establish detail freshness.</li><li><strong>Documentation:</strong> guides are reviewed and published separately. They do not automatically change when a model repository changes.</li></ul><a href="/start">Back to the platform</a></section>
+    <div className="status-notes">
+      {data && <section className="status-explanation"><h2>Coverage has limits</h2><p>{data.coverageNote}</p><p>The eight-hour age marker is an attention threshold, not an update-time promise. A completed backfill is a historical crawl result, not proof of zero missing, renamed, deleted, or newly public models today.</p></section>}
+      <section className="status-explanation"><h2>Three different update clocks</h2><ul><li><strong>Search names:</strong> the regional lists above contain model names and ranking facts, not downloaded model weights.</li><li><strong>Model details:</strong> architecture and artifact information load separately through the model service and its cache. Search freshness does not establish detail freshness.</li><li><strong>Documentation:</strong> guides are reviewed and published separately. They do not automatically change when a model repository changes.</li></ul><a href="/start">Back to the platform</a></section>
+    </div>
   </main>
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatMessage, translate } from '../i18n/core'
+import { ExternalLink } from 'lucide-react'
 import { normalizeCompareModelInput } from '../lib/compare-state'
 import './model-changes.css'
 
@@ -66,16 +67,61 @@ export default function ModelChangesPage() {
     finally { window.clearTimeout(timer); if (token === generation.current) setBusy(false) }
   }
   const files = result?.files.filter(file => (filter === 'all' || file.change === filter) && file.path.toLowerCase().includes(query.toLowerCase())) ?? []
-  return <main className="platform-main model-changes-page"><p className="platform-eyebrow">INSPECT BEFORE YOU UPGRADE</p><h1>Model version changes</h1><p className="platform-lead">Compare public repository files and selected published configuration facts. No model weights are downloaded, no saved settings are replaced, and no upgrade runs automatically.</p>
-    <form className="model-changes-inputs" onSubmit={e => { e.preventDefault(); void compare() }}><label>Model ID or model URL<input required maxLength={500} value={input.model} onChange={e => update('model', e.target.value)} placeholder="owner/model" /></label><label>Earlier revision<input required maxLength={40} value={input.before} onChange={e => update('before', e.target.value)} placeholder="Complete 40-character commit" /></label><label>Later revision (optional)<input maxLength={40} value={input.after} onChange={e => update('after', e.target.value)} placeholder="Blank: resolve current revision when checked" /></label><button className="platform-primary" disabled={busy} type="submit">{busy ? 'Checking revisions…' : 'Compare revisions'}</button></form>
-    <p>Links only fill the form; checking starts when you press Compare. Leaving the later revision blank resolves the current revision once, then compares that fixed version. This does not bypass repository access restrictions.</p>{busy && <p role="status">Reading revision metadata. Large repositories may take longer; the request stops after 45 seconds.</p>}{error && <p className="platform-alert" role="alert">{translate(error)}</p>}
-    {result && <section aria-label="Revision comparison"><header><h2>{result.modelId}</h2><p>Checked {new Date(result.checkedAt).toLocaleString()} · file listings completed for both revisions.</p></header><div className="model-changes-snapshots">{(['before', 'after'] as const).map((side, i) => <article key={side}><h3>{i ? 'Later revision' : 'Earlier revision'}</h3><code>{result[side].revision}</code><p>{result[side].files.toLocaleString()} files · configuration {result[side].configAvailable ? 'available' : 'unavailable'}</p><p>License metadata: {result[side].license ?? 'Unknown / not published'}</p><a target="_blank" rel="noreferrer" href={`https://huggingface.co/${result.modelId}/tree/${result[side].revision}`}>Inspect {i ? 'later' : 'earlier'} repository files ↗</a></article>)}</div>
-      <p className="model-changes-caution">{result.unknownContentFiles.toLocaleString()} files have content that cannot be compared reliably. Unknown does not mean unchanged. License labels are metadata, not a legal-text review. Architecture changes do not prove quality, speed or runtime compatibility.</p>
-      {result.notes.length > 0 && <ul>{result.notes.map((note, i) => <li key={i}>{note}</li>)}</ul>}
-      <h3>Published fact changes</h3>{!result.facts.length ? <p>No differences detected in the selected available facts. Missing configuration or untracked fields can still hide changes.</p> : <div className="model-changes-facts">{result.facts.map((fact, i) => <article key={i}><h4>{fact.field}</h4><dl><div><dt>Earlier</dt><dd>{fact.before ?? 'Unknown / not published'}</dd></div><div><dt>Later</dt><dd>{fact.after ?? 'Unknown / not published'}</dd></div></dl></article>)}</div>}
-      <h3>File differences and unresolved content</h3><div className="model-changes-filters"><label>Find file<input type="search" value={query} onChange={e => { setQuery(e.target.value); setShown(100) }} /></label><label>Change type<select value={filter} onChange={e => { setFilter(e.target.value); setShown(100) }}>{['all', 'added', 'removed', 'modified', 'unknown'].map(kind => <option value={kind} key={kind}>{kind === 'unknown' ? 'Unknown content' : kind === 'all' ? 'All differences' : kind}</option>)}</select></label></div><p>{files.length.toLocaleString()} matching entries. Sizes use binary units; blank sides can mean absent or unavailable, never zero bytes.</p>
-      {!files.length ? <p>No matching file differences. This is not proof of identical behavior or completeness beyond the listed comparison.</p> : <div className="model-changes-files">{files.slice(0, shown).map(file => <article key={file.path}><div><strong>{file.path}</strong><span className={`model-change-kind model-change-${file.change}`}>{file.change === 'unknown' ? 'Content unknown' : file.change}</span></div><p>Earlier: {bytes(file.beforeBytes)} → Later: {bytes(file.afterBytes)}</p></article>)}</div>}
-      {files.length > shown && <button onClick={() => setShown(n => n + 100)}>Show next {Math.min(100, files.length - shown)} entries</button>}
+  const kindLabel = (change: FileChange['change']) => change === 'added' ? translate('Added') : change === 'removed' ? translate('Removed') : change === 'modified' ? translate('Modified') : translate('Content unknown')
+  const size = (value: number | null) => value === null ? <span className="mc-none">{translate('Unknown / not present')}</span> : bytes(value)
+  const factMark = (fact: ModelChanges['facts'][number]) => fact.before === null ? 'added' : fact.after === null ? 'removed' : 'modified'
+  return <main className="page model-changes-page">
+    <header className="page-head"><h1>Model version changes</h1><p className="lede">Compare public repository files and selected published configuration facts. No model weights are downloaded, no saved settings are replaced, and no upgrade runs automatically.</p></header>
+    <form className="mc-form" onSubmit={e => { e.preventDefault(); void compare() }}>
+      <label className="field mc-form-model"><span>Model ID or model URL</span><input className="mc-mono" required maxLength={500} value={input.model} onChange={e => update('model', e.target.value)} placeholder="owner/model" spellCheck={false} autoComplete="off" /></label>
+      <label className="field"><span>Earlier revision</span><input className="mc-mono" required maxLength={40} value={input.before} onChange={e => update('before', e.target.value)} placeholder="Complete 40-character commit" spellCheck={false} autoComplete="off" /></label>
+      <label className="field"><span>Later revision (optional)</span><input className="mc-mono" maxLength={40} value={input.after} onChange={e => update('after', e.target.value)} placeholder="Blank: resolve current revision when checked" spellCheck={false} autoComplete="off" /></label>
+      <button className="btn btn-primary" disabled={busy} type="submit">{busy ? 'Checking revisions…' : 'Compare revisions'}</button>
+    </form>
+    <p className="mc-help">Links only fill the form; checking starts when you press Compare. Leaving the later revision blank resolves the current revision once, then compares that fixed version. This does not bypass repository access restrictions.</p>
+    {busy && <p role="status" className="mc-busy">Reading revision metadata. Large repositories may take longer; the request stops after 45 seconds.</p>}
+    {error && <p className="callout callout-error mc-error" role="alert">{translate(error)}</p>}
+    {result && <section className="mc-result" aria-label="Revision comparison">
+      <header className="mc-result-head"><h2>{result.modelId}</h2><p>Checked {new Date(result.checkedAt).toLocaleString()} · file listings completed for both revisions.</p></header>
+      <div className="mc-snapshots">{(['before', 'after'] as const).map((side, i) => <article key={side} className={`mc-snapshot mc-snapshot-${side}`}>
+        <h3><span className="mc-sign" aria-hidden="true" />{i ? 'Later revision' : 'Earlier revision'}</h3>
+        <code>{result[side].revision}</code>
+        <p>{result[side].files.toLocaleString()} files · configuration {result[side].configAvailable ? 'available' : 'unavailable'}</p>
+        <p>License metadata: {result[side].license ?? 'Unknown / not published'}</p>
+        <a target="_blank" rel="noreferrer" href={`https://huggingface.co/${result.modelId}/tree/${result[side].revision}`}>{i ? 'Inspect later repository files' : 'Inspect earlier repository files'}<ExternalLink size={13} aria-hidden="true" /></a>
+      </article>)}</div>
+      <p className="callout callout-warn mc-caution">{result.unknownContentFiles.toLocaleString()} files have content that cannot be compared reliably. Unknown does not mean unchanged. License labels are metadata, not a legal-text review. Architecture changes do not prove quality, speed or runtime compatibility.</p>
+      {result.notes.length > 0 && <ul className="mc-notes">{result.notes.map((note, i) => <li key={i}>{note}</li>)}</ul>}
+      <div className="mc-block">
+        <h3>Published fact changes</h3>
+        {!result.facts.length ? <p className="mc-empty">No differences detected in the selected available facts. Missing configuration or untracked fields can still hide changes.</p> : <div className="mc-table-wrap"><table className="mc-table mc-facts">
+          <thead><tr><th scope="col"><span className="visually-hidden">Change type</span></th><th scope="col">Field</th><th scope="col">Earlier</th><th scope="col">Later</th></tr></thead>
+          <tbody>{result.facts.map((fact, i) => <tr key={i} className={`mc-row-${factMark(fact)}`}>
+            <td className="mc-mark-cell"><span className={`mc-mark mc-mark-${factMark(fact)}`} aria-hidden="true" /></td>
+            <th scope="row">{fact.field}</th>
+            <td data-label={translate('Earlier')} className={fact.before === null ? undefined : 'mc-old'}>{fact.before ?? <span className="mc-none">{translate('Unknown / not published')}</span>}</td>
+            <td data-label={translate('Later')} className={fact.after === null ? undefined : 'mc-new'}>{fact.after ?? <span className="mc-none">{translate('Unknown / not published')}</span>}</td>
+          </tr>)}</tbody>
+        </table></div>}
+      </div>
+      <div className="mc-block">
+        <h3>File differences and unresolved content</h3>
+        <div className="mc-filters">
+          <label className="field"><span>Find file</span><input type="search" value={query} onChange={e => { setQuery(e.target.value); setShown(100) }} /></label>
+          <label className="field"><span>Change type</span><select value={filter} onChange={e => { setFilter(e.target.value); setShown(100) }}>{(['all', 'added', 'removed', 'modified', 'unknown'] as const).map(kind => <option value={kind} key={kind}>{kind === 'all' ? translate('All differences') : kind === 'unknown' ? translate('Unknown content') : kindLabel(kind)}</option>)}</select></label>
+        </div>
+        <p className="mc-count">{files.length.toLocaleString()} matching entries. Sizes use binary units; blank sides can mean absent or unavailable, never zero bytes.</p>
+        {!files.length ? <p className="mc-empty">No matching file differences. This is not proof of identical behavior or completeness beyond the listed comparison.</p> : <div className="mc-table-wrap"><table className="mc-table mc-files">
+          <thead><tr><th scope="col">Change type</th><th scope="col">File</th><th scope="col">Earlier</th><th scope="col">Later</th></tr></thead>
+          <tbody>{files.slice(0, shown).map(file => <tr key={file.path} className={`mc-row-${file.change}`}>
+            <td className="mc-kind"><span className={`mc-mark mc-mark-${file.change}`} aria-hidden="true" /><span>{kindLabel(file.change)}</span></td>
+            <th scope="row" className="mc-path">{file.path}</th>
+            <td data-label={translate('Earlier')} className="mc-size">{size(file.beforeBytes)}</td>
+            <td data-label={translate('Later')} className="mc-size">{size(file.afterBytes)}</td>
+          </tr>)}</tbody>
+        </table></div>}
+        {files.length > shown && <button type="button" className="btn" onClick={() => setShown(n => n + 100)}>Show next {Math.min(100, files.length - shown)} entries</button>}
+      </div>
     </section>}
   </main>
 }

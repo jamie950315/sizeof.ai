@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TroubleshootPage from './TroubleshootPage'
 import { PATHS, STAGES } from './troubleshooting'
@@ -6,10 +6,11 @@ import { PATHS, STAGES } from './troubleshooting'
 describe('diagnostic desk', () => {
   beforeEach(() => window.history.replaceState(null, '', '/troubleshoot'))
   function answer() { for (const question of PATHS.download[0].questions) fireEvent.change(screen.getByLabelText(question), { target: { value: 'unknown' } }) }
-  for (const [stage] of STAGES) for (const path of PATHS[stage]) it(`shows the complete ${stage}/${path.id} investigation`, () => {
+  for (const [stage, title] of STAGES) for (const path of PATHS[stage]) it(`shows the complete ${stage}/${path.id} investigation`, () => {
     render(<TroubleshootPage />)
-    fireEvent.change(screen.getByLabelText('Failure stage'), { target: { value: stage } })
-    fireEvent.change(screen.getByLabelText('Symptom'), { target: { value: path.id } })
+    fireEvent.click(within(screen.getByLabelText('Failure stage')).getByRole('button', { name: title }))
+    expect(within(screen.getByLabelText('Failure stage')).getByRole('button', { name: title })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('radio', { name: path.title }))
     for (const question of path.questions) fireEvent.change(screen.getByLabelText(question), { target: { value: 'no' } })
     expect(screen.getByText(path.check)).toBeInTheDocument()
     expect(screen.getByText(path.stop)).toBeInTheDocument()
@@ -23,8 +24,12 @@ describe('diagnostic desk', () => {
     expect(screen.getByText('Possible causes')).toBeInTheDocument()
     expect(screen.getByText(/Some evidence is still unknown/)).toBeInTheDocument()
     expect(fetcher).not.toHaveBeenCalled()
-    fireEvent.change(screen.getByLabelText('Failure stage'), { target: { value: 'load' } })
-    expect(screen.getByLabelText('Symptom')).toHaveValue('memory')
+    fireEvent.click(within(screen.getByLabelText('Operating system')).getByRole('button', { name: 'Linux' }))
+    expect(screen.queryByText('Possible causes')).not.toBeInTheDocument()
+    answer()
+    expect(screen.getByText('On Linux')).toBeInTheDocument()
+    fireEvent.click(within(screen.getByLabelText('Failure stage')).getByRole('button', { name: 'Load weights' }))
+    expect(screen.getByRole('radio', { name: PATHS.load[0].title })).toBeChecked()
     expect(screen.queryByText('Possible causes')).not.toBeInTheDocument()
   })
   it('does not silently turn invalid links into advice', () => {

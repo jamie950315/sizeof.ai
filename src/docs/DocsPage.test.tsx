@@ -3,13 +3,22 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import DocsPage from './DocsPage'
 import { docHref, docsArticles, docsBasePath, findDocArticle, searchDocs } from './content'
+import { docFigures } from './figures'
 
 afterEach(() => vi.restoreAllMocks())
 
-it('labels generated imagery as illustration, not hardware evidence', () => {
+it('teaches memory composition with a hand-authored diagram instead of generated imagery', () => {
   render(<DocsPage basePath="/docs" pathname="/docs/getting-started" />)
-  expect(screen.getByRole('img', { name: /AI-generated illustration/ })).toHaveAttribute('src', '/assets/docs/local-workstation.png')
-  expect(screen.getByText(/AI-generated editorial illustration, not a photograph/)).toBeInTheDocument()
+  expect(screen.getByRole('img', { name: /Two memory bars measured against a GPU capacity marker/ })).toHaveAttribute('src', '/assets/docs/memory-budget.svg')
+  expect(screen.getByText(/Hand-authored conceptual diagram with illustrative proportions, not a measurement/)).toBeInTheDocument()
+  expect(screen.getByText('Figure 1.')).toBeInTheDocument()
+  expect(screen.queryByText(/AI-generated/)).not.toBeInTheDocument()
+})
+
+it('uses generated localized diagram copies outside English', () => {
+  expect(docFigures('getting-started', 'ja')[0].src).toBe('/assets/docs/memory-budget.ja.svg')
+  expect(docFigures('hardware', 'ar')[0].src).toBe('/assets/docs/memory-pools.ar.svg')
+  expect(docFigures('quantization', 'en')).toEqual([])
 })
 
 it('provides an accessible, explicitly non-proportional memory diagram', () => {
@@ -55,11 +64,11 @@ describe('documentation reader', () => {
   it('renders the directory and updates results immediately while typing', async () => {
     const user = userEvent.setup()
     render(<DocsPage pathname="/docs" basePath="/docs" />)
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('From first model')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Local model field guide')
     await user.type(screen.getByRole('searchbox', { name: 'Search documentation' }), 'importance matrix')
     const guides = screen.getByRole('navigation', { name: 'Guides' })
-    expect(within(guides).getByRole('link', { name: 'Download the right model files' })).toHaveAttribute('href', '/docs/model-files')
-    expect(within(guides).queryByRole('link', { name: 'Your first local model' })).not.toBeInTheDocument()
+    expect(within(guides).getByRole('link', { name: /^Download the right model files/ })).toHaveAttribute('href', '/docs/model-files')
+    expect(within(guides).queryByRole('link', { name: /^Your first local model/ })).not.toBeInTheDocument()
     await user.selectOptions(screen.getByRole('combobox', { name: 'Experience' }), 'Advanced')
     expect(screen.getByText('No guides match your search. Try a shorter query or select All experience levels.')).toBeInTheDocument()
   })
@@ -68,7 +77,9 @@ describe('documentation reader', () => {
     render(<DocsPage pathname="/docs/kv-cache/" basePath="/docs" />)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Context length and the KV cache')
     expect(within(screen.getByRole('navigation', { name: 'On this page' })).getByRole('link', { name: 'The conversation has a memory cost' })).toHaveAttribute('href', '#what')
-    expect(screen.getByRole('link', { name: 'Transformers cache strategies ↗' })).toHaveAttribute('rel', 'noreferrer')
+    expect(screen.getByRole('link', { name: 'Transformers cache strategies' })).toHaveAttribute('rel', 'noreferrer')
+    expect(screen.getByRole('link', { name: 'Plan a complete context budget' })).toHaveAttribute('href', '/context')
+    expect(screen.getByRole('link', { name: 'Read as Markdown' })).toHaveAttribute('href', 'https://docs.sizeof.ai/kv-cache.md')
     expect(within(screen.getByRole('navigation', { name: 'Guides' })).getByRole('link', { name: 'Context length and the KV cache' })).toHaveAttribute('aria-current', 'page')
   })
 

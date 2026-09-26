@@ -50,9 +50,9 @@ describe('sizeof.ai app', () => {
     const user = userEvent.setup()
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } })
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'COPY LINK' }))
+    await user.click(screen.getByRole('button', { name: 'Copy link' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not copy')
-    expect(screen.queryByText('COPIED')).not.toBeInTheDocument()
+    expect(screen.queryByText('Copied')).not.toBeInTheDocument()
   })
 
   it('shows a bounded index failure reason without misattributing it to Hugging Face', async () => {
@@ -97,15 +97,14 @@ describe('sizeof.ai app', () => {
     expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('qwen3.8-27b')
     expect(screen.getAllByText('Qwen3.8 27B').length).toBeGreaterThan(0)
     expect(screen.getByRole('img', { name: /memory usage/i })).toBeInTheDocument()
-    expect(screen.queryByText('Model weights')).not.toBeInTheDocument()
-    expect(screen.queryByText('Runtime buffer')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Memory breakdown' })).getByText(/Model weights/)).toBeInTheDocument()
   })
 
   it('defaults the homepage calculator to 32 GiB VRAM', () => {
     render(<App />)
 
     expect(screen.getByRole('combobox', { name: 'Your VRAM' })).toHaveValue('32')
-    expect(screen.getByText('FIT NOT VERIFIED ON 32 GB')).toBeInTheDocument()
+    expect(screen.getByText('FIT NOT VERIFIED ON 32 GiB')).toBeInTheDocument()
   })
 
   it('offers the same workstation and multi-GPU VRAM capacities as model pages', () => {
@@ -132,12 +131,10 @@ describe('sizeof.ai app', () => {
       'gpt-oss 20B',
       'MiniCPM5 1B',
     ]) {
-      expect(within(catalog).getByText(name)).toBeInTheDocument()
+      expect(within(catalog).getByText(name, { selector: '.catalog-name strong' })).toBeInTheDocument()
     }
     expect(within(catalog).queryByText('Llama 3.1 8B')).not.toBeInTheDocument()
-    expect(screen.getByText('09 TEXT-OUTPUT MODELS')).toBeInTheDocument()
-    expect(screen.getByText('08 QUANTIZATIONS')).toBeInTheDocument()
-    expect(screen.getByText('UPDATED 22 AUG 2026')).toBeInTheDocument()
+    expect(screen.getByText('9 text-output models · 8 quantizations · Updated 22 Aug 2026')).toBeInTheDocument()
   })
 
   it('moves context halfway toward the next preset in either direction', async () => {
@@ -192,35 +189,29 @@ describe('sizeof.ai app', () => {
     const remaining = chart.querySelector('.memory-bar-remaining') as HTMLElement
 
     expect(chart).toHaveAttribute('data-motion', 'memory-usage')
-    expect(calculator.querySelector('.total-number')?.nextElementSibling).toBe(chart)
-    expect(calculator.querySelector('.breakdown-list')).not.toBeInTheDocument()
+    expect(calculator.querySelector('.total-number')?.nextElementSibling).toBe(chart.closest('.gauge'))
+    expect(calculator.querySelector('.gauge-scale')).toHaveTextContent('32 GiB')
     expect(used).toBeInTheDocument()
     expect(remaining).toBeInTheDocument()
     expect(used.style.width).toMatch(/%$/)
     expect(remaining.style.width).toMatch(/%$/)
   })
 
-  it('aligns the complete homepage calculator with the model index on desktop viewports', () => {
-    const rules = Array.from(testStyles.sheet?.cssRules ?? [])
-      .filter((rule) => 'conditionText' in rule && (rule as CSSMediaRule).conditionText === '(min-width: 951px)')
-      .flatMap((rule) => Array.from((rule as CSSMediaRule).cssRules))
-    const findRule = (selector: string) => rules.find((rule) =>
-      'selectorText' in rule && (rule as CSSStyleRule).selectorText === selector,
-    ) as CSSStyleRule | undefined
+  it('measures every curated model against the selected capacity on one ruler', async () => {
+    const user = userEvent.setup()
+    render(<App />)
 
-    const sectionRule = findRule('.home-main > .calculator-section')
-
-    expect(sectionRule?.style.maxHeight).toBe('none')
-    expect(sectionRule?.style.overflow).toBe('hidden')
-    expect(sectionRule?.style.alignSelf).toBe('stretch')
-    expect(findRule('.home-main > .calculator-section .calculator-grid')?.style.overflow).toBe('hidden')
-    expect(findRule('.home-main > .calculator-section .controls-panel')?.style.paddingTop).toBe('15px')
-    expect(findRule('.home-main > .calculator-section .control-block')?.style.marginBottom).toBe('11px')
-    expect(findRule('.home-main > .calculator-section .total-number')?.style.marginTop).toBe('13px')
-    expect(findRule('.home-main > .calculator-section .total-number')?.style.marginBottom).toBe('10px')
-    expect(findRule('.home-main > .calculator-section .result-model')?.style.marginTop).toBe('18px')
-    expect(findRule('.home-main > .calculator-section .estimate-note')?.style.marginTop).toBe('auto')
-    expect(findRule('.home-main > .calculator-section .estimate-note')?.style.paddingTop).toBe('14px')
+    const catalog = screen.getByRole('region', { name: 'Model catalog' })
+    const rows = Array.from(catalog.querySelectorAll('.catalog-row'))
+    expect(rows).toHaveLength(9)
+    for (const row of rows) {
+      expect((row.querySelector('.ruler-bar') as HTMLElement).style.width).toMatch(/%$/)
+      expect((row.querySelector('.ruler-cap') as HTMLElement).style.insetInlineStart).toMatch(/%$/)
+    }
+    const totals = rows.map((row) => Number.parseFloat(row.querySelector('.catalog-value')?.textContent?.replace('≥', '') ?? ''))
+    expect(totals).toEqual([...totals].sort((a, b) => a - b))
+    await user.click(within(catalog).getByRole('button', { name: '16' }))
+    expect(screen.getByRole('combobox', { name: 'Your VRAM' })).toHaveValue('16')
   })
 
   it('keeps the homepage disclaimer concise', () => {
@@ -232,54 +223,21 @@ describe('sizeof.ai app', () => {
     expect(calculator).not.toHaveTextContent('0.5 GiB base runtime allowance')
   })
 
-  it('keeps the homepage memory bar close to the total on narrow viewports', () => {
-    const rules = Array.from(testStyles.sheet?.cssRules ?? [])
-      .filter((rule) => 'conditionText' in rule && (rule as CSSMediaRule).conditionText === '(max-width: 620px)')
-      .flatMap((rule) => Array.from((rule as CSSMediaRule).cssRules))
-    const totalRule = rules.find((rule) =>
-      'selectorText' in rule
-      && (rule as CSSStyleRule).selectorText === '.home-main > .calculator-section .total-number',
-    ) as CSSStyleRule | undefined
-
-    expect(totalRule?.style.marginTop).toBe('22px')
-    expect(totalRule?.style.marginBottom).toBe('12px')
+  it('encodes memory parts with distinct patterns instead of colour alone', () => {
+    const rules = Array.from(testStyles.sheet?.cssRules ?? []) as CSSStyleRule[]
+    const background = (selector: string) => rules.find((rule) => rule.selectorText === selector)?.style.background ?? ''
+    expect(background('.weights')).toBe('var(--ink)')
+    expect(background('.kv')).toContain('repeating-linear-gradient')
+    expect(background('.runtime')).toContain('radial-gradient')
   })
 
-  it('keeps model weights green before the risk overlay activates', () => {
-    const weightsRule = Array.from(testStyles.sheet?.cssRules ?? []).find((rule) =>
-      'selectorText' in rule && (rule as CSSStyleRule).selectorText === '.weights',
-    ) as CSSStyleRule | undefined
-
-    expect(weightsRule?.style.background).toBe('var(--acid)')
-  })
-
-  it('layers the same warning and offload colors on the model weight bar and swatch', () => {
-    const rules = Array.from(testStyles.sheet?.cssRules ?? [])
-    const findRule = (selector: string) => rules.find((rule) =>
-      'selectorText' in rule && (rule as CSSStyleRule).selectorText === selector,
-    ) as CSSStyleRule | undefined
-
-    const barOffload = findRule('.memory-bar-used > .weights::after')
-    const barWarning = findRule('.memory-bar-risk')
-    const swatchOffload = findRule('.breakdown-list i.weights::before')
-    const swatchWarning = findRule('.breakdown-list i::after')
-
-    expect(swatchOffload?.style.background).toBe(barOffload?.style.background)
-    expect(swatchOffload?.style.opacity).toBe(barOffload?.style.opacity)
-    expect(swatchWarning?.style.background).toBe(barWarning?.style.background)
-    expect(swatchWarning?.style.opacity).toBe('var(--memory-risk-opacity, 0)')
-    expect(Number(swatchOffload?.style.zIndex)).toBeGreaterThan(Number(swatchWarning?.style.zIndex))
-  })
-
-  it('uses the breakdown text size for the offload label', () => {
-    const offloadRule = Array.from(testStyles.sheet?.cssRules ?? []).find((rule) =>
-      'selectorText' in rule && (rule as CSSStyleRule).selectorText === '.memory-bar-offload',
-    ) as CSSStyleRule | undefined
-    const breakdownRule = Array.from(testStyles.sheet?.cssRules ?? []).find((rule) =>
-      'selectorText' in rule && (rule as CSSStyleRule).selectorText === '.breakdown-list > div',
-    ) as CSSStyleRule | undefined
-
-    expect(offloadRule?.style.fontSize).toBe(breakdownRule?.style.fontSize)
+  it('layers the same offload tint on the model weight bar and its swatch', () => {
+    const rules = Array.from(testStyles.sheet?.cssRules ?? []) as CSSStyleRule[]
+    const offload = rules.find((rule) => rule.selectorText?.includes('.memory-bar-used > .weights::after'))
+    expect(offload?.selectorText).toContain('.breakdown-list i.weights::after')
+    expect(offload?.style.opacity).toBe('var(--memory-weights-offload-opacity, 0)')
+    const risk = rules.find((rule) => rule.selectorText === '.memory-bar-risk')
+    expect(risk?.style.background).toBe('var(--warn)')
   })
 
   it('labels memory that must be offloaded when usage exceeds VRAM', async () => {
@@ -304,7 +262,6 @@ describe('sizeof.ai app', () => {
 
     expect(risk.style.opacity).toBe('0.9')
     expect(used.style.getPropertyValue('--memory-weights-offload-opacity')).toBe('0.9')
-    expect(chart.closest('.result-panel')?.querySelector('.breakdown-list')).not.toBeInTheDocument()
   })
 
   it('recalculates and writes a shareable URL when the selected model changes', async () => {
@@ -349,7 +306,7 @@ describe('sizeof.ai app', () => {
     const compare = screen.getByRole('link', { name: 'Compare MiniCPM5 1B' })
     expect(compare).toHaveAttribute('href', expect.stringContaining('/compare?compare=1'))
     expect(compare.querySelector('svg')).not.toBeNull()
-    expect(compare.querySelector('.catalog-compare-label')).toHaveTextContent('COMPARE')
+    expect(compare.querySelector('.catalog-compare-label')).toHaveTextContent('Compare')
   })
 
   it('searches as the query is typed without pressing Enter', async () => {
@@ -372,7 +329,7 @@ describe('sizeof.ai app', () => {
       '/Qwen/Qwen3.8-27B',
     )
     expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN', { signal: expect.any(AbortSignal) })
-    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B', { selector: '.catalog-name strong' })).toBeInTheDocument()
     fetcher.mockRestore()
   })
 
@@ -383,7 +340,7 @@ describe('sizeof.ai app', () => {
     expect(searchRegion).toContainElement(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }))
     expect(searchRegion.closest('[aria-label="Model search explorer"]')).not.toBeNull()
     expect(searchRegion.closest('.hero')).toBeNull()
-    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B', { selector: '.catalog-name strong' })).toBeInTheDocument()
   })
 
   it('searches on Enter and links each result to its sizeof.ai model page', async () => {
@@ -626,7 +583,7 @@ describe('sizeof.ai app', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN{enter}')
 
     expect(await screen.findByRole('alert')).toHaveTextContent('curated model index is unchanged')
-    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B', { selector: '.catalog-name strong' })).toBeInTheDocument()
     fetcher.mockRestore()
   })
 

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="600" viewBox="0 0 1100 600" role="img" aria-labelledby="title desc">
+<title id="title">ما الذي يملأ ذاكرتك؟</title><desc id="desc">تتراكم أوزان النموذج وذاكرة التخزين المؤقت KV والمخازن المؤقتة لوقت التشغيل مقابل سعة ذاكرة GPU. مع سياق قصير يتسع الإجمالي مع هامش. ومع سياق طويل تنمو ذاكرة التخزين المؤقت KV حتى يتجاوز الإجمالي السعة. النسب توضيحية.</desc>
+<style>
+.bg{fill:#fbfaf6}.ink,.t1{fill:#16150f}.t2{fill:#47443c}.t3{fill:#6b675d}.ln{fill:none;stroke:#16150f}.rl{fill:none;stroke:#c3beb0}
+.free{fill:#f1efe8;stroke:#16150f}.tape{fill:#ffcd05;stroke:#16150f}.ontape{fill:#16150f}.over{fill:#b8321f}.overln{fill:none;stroke:#b8321f}.ok{fill:#1b6a42}
+@media (prefers-color-scheme:dark){.bg{fill:#1a1a16}.ink,.t1{fill:#eeece4}.t2{fill:#bdb9ad}.t3{fill:#959186}.ln{stroke:#eeece4}.rl{stroke:#45433b}
+.free{fill:#12120f;stroke:#eeece4}.tape{stroke:#12120f}.over{fill:#ff7a62}.overln{stroke:#ff7a62}.ok{fill:#6fd39a}}
+text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-apple-system,'Segoe UI','Noto Sans',sans-serif}
+.mono{font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace}
+</style>
+<defs>
+<pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" class="bg"/><path d="M0 0V7" class="ln" stroke-width="2.2"/></pattern>
+<pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" class="bg"/><circle cx="3.5" cy="3.5" r="1.35" class="ink"/></pattern>
+</defs>
+<rect width="1100" height="600" class="bg"/>
+<text x="1040" y="62" font-size="26" font-weight="700" class="t1" data-fit="980" data-rtl-x="1040" text-anchor="start" direction="rtl" unicode-bidi="plaintext">ما الذي يملأ ذاكرتك؟</text>
+<text x="1040" y="92" font-size="15" class="t2" data-fit="760" data-rtl-x="1040" text-anchor="start" direction="rtl" unicode-bidi="plaintext">نسب توضيحية لنموذج واحد على GPU واحدة · ليست قياسًا</text>
+
+<text x="420" y="152" font-size="17" font-weight="650" class="t1" data-fit="360" data-rtl-x="420" text-anchor="start" direction="rtl" unicode-bidi="plaintext">سياق قصير</text>
+<text x="880" y="152" font-size="15" font-weight="650" text-anchor="start" class="ok" data-fit="300" direction="rtl" unicode-bidi="plaintext">يتسع مع هامش</text>
+<rect x="60" y="166" width="462" height="54" class="ink"/>
+<rect x="522" y="166" width="84" height="54" fill="url(#hatch)"/>
+<rect x="606" y="166" width="84" height="54" fill="url(#dots)"/>
+<rect x="60.5" y="166.5" width="629" height="53" class="ln"/>
+<rect x="690.5" y="166.5" width="209" height="53" class="free" stroke-dasharray="4 4"/>
+<text x="795" y="198" font-size="14" text-anchor="middle" class="t3" data-fit="190" direction="rtl" unicode-bidi="plaintext">الهامش</text>
+
+<text x="420" y="292" font-size="17" font-weight="650" class="t1" data-fit="360" data-rtl-x="420" text-anchor="start" direction="rtl" unicode-bidi="plaintext">سياق طويل</text>
+<text x="1040" y="292" font-size="15" font-weight="650" text-anchor="start" class="over" data-fit="300" direction="rtl" unicode-bidi="plaintext">يتجاوز السعة</text>
+<rect x="60" y="306" width="462" height="54" class="ink"/>
+<rect x="522" y="306" width="358" height="54" fill="url(#hatch)"/>
+<rect x="880" y="306" width="84" height="54" fill="url(#dots)"/>
+<rect x="60.5" y="306.5" width="903" height="53" class="ln"/>
+<rect x="901.5" y="302.5" width="66" height="61" class="overln" stroke-width="2" stroke-dasharray="5 3"/>
+<text x="880" y="386" font-size="15" class="t2" data-fit="820" data-rtl-x="880" text-anchor="start" direction="rtl" unicode-bidi="plaintext">تنمو ذاكرة التخزين المؤقت KV مع كل رمز يبقى في السياق ومع الطلبات المتوازية.</text>
+
+<path d="M60 430H900M60 422V438M144 430V435M228 430V435M312 430V435M396 430V435M480 422V438M564 430V435M648 430V435M732 430V435M816 430V435" class="ln"/>
+<text x="60" y="456" font-size="13" class="t3 mono">0%</text>
+<text x="480" y="456" font-size="13" text-anchor="middle" class="t3 mono">50%</text>
+<text x="900" y="456" font-size="13" text-anchor="middle" class="t3 mono">100%</text>
+
+<rect x="896" y="124" width="8" height="314" class="tape"/>
+<rect x="816" y="100" width="168" height="22" rx="2" class="tape"/>
+<text x="900" y="116" font-size="13" font-weight="700" text-anchor="middle" class="ontape" data-fit="156" direction="rtl" unicode-bidi="plaintext">سعة ذاكرة GPU</text>
+
+<path d="M60 484H1040" class="rl"/>
+<rect x="60.5" y="503.5" width="27" height="17" class="ink"/>
+<rect x="60.5" y="503.5" width="27" height="17" class="ln"/>
+<text x="368" y="517" font-size="15" font-weight="650" class="t1" data-fit="270" data-rtl-x="368" text-anchor="start" direction="rtl" unicode-bidi="plaintext">الأوزان النموذجية</text>
+<text x="368" y="542" font-size="14" class="t2" data-fit="315" data-rtl-x="368" text-anchor="start" direction="rtl" unicode-bidi="plaintext">يحددها عدد المعاملات والتكميم</text>
+<rect x="390.5" y="503.5" width="27" height="17" fill="url(#hatch)"/>
+<rect x="390.5" y="503.5" width="27" height="17" class="ln"/>
+<text x="698" y="517" font-size="15" font-weight="650" class="t1" data-fit="270" data-rtl-x="698" text-anchor="start" direction="rtl" unicode-bidi="plaintext">مخبأ كيلو فولت</text>
+<text x="698" y="542" font-size="14" class="t2" data-fit="315" data-rtl-x="698" text-anchor="start" direction="rtl" unicode-bidi="plaintext">تنمو مع طول السياق والطلبات المتوازية</text>
+<rect x="720.5" y="503.5" width="27" height="17" fill="url(#dots)"/>
+<rect x="720.5" y="503.5" width="27" height="17" class="ln"/>
+<text x="1040" y="517" font-size="15" font-weight="650" class="t1" data-fit="270" data-rtl-x="1040" text-anchor="start" direction="rtl" unicode-bidi="plaintext">المخازن المؤقتة لوقت التشغيل</text>
+<text x="1040" y="542" font-size="14" class="t2" data-fit="320" data-rtl-x="1040" text-anchor="start" direction="rtl" unicode-bidi="plaintext">مساحات العمل والرسوم البيانية وحمل المُخصِّص</text>
+<text x="1040" y="578" font-size="15" class="t3" data-fit="980" data-rtl-x="1040" text-anchor="start" direction="rtl" unicode-bidi="plaintext">قدّر الثلاثة جميعًا قبل التنزيل. الأوزان وحدها ليست الميزانية كلها.</text>
+</svg>

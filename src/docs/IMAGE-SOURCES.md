@@ -1,8 +1,13 @@
 # Documentation visuals
 
-- `public/assets/docs/local-workstation.png`: generated with the built-in image generation tool on 2026-09-08; inspected for plausible geometry, supported monitor stand, ventilation clearance and absence of claimed specifications. It depicts generic equipment, not a real product or measured deployment. The visible article caption discloses generation and that screen text is illustrative.
-- `public/assets/docs/memory-pools.svg`: manually authored, non-proportional educational diagram. Describes separate VRAM versus Apple shared physical memory, not CUDA managed-memory behavior, allocator limits, interconnect wiring or bandwidth.
+All documentation figures are hand-authored SVG diagrams. No generated imagery is used.
 
-## Final image-generation prompt
+- `public/assets/docs/memory-budget.svg` (getting-started): conceptual "what fills your memory" diagram. Two bars stack model weights (solid ink), KV cache (diagonal hatch) and runtime buffers (dots) against a GPU memory capacity marker: a short context fits with headroom, a long context exceeds capacity. Proportions are illustrative, not measured, and imply no specific model, device or runtime.
+- `public/assets/docs/memory-pools.svg` (hardware): non-proportional educational diagram of separate system RAM and GPU VRAM versus Apple shared physical memory. It does not describe CUDA managed-memory behavior, allocator limits, interconnect wiring or bandwidth.
 
-Use case: photorealistic-natural. Asset type: editorial illustration inside a beginner guide to running AI models locally. Create a photorealistic wide 3:2 image of a plausible modest home computer workstation: one ordinary unbranded dark desktop tower with opaque side panels beside a single flat monitor, a realistic keyboard and mouse on a tidy matte wooden desk. Monitor shows a minimal dark local terminal interface with only tiny indistinct lines, no readable commands, metrics or brand logos. Natural soft window lighting, restrained graphite and subtle blue screen tones, real material texture, normal lens perspective. Physical accuracy constraints: solid supported monitor stand, realistic keyboard layout, tower upright with ventilation clear, tidy cables route behind the desk rather than impossible ports; no exposed electronics, no fictional components, no floating objects, no people. Not a named computer product and not a screenshot of a real benchmark. No text overlay, no watermark. This will be explicitly captioned as an AI-generated conceptual illustration, not a hardware photograph or setup recommendation.
+## Authoring rules
+
+- Both diagrams use the site's paper/ink palette and the same pattern language as the memory gauge (solid = weights, hatch = KV cache, dots = runtime), so they read without colour. An embedded `<style>` switches colours with `prefers-color-scheme`; page CSS variables are not available inside an `<img>`.
+- Every visible label is a plain English `<text>` element (plus `<title>`/`<desc>`). `scripts/i18n-catalog.mjs` extracts them into the message catalog and `scripts/localize-diagrams.mjs` writes `<name>.<locale>.svg` copies without touching shapes.
+- Layout hints on `<text>`: `data-fit` is the maximum label width (longer translations are condensed with `textLength`), `data-rtl-x` is the right edge used for right-to-left locales. Start-anchored labels need `data-rtl-x`.
+- Do not edit the generated `*.<locale>.svg` files by hand; change the English source and regenerate after the catalogs contain the labels.

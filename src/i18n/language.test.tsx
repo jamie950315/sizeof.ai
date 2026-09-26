@@ -67,7 +67,7 @@ describe('site-wide persistent language routing', () => {
   it('does not treat locale parameters as context-workbook configuration', async () => {
     window.history.replaceState(null, '', '/context?lang=ja')
     render(<LanguageProvider><View /></LanguageProvider>)
-    expect(await screen.findByRole('heading', { name: translate('Context budget.', 'ja'), level: 1 })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: translate('Context budget', 'ja'), level: 1 })).toBeVisible()
     expect(screen.queryByRole('alert')).toBeNull()
     const link = screen.getByRole('link', { name: translate('Deploy', 'ja') })
     expect(link.getAttribute('href')).toContain('lang=ja')
@@ -80,7 +80,7 @@ describe('site-wide persistent language routing', () => {
     fireEvent.change(experience, { target: { value: 'Advanced' } })
     expect(experience).toHaveValue('Advanced')
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '模型' } })
-    expect(document.querySelectorAll('.docs-directory-row').length).toBeGreaterThan(0)
+    expect(document.querySelectorAll('#docs-guides a').length).toBeGreaterThan(0)
   })
   it('rewrites testnet documentation links without touching upstream sources or APIs', () => {
     expect(localizeHref('https://docs.sizeof.ai/kv-cache.md', 'fr', 'https://testnet.sizeof.ai')).toBe('https://testnet.sizeof.ai/docs/kv-cache.md?lang=fr')
@@ -107,9 +107,9 @@ describe('site-wide persistent language routing', () => {
   it('does not translate catalog measurements as prose', () => {
     setActiveLocale('zh-TW')
     render(<App />)
-    expect(screen.getAllByText('64L / 4 KVH').length).toBeGreaterThan(0)
-    expect(screen.getByText((_, node) => node?.textContent === '256K 原生')).toBeVisible()
-    expect(screen.getByText((_, node) => node?.textContent === '27.781B 參數')).toBeVisible()
+    expect(screen.getAllByText((_, node) => node?.tagName === 'SMALL' && /64L \/ 4 KVH$/.test(node.textContent ?? '')).length).toBeGreaterThan(0)
+    expect(screen.getByText((_, node) => node?.className === 'tag' && node.textContent === translate('{0} native', 'zh-TW').replace('{0}', '256K'))).toBeVisible()
+    expect(screen.getByText((_, node) => node?.className === 'tag' && node.textContent === '27.781B')).toBeVisible()
     expect(screen.queryByText(/64升|在地化|權權重化|合身性/)).toBeNull()
   })
   it('explicitly localizes fixed card data without translating arbitrary values', () => {

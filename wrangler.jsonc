@@ -46,6 +46,26 @@
       "routes": [
         { "pattern": "testnet.sizeof.ai", "custom_domain": true }
       ]
+    },
+    "testnet2": {
+      "name": "sizeof-ai-testnet2",
+      "vars": {
+        "ENVIRONMENT": "testnet",
+        "PUBLIC_ORIGIN": "https://testnet2.0ruka.dev"
+      },
+      "services": [
+        { "binding": "UPSTREAM_API", "service": "sizeof-ai-testnet" }
+      ],
+      "kv_namespaces": [],
+      "assets": {
+        "directory": "./dist",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application",
+        "run_worker_first": ["/*", "!/assets/*", "!/favicon*", "!/apple-touch-icon.png"]
+      },
+      "routes": [
+        { "pattern": "testnet2.0ruka.dev", "custom_domain": true }
+      ]
     }
   }
 }

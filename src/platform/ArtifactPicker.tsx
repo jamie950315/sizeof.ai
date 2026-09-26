@@ -34,20 +34,31 @@ export default function ArtifactPicker({ modelInput, onSelect }: { modelInput: s
   const choices = result?.input === modelInput ? result.choices : null
   const matches = choices?.artifacts.filter(artifact => `${artifact.repositoryId} ${artifact.path} ${artifact.label}`.toLowerCase().includes(filter.toLowerCase().trim())) ?? []
   return <section className="artifact-picker" aria-label="Published GGUF file picker">
-    <div className="artifact-picker-heading"><h3>Choose a published file</h3><button type="button" disabled={busy || !modelInput.trim()} onClick={() => void lookup()}>{busy ? 'Checking files…' : 'Find GGUF files'}</button></div>
-    <p>Checks public model metadata only. No weights are downloaded. Selecting a community file uses its publisher’s repository.</p>
-    {busy && <p role="status">Checking model files…</p>}
-    {error && <p role="alert" className="deploy-error">{translate(error)}</p>}
+    <div className="artifact-picker-head">
+      <h4>Choose a published file</h4>
+      <button type="button" className="btn" disabled={busy || !modelInput.trim()} onClick={() => void lookup()}>{busy ? 'Checking files…' : 'Find GGUF files'}</button>
+    </div>
+    <p className="artifact-picker-note">Checks public model metadata only. No weights are downloaded. Selecting a community file uses its publisher’s repository.</p>
+    {busy && <p role="status" className="artifact-picker-busy">Checking model files…</p>}
+    {error && <p role="alert" className="callout callout-error">{translate(error)}</p>}
     {choices && <>
-      <p>{choices.artifacts.length} selectable GGUF artifacts, including verified complete shard groups. Architecture support still depends on your llama.cpp version.</p>
-      {choices.omittedSplitFiles > 0 && <p className="artifact-picker-warning">{choices.omittedSplitFiles} split-file variants omitted because the response lacks a complete manifest. Use the repository’s download instructions.</p>}
-      {choices.artifacts.length === 0 ? <p>No supported GGUF artifacts were found in this response. This is not a complete search of every community publisher. Review the repository or enter another GGUF model ID.</p> : <>
-        <label>Filter published files<input value={filter} onChange={event => setFilter(event.target.value)} maxLength={200} placeholder="Publisher or quantization, e.g. Q4_K_M" /></label>
-        <ul className="artifact-picker-list">{matches.slice(0, 60).map(artifact => <li key={`${artifact.repositoryId}/${artifact.path}`}><strong>{artifact.label}</strong><code>{artifact.path}</code><span>{artifact.repositoryId} · {(artifact.sizeBytes / 1024 ** 3).toFixed(2)} GiB</span><span>Revision {artifact.revision.slice(0, 12)}</span>{artifact.files && <details><summary>{artifact.files.length} required shards · total {(artifact.sizeBytes / 1024 ** 3).toFixed(2)} GiB</summary><ol>{artifact.files.map(file => <li key={file.path}><code>{file.path}</code> · {(file.sizeBytes / 1024 ** 3).toFixed(2)} GiB</li>)}</ol></details>}<button type="button" aria-label={`Use ${artifact.repositoryId}/${artifact.path}`} onClick={() => { if (result?.input !== modelInput) return; onSelect(artifact); setSelected(artifact.path) }}>{artifact.files ? 'Use complete group' : 'Use this file'}</button></li>)}</ul>
-        {matches.length === 0 && <p>No files match this filter.</p>}
-        {matches.length > 60 && <p>Showing 60 of {matches.length} matches. Narrow the filter to see other files.</p>}
+      <p className="artifact-picker-note">{choices.artifacts.length} selectable GGUF artifacts, including verified complete shard groups. Architecture support still depends on your llama.cpp version.</p>
+      {choices.omittedSplitFiles > 0 && <p className="callout callout-warn">{choices.omittedSplitFiles} split-file variants omitted because the response lacks a complete manifest. Use the repository’s download instructions.</p>}
+      {choices.artifacts.length === 0 ? <p className="artifact-picker-empty">No supported GGUF artifacts were found in this response. This is not a complete search of every community publisher. Review the repository or enter another GGUF model ID.</p> : <>
+        <label className="field"><span>Filter published files</span><input type="search" value={filter} onChange={event => setFilter(event.target.value)} maxLength={200} placeholder="Publisher or quantization, e.g. Q4_K_M" /></label>
+        <ul className="artifact-picker-list">{matches.slice(0, 60).map(artifact => <li key={`${artifact.repositoryId}/${artifact.path}`} className={selected === artifact.path ? 'is-selected' : undefined} aria-current={selected === artifact.path ? 'true' : undefined}>
+          <div className="artifact-picker-item">
+            <strong>{artifact.label}</strong>
+            <code>{artifact.path}</code>
+            <span className="artifact-picker-meta"><span>{artifact.repositoryId} · {(artifact.sizeBytes / 1024 ** 3).toFixed(2)} GiB</span><span>Revision {artifact.revision.slice(0, 12)}</span></span>
+            {artifact.files && <details className="disclosure"><summary>{artifact.files.length} required shards · total {(artifact.sizeBytes / 1024 ** 3).toFixed(2)} GiB</summary><ol>{artifact.files.map(file => <li key={file.path}><code>{file.path}</code> · {(file.sizeBytes / 1024 ** 3).toFixed(2)} GiB</li>)}</ol></details>}
+          </div>
+          <button type="button" className="btn" aria-label={`Use ${artifact.repositoryId}/${artifact.path}`} onClick={() => { if (result?.input !== modelInput) return; onSelect(artifact); setSelected(artifact.path) }}>{artifact.files ? 'Use complete group' : 'Use this file'}</button>
+        </li>)}</ul>
+        {matches.length === 0 && <p className="artifact-picker-empty">No files match this filter.</p>}
+        {matches.length > 60 && <p className="artifact-picker-note">Showing 60 of {matches.length} matches. Narrow the filter to see other files.</p>}
       </>}
     </>}
-    {selected && <p role="status">Selected {selected}. Review the generated runbook before running it.</p>}
+    {selected && <p role="status" className="artifact-picker-selected">Selected {selected}. Review the generated runbook before running it.</p>}
   </section>
 }

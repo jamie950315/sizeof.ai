@@ -99,10 +99,14 @@ export function extractMessages() {
     }
   }
   for (const dir of ['src', 'worker']) visitDir(resolve(root, dir))
-  const diagram = readFileSync(resolve(root, 'public/assets/docs/memory-pools.svg'), 'utf8')
-  for (const match of diagram.matchAll(/<(?:text|title|desc)\b[^>]*>([\s\S]*?)<\/(?:text|title|desc)>/g)) {
-    const text = match[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim()
-    if (human(text)) found.add(text)
+  // Source diagrams are unsuffixed SVGs; `<name>.<locale>.svg` files are generated copies.
+  const diagrams = resolve(root, 'public/assets/docs')
+  for (const file of readdirSync(diagrams).filter((name) => /^[a-z0-9]+(?:-[a-z0-9]+)*\.svg$/.test(name)).sort()) {
+    const diagram = readFileSync(resolve(diagrams, file), 'utf8')
+    for (const match of diagram.matchAll(/<(?:text|title|desc)\b[^>]*>([\s\S]*?)<\/(?:text|title|desc)>/g)) {
+      const text = match[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim()
+      if (human(text)) found.add(text)
+    }
   }
   snapshot.dispose()
   api.close()

@@ -1,32 +1,58 @@
 import { useState } from 'react'
 import { translate } from '../i18n/core'
-
-const tools = [
-  { number: '01', name: 'Model explorer', href: '/', description: 'Search public models and inspect the memory behind every configuration.', label: 'FIND A MODEL' },
-  { number: '02', name: 'Deployment workbench', href: '/deploy', description: 'Turn your operating system, model and engine choices into a local-first runbook.', label: 'PREPARE TO RUN' },
-  { number: '03', name: 'Hardware planning lab', href: '/hardware', description: 'Plan memory, disk space, download time and running costs with visible assumptions.', label: 'CHECK YOUR BUDGET' },
-  { number: '04', name: 'Comparison workspace', href: '/compare', description: 'Compare up to four models, their actual artifacts and the settings you care about.', label: 'COMPARE OPTIONS' },
-  { number: '05', name: 'Personal model library', href: '/library', description: 'Keep a shortlist and notes on this browser. Export a backup whenever you need it.', label: 'KEEP YOUR RESEARCH' },
-  { number: '06', name: 'Field guide', href: '/docs', description: 'Understand the architecture, make informed tradeoffs, and diagnose your first deployment.', label: 'LEARN THE DETAILS' },
-  { number: '07', name: 'Deployment records', href: '/runs', description: 'Keep the exact settings, observed file version and your own success or failure notes together.', label: 'KEEP WHAT WORKED' },
-  { number: '08', name: 'Troubleshooting workbench', href: '/troubleshoot', description: 'Start from the first failing step. Check evidence and choose the next safe action.', label: 'FIND THE NEXT CHECK' },
-  { number: '09', name: 'Measurement notebook', href: '/benchmarks', description: 'Keep raw observations and compare medians only when the declared test conditions match.', label: 'MEASURE WHAT HAPPENED' },
-  { number: '10', name: 'Compatibility evidence', href: '/compatibility', description: 'Check documented platform, format and architecture evidence without treating unknown support as a guarantee.', label: 'CHECK THE SOURCES' },
-  { number: '11', name: 'Context budget', href: '/context', description: 'Account for instructions, history, retrieval, tools and output using actual token counts.', label: 'PLAN THE WHOLE REQUEST' },
-  { number: '12', name: 'Model revision changes', href: '/model-changes', description: 'Compare published files, selected architecture fields and license declarations before upgrading.', label: 'REVIEW AN UPDATE' },
-  { number: '13', name: 'Data status', href: '/status', description: 'See reachable search routes, data age and reported backfill status. Matching copies are not proof of completeness.', label: 'KNOW THE DATA AGE' },
-]
+import { toolGroups } from './tools'
+import './start.css'
 
 export default function StartPage() {
   const [level, setLevel] = useState<'beginner' | 'advanced'>('beginner')
-  return <main className="platform-main">
-    <section className="platform-intro"><div><p className="platform-eyebrow">A WORKSPACE FOR LOCAL MODELS</p><h1>From a model name<br />to a working plan.</h1><p className="platform-lead">Explore the model. Understand the memory. Prepare the deployment. Keep the evidence in view at every step.</p>
-      <div className="platform-actions"><a className="platform-primary" href="/deploy">Build a deployment plan ↗</a><a href="/">Explore models →</a></div></div>
-      <aside className="platform-path"><span className="platform-eyebrow">CHOOSE YOUR STARTING POINT</span><div className="platform-toggle"><button aria-pressed={level === 'beginner'} onClick={() => setLevel('beginner')}>First local model</button><button aria-pressed={level === 'advanced'} onClick={() => setLevel('advanced')}>Advanced workflow</button></div>
-        {level === 'beginner' ? <ol><li><a href="/docs/getting-started">Learn what runs on your computer</a><small>Hardware, memory, and the first successful response.</small></li><li><a href="/hardware">Make a realistic resource budget</a><small>Leave room for the OS and the rest of your workload.</small></li><li><a href="/deploy">Generate a safe local deployment plan</a><small>Review commands first. Nothing is executed by this site.</small></li></ol>
-          : <ol><li><a href="/compare">Compare artifacts and context tradeoffs</a><small>Keep lower bounds separate from safe-fit estimates.</small></li><li><a href="/docs/benchmarking">Measure your actual runtime</a><small>Record prefill, decode, concurrency and peak memory.</small></li><li><a href="/docs/api">Integrate estimates into your tooling</a><small>Public API, CLI, badges and MCP.</small></li></ol>}
-      </aside></section>
-    <section aria-labelledby="platform-tools"><div className="platform-section-title"><h2 id="platform-tools">Choose the next step in your workflow.</h2><span>NO ACCOUNT REQUIRED</span></div><div className="platform-tool-grid">{tools.map((tool) => <a className="platform-tool" href={tool.href} key={tool.href}><span>{tool.number} / {translate(tool.label)}</span><h3>{translate(tool.name)} <b aria-hidden="true">↗</b></h3><p>{translate(tool.description)}</p></a>)}</div></section>
-    <section className="platform-principles" aria-label="How to read this platform"><h2>Know what the numbers mean.</h2><div><h3>Estimate ≠ benchmark</h3><p>Memory calculations cannot predict tokens per second or verify that an architecture is supported by an engine.</p></div><div><h3>Lower bound ≠ confirmed fit</h3><p>Some runtime memory is unknown. A number below your capacity is not a guarantee.</p></div><div><h3>Local means local</h3><p>Generated commands bind to your computer by default. Library notes stay in this browser; no account or server sync is implied.</p></div></section>
+  return <main className="page start-page">
+    <header className="page-head start-head">
+      <h1>Workspace overview</h1>
+      <p className="lede">Explore the model. Understand the memory. Prepare the deployment. Keep the evidence in view at every step.</p>
+      <div className="start-actions"><a className="btn btn-tape" href="/deploy">Build a deployment plan</a><a className="btn" href="/">Explore models</a></div>
+    </header>
+
+    <div className="start-layout">
+      <aside className="start-path-panel panel" aria-labelledby="start-path-title">
+        <h2 id="start-path-title">Choose your starting point</h2>
+        <div className="seg" role="group" aria-label="Choose your starting point">
+          <button type="button" aria-pressed={level === 'beginner'} onClick={() => setLevel('beginner')}>First local model</button>
+          <button type="button" aria-pressed={level === 'advanced'} onClick={() => setLevel('advanced')}>Advanced workflow</button>
+        </div>
+        {level === 'beginner' ? <ol className="start-steps">
+          <li><a href="/docs/getting-started">Learn what runs on your computer</a><small>Hardware, memory, and the first successful response.</small></li>
+          <li><a href="/hardware">Make a realistic resource budget</a><small>Leave room for the OS and the rest of your workload.</small></li>
+          <li><a href="/deploy">Generate a safe local deployment plan</a><small>Review commands first. Nothing is executed by this site.</small></li>
+        </ol> : <ol className="start-steps">
+          <li><a href="/compare">Compare artifacts and context tradeoffs</a><small>Keep lower bounds separate from safe-fit estimates.</small></li>
+          <li><a href="/docs/benchmarking">Measure your actual runtime</a><small>Record prefill, decode, concurrency and peak memory.</small></li>
+          <li><a href="/docs/api">Integrate estimates into your tooling</a><small>Public API, CLI, badges and MCP.</small></li>
+        </ol>}
+      </aside>
+
+      <section className="start-index" aria-labelledby="platform-tools">
+        <div className="section-title"><h2 id="platform-tools">All tools</h2><p>No account required</p></div>
+        <div className="start-groups">
+          {toolGroups.map((group) => <section className="start-group" key={group.title} aria-labelledby={`start-group-${group.title}`}>
+            <h3 id={`start-group-${group.title}`}>{translate(group.title)}</h3>
+            <ul>
+              {group.tools.filter((tool) => tool.href !== '/start').map((tool) => <li key={tool.href}>
+                <h4 className="start-tool"><a href={tool.href}>{translate(tool.name)}</a><span className="start-path" aria-hidden="true">{tool.href}</span></h4>
+                <p>{translate(tool.description)}</p>
+              </li>)}
+            </ul>
+          </section>)}
+        </div>
+      </section>
+    </div>
+
+    <section className="start-principles" aria-labelledby="start-principles-title">
+      <h2 id="start-principles-title">Know what the numbers mean</h2>
+      <dl>
+        <div><dt>Estimate ≠ benchmark</dt><dd>Memory calculations cannot predict tokens per second or verify that an architecture is supported by an engine.</dd></div>
+        <div><dt>Lower bound ≠ confirmed fit</dt><dd>Some runtime memory is unknown. A number below your capacity is not a guarantee.</dd></div>
+        <div><dt>Local means local</dt><dd>Generated commands bind to your computer by default. Library notes stay in this browser; no account or server sync is implied.</dd></div>
+      </dl>
+    </section>
   </main>
 }

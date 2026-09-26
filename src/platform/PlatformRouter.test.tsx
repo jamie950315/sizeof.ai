@@ -4,9 +4,9 @@ import PlatformRouter, { WorkspaceBoundary } from './PlatformRouter'
 it('provides a complete entry point without loading model metadata', () => {
   history.replaceState(null, '', '/start')
   render(<PlatformRouter />)
-  expect(screen.getByRole('heading', {level:1})).toHaveTextContent('working plan')
+  expect(screen.getByRole('heading', {level:1})).toHaveTextContent('Workspace overview')
   expect(screen.getByRole('navigation', {name:'Platform navigation'})).toBeInTheDocument()
-  expect(screen.getByRole('link', {name:'Build a deployment plan ↗'})).toHaveAttribute('href','/deploy')
+  expect(screen.getByRole('link', {name:'Build a deployment plan'})).toHaveAttribute('href','/deploy')
 })
 it('shows failed workspace loads instead of silently substituting results', () => {
   const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)

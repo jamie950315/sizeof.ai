@@ -30,17 +30,22 @@ export default function RunComparison({ left, right }: { left: DeploymentRun; ri
     finally { if (url) { const release = url; window.setTimeout(() => URL.revokeObjectURL(release), 1000) } }
   }
   return <section className="run-comparison" aria-labelledby={heading}>
-    <div className="run-diff-heading"><div><p className="platform-eyebrow">CONFIGURATION / EVIDENCE</p><h2 id={heading}>Compare deployment records</h2></div><span className="run-diff-count">{changes} changed {changes === 1 ? 'field' : 'fields'}<small>Excludes record metadata</small></span></div>
-    <p className="run-diff-caveat">{runDiffCaveat}</p>
-    <p className="run-diff-caveat">A and B follow your selection order, not the save date. Missing facts mean “Not recorded”, never zero. Case and formatting differences are kept.</p>
+    <header className="run-diff-heading">
+      <h2 id={heading}>Compare deployment records</h2>
+      <p className="run-diff-count"><strong>{changes} changed {changes === 1 ? 'field' : 'fields'}</strong><small>Excludes record metadata</small></p>
+    </header>
+    <div className="run-diff-caveats">
+      <p className="callout callout-warn">{translate(runDiffCaveat)}</p>
+      <p className="note">A and B follow your selection order, not the save date. Missing facts mean “Not recorded”, never zero. Case and formatting differences are kept.</p>
+    </div>
     <label className="run-diff-toggle"><input type="checkbox" checked={changesOnly} onChange={e => setChangesOnly(e.target.checked)} /> Show changed fields only</label>
-    {changesOnly && !rows.some(row => row.changed) ? <p>These records have no differences.</p> : <div className="run-diff-scroll" role="region" aria-label="Deployment comparison table" tabIndex={0}><table>
+    {changesOnly && !rows.some(row => row.changed) ? <p className="run-diff-none">These records have no differences.</p> : <div className="run-diff-scroll" role="region" aria-label="Deployment comparison table" tabIndex={0}><table>
       <caption>Record A compared with record B</caption>
       <thead><tr><th scope="col">Field</th><th scope="col">A · {left.input.model}</th><th scope="col">B · {right.input.model}</th><th scope="col">Difference</th></tr></thead>
-      <tbody>{rows.filter(row => !changesOnly || row.changed).map(row => <tr key={row.key} className={row.changed ? 'run-diff-changed' : ''}><th scope="row"><small>{translate(row.category)}</small>{translate(row.label)}</th><td>{row.before === null ? <span className="run-diff-missing">Not recorded</span> : row.before}</td><td>{row.after === null ? <span className="run-diff-missing">Not recorded</span> : row.after}</td><td>{row.changed ? 'Changed' : 'Same'}</td></tr>)}</tbody>
+      <tbody>{rows.filter(row => !changesOnly || row.changed).map(row => <tr key={row.key} className={row.changed ? 'run-diff-changed' : ''}><th scope="row"><small>{translate(row.category)}</small>{translate(row.label)}</th><td>{row.before === null ? <span className="run-diff-missing">Not recorded</span> : row.before}</td><td>{row.after === null ? <span className="run-diff-missing">Not recorded</span> : row.after}</td><td className="run-diff-state">{row.changed ? 'Changed' : 'Same'}</td></tr>)}</tbody>
     </table></div>}
     <p className="run-diff-privacy">Exports include both records’ private notes and error summaries, including fields hidden by the filter. Review them before sharing. Nothing is uploaded.</p>
-    <div className="platform-actions"><button onClick={() => void copy()}>Copy comparison</button><button onClick={download}>Download comparison</button></div>
-    {feedback && <p role={feedback.error ? 'alert' : 'status'}>{translate(feedback.text)}</p>}
+    <div className="run-diff-actions"><button type="button" className="btn" onClick={() => void copy()}>Copy comparison</button><button type="button" className="btn" onClick={download}>Download comparison</button></div>
+    {feedback && (feedback.error ? <p className="callout callout-error" role="alert">{translate(feedback.text)}</p> : <p className="run-diff-feedback" role="status">{translate(feedback.text)}</p>)}
   </section>
 }

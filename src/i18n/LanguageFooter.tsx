@@ -56,14 +56,26 @@ export default function LanguageFooter() {
   async function select(next: Locale) {
     if (await change(next)) { persistLocale(next); setSaved(true) }
   }
-  return <div className="language-footer" role="contentinfo">
-    <div><span className="language-brand">sizeof.ai</span><p>{translate('Choose your language. Your choice stays with you across the site.', locale)}</p></div>
-    <div className="language-control"><label htmlFor="site-language">{translate('Language', locale)}</label>
-      <select id="site-language" value={locale} disabled={loading} aria-busy={loading} onChange={event => { const next = resolveLocale(event.target.value); if (next) void select(next) }}>
-        {LANGUAGES.map(language => <option key={language.code} value={language.code} lang={language.code} dir="auto">{language.label}</option>)}
-      </select><span className="language-feedback" role={error ? 'alert' : 'status'}>{error ? translate('Translation unavailable. Please try again.', locale) : loading ? translate('Loading translation…', locale) : saved ? translate('Language preference saved.', locale) : ''}</span>
+  const toolsBase = window.location.hostname === 'docs.sizeof.ai' ? 'https://testnet.sizeof.ai' : ''
+  return <footer className="language-footer" role="contentinfo">
+    <div className="language-footer-inner">
+      <div className="language-footer-copy">
+        <span className="language-brand">sizeof<span>(</span>ai<span>)</span></span>
+        <p>{translate('Estimates, not guarantees. Your hardware and runtime are the final test.', locale)}</p>
+        <nav aria-label={translate('Footer', locale)}>
+          <a href={`${toolsBase}/docs`}>{translate('Documentation', locale)}</a>
+          <a href={`${toolsBase}/status`}>{translate('Data status', locale)}</a>
+          <a href={`${toolsBase}/docs/api`}>{translate('API & CLI', locale)}</a>
+        </nav>
+      </div>
+      <div className="language-control"><label htmlFor="site-language">{translate('Language', locale)}</label>
+        <select id="site-language" value={locale} disabled={loading} aria-busy={loading} onChange={event => { const next = resolveLocale(event.target.value); if (next) void select(next) }}>
+          {LANGUAGES.map(language => <option key={language.code} value={language.code} lang={language.code} dir="auto">{language.label}</option>)}
+        </select>
+        <span className="language-feedback" role={error ? 'alert' : 'status'}>{error ? translate('Translation unavailable. Please try again.', locale) : loading ? translate('Loading translation…', locale) : saved ? translate('Language preference saved.', locale) : translate('Choose your language. Your choice stays with you across the site.', locale)}</span>
+      </div>
     </div>
-  </div>
+  </footer>
 }
 export function currentLanguage() { return getActiveLocale() }
 export function WorkspaceMetadata() {

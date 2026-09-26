@@ -20,7 +20,7 @@ export class WorkspaceBoundary extends Component<{ children: ReactNode }, { fail
   state = { failed: false }
   static getDerivedStateFromError() { return { failed: true } }
   render() {
-    return this.state.failed ? <main className="platform-main"><div role="alert" className="platform-alert"><h1>Workspace could not load</h1><p>Reload to retry. Your saved library has not been changed.</p><button onClick={() => window.location.reload()}>Reload workspace</button> <a href="/">Open model explorer</a></div></main> : this.props.children
+    return this.state.failed ? <main className="page"><div role="alert" className="panel platform-boundary"><h1>Workspace could not load</h1><p>Reload to retry. Your saved library has not been changed.</p><div className="platform-boundary-actions"><button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>Reload workspace</button><a className="btn" href="/">Open model explorer</a></div></div></main> : this.props.children
   }
 }
 

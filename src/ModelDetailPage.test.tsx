@@ -176,7 +176,7 @@ describe('Hugging Face-style model detail route', () => {
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(within(calculator).getByRole('combobox', { name: 'Your VRAM' })).toHaveValue('32')
-    expect(within(calculator).getByText('COMFORTABLE ON 32 GB')).toBeInTheDocument()
+    expect(within(calculator).getByText('COMFORTABLE ON 32 GiB')).toBeInTheDocument()
   })
 
   it('offers workstation and multi-GPU VRAM capacities', async () => {
@@ -283,8 +283,8 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(screen.getByRole('region', { name: 'Model facts' })).getByText('1M')).toBeInTheDocument()
     expect(screen.getByText('24 / 93')).toBeInTheDocument()
     expect(screen.getByLabelText('MLA cache layout')).toHaveValue('expanded')
-    expect(screen.getByText('REPO QUANTIZATION / MXFP4-PACK-QUANTIZED')).toBeInTheDocument()
-    expect(screen.getByText('HYPOTHETICAL BIT/WEIGHT ESTIMATE')).toBeInTheDocument()
+    expect(screen.getByText('Repo quantization / MXFP4-PACK-QUANTIZED')).toBeInTheDocument()
+    expect(screen.getByText('Hypothetical bit/weight estimate')).toBeInTheDocument()
   })
 
   it('shows MoE active routing facts without replacing resident total parameters', async () => {
@@ -303,9 +303,9 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
 
     const facts = await screen.findByRole('region', { name: 'Model facts' })
-    expect(within(facts).getByText('TOTAL PARAMETERS')).toBeInTheDocument()
+    expect(within(facts).getByText('Total parameters')).toBeInTheDocument()
     expect(within(facts).getByText('35.95B')).toBeInTheDocument()
-    expect(within(facts).getByText('ACTIVE PARAMETERS / TOKEN')).toBeInTheDocument()
+    expect(within(facts).getByText('Active parameters / token')).toBeInTheDocument()
     expect(within(facts).getByText('3.00B')).toBeInTheDocument()
     expect(screen.getByText('256 TOTAL / 8 ACTIVE')).toBeInTheDocument()
   })
@@ -336,12 +336,12 @@ describe('Hugging Face-style model detail route', () => {
 
     render(<App />)
 
-    expect(await screen.findByText('SPECULATIVE DRAFT')).toBeInTheDocument()
+    expect(await screen.findByText('Speculative draft')).toBeInTheDocument()
     const estimate = screen.getByRole('region', { name: 'Model load estimate' })
-    expect(within(estimate).getByText('TARGET + DRAFT WEIGHTS')).toBeInTheDocument()
-    expect(within(estimate).getByText('CACHE + RUNTIME EXCLUDED')).toBeInTheDocument()
+    expect(within(estimate).getByText('Target + draft weights')).toBeInTheDocument()
+    expect(within(estimate).getByText('Cache + runtime excluded')).toBeInTheDocument()
     expect(within(estimate).getByText('67.68 GiB', { selector: '.resource-total' })).toBeInTheDocument()
-    expect(screen.getByText('DECLARED TARGET / Qwen/Qwen3.6-35B-A3B')).toBeInTheDocument()
+    expect(screen.getByText('Declared target / Qwen/Qwen3.6-35B-A3B')).toBeInTheDocument()
     expect(screen.queryByText(/bidirectional encoder/i)).not.toBeInTheDocument()
   })
 
@@ -367,8 +367,8 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
-    expect(within(calculator).getByText('ESTIMATED LOWER BOUND')).toBeInTheDocument()
-    expect(within(calculator).getByText('TOO LARGE ON 32 GB')).toHaveClass('too-large')
+    expect(within(calculator).getByText('Estimated lower bound')).toBeInTheDocument()
+    expect(within(calculator).getByText('TOO LARGE ON 32 GiB')).toHaveClass('too-large')
     expect(within(calculator).queryByText('RUNTIME-SPECIFIC')).not.toBeInTheDocument()
     expect(within(calculator).getByRole('img', { name: /modeled lower bound/i })).not.toHaveTextContent('OFFLOAD')
     expect(within(calculator).queryByText(/OFFLOAD/)).not.toBeInTheDocument()
@@ -387,7 +387,7 @@ describe('Hugging Face-style model detail route', () => {
 
     render(<App />)
 
-    expect(await screen.findByText(/ARCHITECTURE FROM Qwen\/Qwen3\.8-27B/)).toBeInTheDocument()
+    expect(await screen.findByText(/architecture from Qwen\/Qwen3\.8-27B/)).toBeInTheDocument()
   })
 
   it('shows a modality-aware resource profile when an LLM estimate is unsafe', async () => {
@@ -413,7 +413,7 @@ describe('Hugging Face-style model detail route', () => {
 
     expect(await screen.findByRole('heading', { name: 'FLUX.1-dev' })).toBeInTheDocument()
     const profile = screen.getByRole('region', { name: 'Resource profile' })
-    expect(within(profile).getByText('IMAGE')).toBeInTheDocument()
+    expect(within(profile).getByText('Image')).toBeInTheDocument()
     expect(within(profile).getByText('22.17 GiB')).toBeInTheDocument()
     expect(within(profile).getByText('64.50 GiB')).toBeInTheDocument()
     expect(screen.getByText(/modality-specific runtime memory/i)).toBeInTheDocument()
@@ -451,7 +451,7 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
 
     const estimate = await screen.findByRole('region', { name: 'Model load estimate' })
-    expect(within(estimate).getByRole('heading', { name: 'Encoder loaded weights.' })).toBeInTheDocument()
+    expect(within(estimate).getByRole('heading', { name: 'Encoder loaded weights' })).toBeInTheDocument()
     expect(within(estimate).getByText('0.66 GiB', { selector: '.resource-total' })).toBeInTheDocument()
     expect(within(estimate).getByText(/does not use an autoregressive KV cache/i)).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Model VRAM calculator' })).not.toBeInTheDocument()
@@ -483,7 +483,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(selector).toHaveValue('base-bf16')
     expect(within(estimate).getByText('46.29 GiB', { selector: '.resource-total' })).toBeInTheDocument()
     expect(within(estimate).getByText(/wan_animate_2_bf16\.safetensors/)).toBeInTheDocument()
-    expect(within(estimate).getByText('NO KV CACHE')).toBeInTheDocument()
+    expect(within(estimate).getByText('No KV cache')).toBeInTheDocument()
 
     await user.selectOptions(selector, 'distillation-bf16')
 
@@ -733,7 +733,7 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
-    expect(within(calculator).getByText('HYPOTHETICAL BIT/WEIGHT ESTIMATE')).toBeInTheDocument()
+    expect(within(calculator).getByText('Hypothetical bit/weight estimate')).toBeInTheDocument()
     expect(within(calculator).getByText(/No matching published quantized artifact was found/i)).toBeInTheDocument()
   })
 
@@ -755,8 +755,8 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
 
     const variants = await screen.findByRole('region', { name: 'Detected model variants' })
-    expect(within(variants).getByText('BASE MODEL / Qwen/Qwen3.8-27B')).toBeInTheDocument()
-    expect(within(variants).queryByText('SUPPORT ARTIFACTS')).not.toBeInTheDocument()
+    expect(within(variants).getByText('Base model / Qwen/Qwen3.8-27B')).toBeInTheDocument()
+    expect(within(variants).queryByText('Support artifacts')).not.toBeInTheDocument()
 
     const calculator = screen.getByRole('region', { name: 'Model VRAM calculator' })
     const addonLabel = within(calculator).getByText('MTP addon')
@@ -867,7 +867,7 @@ describe('Hugging Face-style model detail route', () => {
     const first = render(<App />)
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('40')
-    await user.click(screen.getByRole('button', { name: /copy sizeof url/i }))
+    await user.click(screen.getByRole('button', { name: /copy sizeof link/i }))
     const copiedUrl = window.location.href
     expect(writeText).toHaveBeenCalledWith(copiedUrl)
 
@@ -905,7 +905,7 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(calculator).getByText(/Private profile: 48 GiB total, 8 GiB reserved/)).toBeInTheDocument()
     expect(within(calculator).getByText(/Saved, not applied/)).toBeInTheDocument()
     expect(within(calculator).getByRole('button', { name: 'Clear profile' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /copy sizeof url/i }))
+    await user.click(screen.getByRole('button', { name: /copy sizeof link/i }))
     const copiedUrl = window.location.href
     expect(new URL(copiedUrl).search).toContain('vram=64')
     expect(new URL(copiedUrl).search).not.toMatch(/Private|reservedGiB|hardware=/)
@@ -965,7 +965,7 @@ describe('Hugging Face-style model detail route', () => {
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(within(calculator).getByRole('tab', { name: 'Estimated' })).toHaveAttribute('aria-selected', 'true')
-    expect(within(calculator).getByText('HYPOTHETICAL BIT/WEIGHT ESTIMATE')).toBeInTheDocument()
+    expect(within(calculator).getByText('Hypothetical bit/weight estimate')).toBeInTheDocument()
     expect(window.location.search).toContain('source=estimated')
     expect(window.location.search).toContain('variant=none')
   })
@@ -1068,7 +1068,7 @@ describe('Hugging Face-style model detail route', () => {
     const load = await screen.findByRole('region', { name: 'Model load estimate' })
     expect(within(load).getByRole('region', { name: 'Fit planner' })).toHaveTextContent(/resource-only model/i)
     expect(screen.queryByLabelText('Context window')).not.toBeInTheDocument()
-    expect(screen.queryByText('ESTIMATED VRAM')).not.toBeInTheDocument()
+    expect(screen.queryByText('Estimated VRAM')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Export sizing' }))
     await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
     expect(copiedMarkdown).toHaveBeenCalledWith(expect.stringContaining('Resource profile: encoder / Weights'))

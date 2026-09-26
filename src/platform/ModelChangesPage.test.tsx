@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import ModelChangesPage from './ModelChangesPage'
 const before = 'a'.repeat(40), after = 'b'.repeat(40)
@@ -14,10 +14,14 @@ it('seeds link inputs without fetching, then compares locked revisions with unkn
   await screen.findByRole('region', { name: 'Revision comparison' })
   expect(fetcher.mock.calls[0][0]).toBe(`/api/model-changes?model=owner%2Fmodel&before=${before}`)
   expect(screen.getByText('Content unknown')).toBeVisible(); expect(screen.getByText(/Unknown does not mean unchanged/)).toBeVisible()
-  expect(screen.getByText('Earlier: 1 KiB → Later: 2 KiB')).toBeVisible()
+  const weights = within(screen.getByRole('row', { name: /weights\.gguf/ }))
+  expect(weights.getByText('Modified')).toBeVisible(); expect(weights.getByText('1 KiB')).toBeVisible(); expect(weights.getByText('2 KiB')).toBeVisible()
+  const fact = within(screen.getByRole('row', { name: /architectures/ }))
+  expect(fact.getByText('Old')).toBeVisible(); expect(fact.getByText('New')).toBeVisible()
   expect(screen.getByRole('link', { name: /Inspect later/ })).toHaveAttribute('href', `https://huggingface.co/owner/model/tree/${after}`)
   fireEvent.change(screen.getByLabelText('Change type'), { target: { value: 'added' } }); expect(screen.queryByText('weights.gguf')).not.toBeInTheDocument(); expect(screen.getByText('new.json')).toBeVisible()
-  expect(screen.getByText('Earlier: Unknown / not present → Later: 0 B')).toBeVisible()
+  const added = within(screen.getByRole('row', { name: /new\.json/ }))
+  expect(added.getByText('Added')).toBeVisible(); expect(added.getByText('Unknown / not present')).toBeVisible(); expect(added.getByText('0 B')).toBeVisible()
 })
 it('validates before network access', () => {
   const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher); render(<ModelChangesPage />)

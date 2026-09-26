@@ -10,7 +10,9 @@ const placeholders = (value: string) => [...value.matchAll(/\{\d+\}/g)].map(matc
 const xmlText = (value: string) => value.replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&quot;', '"')
 const intentionallyUntranslated = (value: string) => /^(?:Hugging Face|LM Studio Community|AMD GPU|NVIDIA GPU|WSL2 Linux|Bash \/ Zsh|MLX LM · Apple Silicon|Audio VAE \/ FP32|Video VAE(?: \/ FP16)?|San Jose|Muse Glimmer(?: 30B)?|KAT-Coder V2\.5 Dev|Qwen3\.8 27B \+ Ornith 1\.5 35B A3B|MLX OptiQ \{0\}-bit\{1\}|\{0\} \| sizeof\.ai Docs|\| sizeof\.ai Docs)$/.test(value)
   || /^(?:-H |-d |python3 -m venv |Invoke-RestMethod |User-agent: \*|public, max-age=|llama(?: --help| cli(?: --help| -hf ))|\{0\} \{1\} --ctx-size )/.test(value)
-  || /^(?:llama\.cpp · GGUF|model-change-kind model-change-\{0\}|- Total: \{0\} GiB)$/.test(value)
+  || /^(?:llama\.cpp · GGUF|model-change-kind model-change-\{0\}|- Total: \{0\} GiB|Hugging Face \{0\}|API & CLI|Adapter \/ LoRA)$/.test(value)
+  // Class-name templates are extracted as string literals but never rendered as prose.
+  || /^[a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*(?:\{\d+\})?)+$/.test(value)
 
 describe('complete checked-in localization coverage', () => {
   it('ships every promised language without extra or missing locale catalogs', () => {
@@ -40,17 +42,20 @@ describe('complete checked-in localization coverage', () => {
       }
     })
 
-    it(`${locale} diagram localizes all published prose while preserving static geometry`, () => {
-      const source = readFileSync(resolve(import.meta.dirname, '../../public/assets/docs/memory-pools.svg'), 'utf8')
-      const localized = readFileSync(resolve(import.meta.dirname, `../../public/assets/docs/memory-pools.${locale}.svg`), 'utf8')
-      const catalog: Record<string, string> = JSON.parse(readFileSync(resolve(directory, `${locale}.json`), 'utf8'))
-      const nodes = (svg: string) => [...svg.matchAll(/<(?:text|title|desc)\b[^>]*>([^<]*)<\/(?:text|title|desc)>/g)].map(match => xmlText(match[1]))
-      const originals = nodes(source)
-      const translations = nodes(localized)
-      expect(translations.length).toBe(originals.length)
-      originals.forEach((original, index) => expect(translations[index]).toBe(catalog[original] ?? original))
-      expect(localized.match(/<(?:rect|path)\b[^>]*>/g)).toEqual(source.match(/<(?:rect|path)\b[^>]*>/g))
-      expect(localized).not.toMatch(/<script|\bonload=|\bonerror=|\b(?:href|src)=/i)
-    })
+    const diagramDirectory = resolve(import.meta.dirname, '../../public/assets/docs')
+    for (const diagram of readdirSync(diagramDirectory).filter(file => /^[a-z0-9]+(?:-[a-z0-9]+)*\.svg$/.test(file))) {
+      it(`${locale} ${diagram} localizes all published prose while preserving static geometry`, () => {
+        const source = readFileSync(resolve(diagramDirectory, diagram), 'utf8')
+        const localized = readFileSync(resolve(diagramDirectory, diagram.replace(/\.svg$/, `.${locale}.svg`)), 'utf8')
+        const catalog: Record<string, string> = JSON.parse(readFileSync(resolve(directory, `${locale}.json`), 'utf8'))
+        const nodes = (svg: string) => [...svg.matchAll(/<(?:text|title|desc)\b[^>]*>([^<]*)<\/(?:text|title|desc)>/g)].map(match => xmlText(match[1]))
+        const originals = nodes(source)
+        const translations = nodes(localized)
+        expect(translations.length).toBe(originals.length)
+        originals.forEach((original, index) => expect(translations[index]).toBe(catalog[original] ?? original))
+        expect(localized.match(/<(?:rect|path|circle|pattern|style)\b[^>]*>/g)).toEqual(source.match(/<(?:rect|path|circle|pattern|style)\b[^>]*>/g))
+        expect(localized).not.toMatch(/<script|\bonload=|\bonerror=|\b(?:href|src)=/i)
+      })
+    }
   }
 })

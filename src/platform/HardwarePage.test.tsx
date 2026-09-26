@@ -6,7 +6,7 @@ describe('hardware lab', () => {
   beforeEach(() => window.history.replaceState(null, '', '/hardware'))
   it('calculates budget and flags malformed inputs immediately', () => {
     render(<HardwarePage />)
-    expect(screen.getByRole('heading', { name: 'Hardware lab.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Hardware lab' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Memory per device (GiB)'), { target: { value: '' } })
     expect(screen.getByRole('alert')).toHaveTextContent('enter a finite')
     expect(screen.queryByRole('img')).not.toBeInTheDocument()

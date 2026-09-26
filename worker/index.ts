@@ -418,7 +418,8 @@ export function applyAssetCachePolicy(response: Response) {
   })
 }
 
-function publicHost(environment?: string) {
+function publicHost(environment?: string, publicOrigin?: string) {
+  if (publicOrigin && /^https:\/\/[a-z0-9.-]+$/i.test(publicOrigin)) return publicOrigin
   return environment === 'testnet' ? 'https://testnet.sizeof.ai' : 'https://sizeof.ai'
 }
 
@@ -1256,7 +1257,13 @@ interface WorkerBindings {
   SIZEOF_SEARCH_US_URL?: string
   SIZEOF_SEARCH_TOKEN?: string
   ENVIRONMENT?: string
+  /** Canonical origin for a preview host that is not one of the sizeof.ai domains. */
+  PUBLIC_ORIGIN?: string
+  /** Preview frontends serve public data through the existing testnet Worker instead of holding their own secrets. */
+  UPSTREAM_API?: { fetch(request: Request): Promise<Response> }
 }
+
+const upstreamPrefixes = ['/api/', '/badge/', '/embed/']
 
 function huggingFaceFetcher(env: WorkerBindings): Fetcher {
   const boundedFetch: Fetcher = (input, init) => {
@@ -1357,7 +1364,7 @@ async function resolvePublicEstimate(
     const model = await modelResponse.json() as HuggingFaceModel
     return {
       ok: true,
-      value: buildPublicEstimate(model, parsed.value, { publicBaseUrl: publicHost(env.ENVIRONMENT) }),
+      value: buildPublicEstimate(model, parsed.value, { publicBaseUrl: publicHost(env.ENVIRONMENT, env.PUBLIC_ORIGIN) }),
     }
   } catch (error) {
     const isInvalidInput = error instanceof Error
@@ -1387,8 +1394,8 @@ function badgeSvg(result: PublicEstimateResponse | null, error?: string, request
   const capacity = result ? `${result.hardware.capacityGiB} GiB` : '—'
   const detail = result && Number.isFinite(total) ? `${total!.toFixed(2)} / ${capacity}` : error ? 'SAFE ERROR' : capacity
   const color = result?.result.state === 'estimate' && result.result.fit !== 'too-large'
-    ? '#16845b' : result?.result.state === 'lower-bound' ? '#9a5b13' : '#5e6673'
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="520" height="88" viewBox="0 0 520 88" role="img" aria-label="${escapeXml(`${model}: ${state}, ${detail}, ESTIMATE`)}"><rect width="520" height="88" rx="8" fill="#15181d"/><rect x="0" y="0" width="7" height="88" rx="4" fill="${color}"/><text x="22" y="28" fill="#f5f7fa" font-family="system-ui,sans-serif" font-size="15" font-weight="700">${escapeXml(model)}</text><text x="22" y="54" fill="#b8c0cc" font-family="system-ui,sans-serif" font-size="13">${escapeXml(`${state} · ${detail}`)}</text><text x="424" y="55" fill="#7ea5ff" font-family="monospace" font-size="12" font-weight="700">ESTIMATE</text></svg>`
+    ? '#1b6a42' : result?.result.state === 'lower-bound' ? '#8f5300' : '#6b675d'
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="520" height="88" viewBox="0 0 520 88" role="img" aria-label="${escapeXml(`${model}: ${state}, ${detail}, ESTIMATE`)}"><rect x="1" y="1" width="518" height="86" rx="6" fill="#f1efe8" stroke="#16150f" stroke-width="2"/><rect x="1" y="1" width="8" height="86" fill="${color}"/><text x="24" y="30" fill="#16150f" font-family="ui-monospace,Menlo,monospace" font-size="15" font-weight="700">${escapeXml(model)}</text><text x="24" y="56" fill="#47443c" font-family="system-ui,sans-serif" font-size="13">${escapeXml(`${state} · ${detail}`)}</text><rect x="414" y="40" width="88" height="22" rx="3" fill="#ffcd05" stroke="#16150f"/><text x="458" y="55" text-anchor="middle" fill="#16150f" font-family="ui-monospace,Menlo,monospace" font-size="11" font-weight="700">ESTIMATE</text></svg>`
 }
 
 function embedHtml(result: PublicEstimateResponse | null) {
@@ -1398,7 +1405,7 @@ function embedHtml(result: PublicEstimateResponse | null) {
   const state = result.result.state === 'estimate' ? `Estimate · ${result.result.fit}`
     : result.result.state === 'lower-bound' ? 'Lower bound' : 'Unavailable'
   const total = result.result.estimate ? `${result.result.estimate.totalGiB.toFixed(2)} GiB` : 'No safe total'
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(result.model.id)} estimate | sizeof.ai</title><style>html{color-scheme:dark}body{margin:0;padding:16px;background:#15181d;color:#f5f7fa;font:14px system-ui,sans-serif}.card{border:1px solid #3b4350;border-radius:10px;padding:16px;max-width:440px}h1{font-size:16px;margin:0 0 12px}strong{font-size:24px}p{color:#b8c0cc}a{color:#8eaeff}</style></head><body><main class="card"><h1>${escapeHtml(result.model.id)}</h1><div>${escapeHtml(state)}</div><strong>${escapeHtml(total)} / ${escapeHtml(String(result.hardware.capacityGiB))} GiB</strong><p>${escapeHtml(result.disclaimer)}</p><a href="${escapeHtml(result.detailUrl)}">Open detail calculator</a></main></body></html>`
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(result.model.id)} estimate | sizeof.ai</title><style>html{color-scheme:light dark}body{margin:0;padding:16px;background:#f1efe8;color:#16150f;font:14px system-ui,sans-serif}.card{border:1px solid #16150f;border-top:6px solid #ffcd05;border-radius:6px;padding:16px;max-width:440px;background:#fbfaf6}h1{font:700 15px ui-monospace,Menlo,monospace;margin:0 0 12px}strong{display:block;margin:6px 0;font:600 26px ui-monospace,Menlo,monospace}p{color:#47443c}a{color:#16150f;font-weight:600}@media(prefers-color-scheme:dark){body{background:#12120f;color:#eeece4}.card{background:#1a1a16;border-color:#eeece4}p{color:#bdb9ad}a{color:#eeece4}}</style></head><body><main class="card"><h1>${escapeHtml(result.model.id)}</h1><div>${escapeHtml(state)}</div><strong>${escapeHtml(total)} / ${escapeHtml(String(result.hardware.capacityGiB))} GiB</strong><p>${escapeHtml(result.disclaimer)}</p><a href="${escapeHtml(result.detailUrl)}">Open detail calculator</a></main></body></html>`
 }
 
 const embedSecurityHeaders = {
@@ -1412,7 +1419,10 @@ export async function handleWorkerRequest(
   ctx: ExecutionContext,
 ): Promise<Response> {
   const url = new URL(request.url)
-  const host = publicHost(env.ENVIRONMENT)
+  if (env.UPSTREAM_API && upstreamPrefixes.some((prefix) => url.pathname.startsWith(prefix))) {
+    return env.UPSTREAM_API.fetch(request)
+  }
+  const host = publicHost(env.ENVIRONMENT, env.PUBLIC_ORIGIN)
   if (env.ENVIRONMENT === 'testnet' && (url.pathname === '/docs' || url.pathname.startsWith('/docs/'))) {
     return handleDocsRequest(request, env, { pathPrefix: '/docs', publicOrigin: host })
   }

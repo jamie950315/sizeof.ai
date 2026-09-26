@@ -28,6 +28,8 @@ describe('artifact picker', () => {
     fireEvent.change(screen.getByLabelText('Filter published files'), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: use.getAttribute('aria-label')! }))
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ repositoryId: 'Publisher/GGUF', sourceModelId: 'Owner/Model', revision: 'a'.repeat(40) }))
+    expect(screen.getByRole('button', { name: 'Use Publisher/GGUF/Q4.gguf' }).closest('li')).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByRole('status')).toHaveTextContent('Selected Q4.gguf')
   })
   it('cancels model changes and ignores late previous responses', async () => {
     let finish!: (value: Response) => void

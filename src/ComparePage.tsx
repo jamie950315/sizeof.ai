@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { translate } from './i18n/core'
 import { useCopy } from './lib/use-copy'
 import PlatformNav from './platform/PlatformNav'
-import { ArrowLeft, Check, Copy, Plus, X } from 'lucide-react'
+import { Check, Link2, Plus, X } from 'lucide-react'
 import { models as curatedModels } from './data/models'
 import { kvPrecisions, quantizations, type KvPrecisionId } from './data/quantizations'
 import { classifyFit, estimateVram } from './lib/estimator'
@@ -13,7 +13,8 @@ import { maximumContext, normalizedContext } from './lib/context-stepper'
 import { buildModelEvidence } from './lib/evidence'
 import ExportMenu from './components/ExportMenu'
 import type { SizingExportInput } from './lib/export'
-import { getMemoryBarPartPercents, getMemoryBarUsage } from './lib/memory-bar'
+import { getMemoryBarUsage } from './lib/memory-bar'
+import MemoryGauge from './components/MemoryGauge'
 
 const defaults: Omit<CompareItemState, 'modelId'> = {
   quantization: 'q4_k_m', context: 8192, kvPrecision: 'fp16', mlaCacheMode: 'expanded', vramGiB: 32, source: 'estimated', variantId: null,
@@ -75,19 +76,13 @@ function curatedModelId(sourceUrl: string) {
 }
 
 function CompareSiteHeader() {
-  return (
-    <><header className="compare-site-nav">
-      <a className="brand" href="/" aria-label="sizeof.ai home">sizeof<span>.ai</span></a>
-      <a href="/#catalog" aria-label="Model index"><ArrowLeft size={16} /> MODEL INDEX</a>
-      <span>COMPARE WORKSPACE</span>
-    </header><PlatformNav /></>
-  )
+  return <PlatformNav />
 }
 
 function SuggestedModelSelect({ index, onChoose }: { index: number; onChoose: (value: string) => void }) {
   return (
     <select aria-label={`Suggested model ${index + 1}`} value="" onChange={(event) => onChoose(event.target.value)}>
-      <option value="">TOP MODELS</option>
+      <option value="">Choose a curated model</option>
       {curatedModels.map((model) => {
         const id = curatedModelId(model.sourceUrl)
         return <option value={id} key={id}>{model.name} — {id}</option>
@@ -312,13 +307,12 @@ export default function ComparePage() {
   if (!canCompare) {
     return (
       <><CompareSiteHeader /><main className="compare-page compare-builder" aria-labelledby="compare-title">
-          <span>MODEL WORKSPACE</span>
           <h1 id="compare-title">Compare models</h1>
           <p>Choose a top model or paste an owner/repository, Hugging Face URL, or sizeof.ai URL.</p>
           <div className="compare-builder-inputs">
             {builderDrafts.map((draft, index) => (
               <label key={index}>
-                <span>MODEL {index + 1}</span>
+                <span>Model {index + 1}</span>
                 <SuggestedModelSelect index={index} onChoose={(value) => value && updateBuilderDraft(index, value)} />
                 <input
                   id={index === 0 ? 'compare-add' : undefined}
@@ -342,7 +336,7 @@ export default function ComparePage() {
             setSubmitted(true)
           }}>Qwen3.8 27B + Ornith 1.5 35B A3B</button></p>
           {Object.keys(builderErrors).length > 0 && <p className="compare-error" role="alert">Choose two unique public model IDs to compare.</p>}
-          <button type="button" className="compare-primary" onClick={applyBuilder}>Compare models</button>
+          <button type="button" className="btn btn-primary compare-primary" onClick={applyBuilder}>Compare models</button>
         </main></>
     )
   }
@@ -350,7 +344,7 @@ export default function ComparePage() {
   return (
     <><CompareSiteHeader /><main className="compare-page" aria-labelledby="compare-title">
       <header className="compare-header">
-        <div><span>MODEL WORKSPACE</span><h1 id="compare-title">Compare models</h1></div>
+        <div><h1 id="compare-title">Compare models</h1></div>
         <div className="compare-header-actions">
           <label>Shared capacity
             <select aria-label="Shared VRAM capacity" value={sharedVram} onChange={(event) => {
@@ -359,11 +353,11 @@ export default function ComparePage() {
             }}><option value="mixed">Mixed</option><option value="">Independent</option>{vramPresets.map((value) => <option value={value} key={value}>{value} GiB for all</option>)}</select>
           </label>
           {exportInput && <ExportMenu input={exportInput} label="Export comparison" fileStem="sizeof-ai-comparison" />}
-          <button type="button" onClick={() => void copyLink()} aria-label="Copy comparison link">{copied ? <Check size={16} /> : <Copy size={16} />} {copied ? 'COPIED' : 'COPY LINK'}</button>
+          <button type="button" className="btn btn-tape" onClick={() => void copyLink()} aria-label="Copy comparison link">{copied ? <Check aria-hidden="true" /> : <Link2 aria-hidden="true" />} {copied ? 'Copied' : 'Copy link'}</button>
         </div>
       </header>
       <p className="visually-hidden" role="status" aria-live="polite">{Object.values(models).some((status) => status.kind === 'loading') ? 'Loading comparison models' : ''}</p>
-      {copyError && <p role="alert">{translate(copyError)}</p>}
+      {copyError && <p role="alert" className="callout callout-error">{translate(copyError)}</p>}
       <nav className="compare-mobile-selector" aria-label="Comparison model selector">
         {activeItems.map((item) => <a key={item.modelId} href={`#${cardId(item.modelId)}`} onClick={() => setFocusModelId(item.modelId)}>{item.modelId}</a>)}
       </nav>
@@ -401,17 +395,17 @@ export default function ComparePage() {
                 onChange={(event) => setPendingDrafts((current) => current.map((value, draftIndex) => draftIndex === index ? event.target.value : value))}
               />
               {pendingErrors[index] && <small id={`pending-error-${index}`} role="alert">{pendingErrors[index]}</small>}
-              <button type="button" onClick={() => addPendingModel(index)}>{draft ? `Add ${draft}` : 'Confirm model'}</button>
+              <button type="button" className="btn" onClick={() => addPendingModel(index)}>{draft ? `Add ${draft}` : 'Confirm model'}</button>
             </label>
           ))}
         </section>
       )}
       {items.length + pendingDrafts.length < 4
-        ? <button id="compare-add" type="button" className="compare-add" onClick={() => setPendingDrafts((current) => {
+        ? <button id="compare-add" type="button" className="btn compare-add" onClick={() => setPendingDrafts((current) => {
           const next = [...current, '']
           setFocusPendingInput(items.length + next.length)
           return next
-        })}><Plus size={16} /> Add model</button>
+        })}><Plus aria-hidden="true" /> Add model</button>
         : <p className="compare-cap">Maximum of four models may be compared.</p>}
     </main></>
   )
@@ -439,44 +433,38 @@ function CompareCard({ item, index, status, onChange, onRemove }: CompareCardPro
     : null
   const fit = estimate ? classifyFit(estimate.totalGiB, item.vramGiB) : null
   const memoryUsage = estimate ? getMemoryBarUsage(estimate.totalGiB, item.vramGiB) : null
-  const memoryParts = estimate ? getMemoryBarPartPercents([estimate.weightsGiB, estimate.kvCacheGiB, estimate.runtimeGiB]) : []
   const contextPresets = [4096, 8192, 16384, 32768].filter((value) => value <= (model?.maxContext ?? 32768))
-  const memoryStyle = memoryUsage ? {
-    width: `${memoryUsage.usedPercent}%`,
-    '--memory-risk-opacity': memoryUsage.riskOpacity,
-    '--memory-weights-offload-opacity': memoryUsage.weightsOffloadOpacity,
-  } as CSSProperties : undefined
 
   return (
     <article className="compare-card" role="region" aria-label={`Comparison for ${label}`}>
-      <header><div><span>MODEL {index + 1}</span><h2 id={cardId(item.modelId)} tabIndex={-1}>{label}</h2></div><div className="compare-card-actions"><button type="button" onClick={onRemove} aria-label={`Remove ${label}`}><X size={15} /></button></div></header>
-      {status.kind === 'loading' && <p>Loading public model…</p>}
+      <header><div><span>Model {index + 1}</span><h2 id={cardId(item.modelId)} tabIndex={-1}>{label}</h2></div><div className="compare-card-actions"><button type="button" onClick={onRemove} aria-label={`Remove ${label}`}><X size={15} aria-hidden="true" /></button></div></header>
+      {status.kind === 'loading' && <p className="compare-loading"><span className="loading-bar" aria-hidden="true" />Loading public model…</p>}
       {status.kind === 'error' && <p className="compare-error" role="alert">This public model is unavailable.</p>}
-      {status.kind === 'ready' && status.stale && <p role="alert">Showing older saved model data because the latest metadata could not be refreshed. Values may be out of date.</p>}
-      {model && missingArtifact && <p role="alert">The selected artifact is unavailable. Choose an available artifact or switch to estimated weights.</p>}
+      {status.kind === 'ready' && status.stale && <p role="alert" className="stale-note">Showing older saved model data because the latest metadata could not be refreshed. Values may be out of date.</p>}
+      {model && missingArtifact && <p role="alert" className="callout callout-warn">The selected artifact is unavailable. Choose an available artifact or switch to estimated weights.</p>}
       {model && (
         <>
-          {comparable ? <div className="compare-controls">
-            <fieldset className="compare-quant-control"><legend>Weight precision for {label}</legend><div className="compare-quant-grid">{quantizations.map((value) => <button type="button" key={value.id} aria-label={`${value.label} for ${label}`} aria-pressed={item.quantization === value.id} className={item.quantization === value.id ? 'active' : ''} onClick={() => onChange({ quantization: value.id })}>{translate(value.label)}</button>)}</div></fieldset>
-            <label className="compare-context-control">Context for {label}<input aria-label={`Context for ${label}`} type="number" min="1024" max={maximumContext} step="1024" value={item.context} onChange={(event) => onChange({ context: normalizedContext(Math.round(Number(event.target.value) / 1024) * 1024) })} /><span className="compare-context-presets">{contextPresets.map((value) => <button type="button" key={value} aria-label={`${value / 1024}K context for ${label}`} className={item.context === value ? 'active' : ''} onClick={() => onChange({ context: value })}>{value / 1024}K</button>)}</span></label>
-            <label>KV precision for {label}<select aria-label={`KV precision for ${label}`} value={item.kvPrecision} onChange={(event) => onChange({ kvPrecision: event.target.value as KvPrecisionId })}>{kvPrecisions.map((value) => <option key={value.id} value={value.id}>{translate(value.label)}</option>)}</select></label>
-            {model.spec?.kvCache?.kind === 'mla' && <label>MLA mode for {label}<select aria-label={`MLA mode for ${label}`} value={item.mlaCacheMode} onChange={(event) => onChange({ mlaCacheMode: event.target.value as 'expanded' | 'latent' })}><option value="expanded">Expanded</option><option value="latent">Latent</option></select></label>}
-            <label>VRAM for {label}<select aria-label={`VRAM for ${label}`} value={item.vramGiB} onChange={(event) => onChange({ vramGiB: Number(event.target.value) })}>{vramPresets.map((value) => <option key={value} value={value}>{value} GiB</option>)}</select></label>
-            {(sources.length > 1 || missingArtifact) && <label>Artifact source for {label}<select aria-label={`Artifact source for ${label}`} value={item.source} onChange={(event) => onChange({ source: event.target.value, variantId: variants.find((variant) => (variant.publisher ?? model.owner).toLowerCase() === event.target.value)?.id ?? null })}>{!sources.includes(item.source) && <option value={item.source}>{item.source} (unavailable)</option>}{sources.map((source) => <option key={source} value={source}>{source}</option>)}</select></label>}
-            {item.source !== 'estimated' && sourceVariants.length > 0 && <label>Artifact for {label}<select aria-label={`Artifact for ${label}`} value={item.variantId ?? ''} onChange={(event) => onChange({ variantId: event.target.value || null })}><option value="">Choose artifact</option>{sourceVariants.map((variant) => <option key={variant.id} value={variant.id}>{variant.label}</option>)}</select></label>}
-          </div> : <p className="compare-not-comparable">Not comparable — this public model has resource evidence but no safe autoregressive memory estimate.</p>}
-          {estimate && memoryUsage && <div className="compare-memory-bar"><div className="compare-memory-summary"><span>VRAM USAGE</span><strong>{estimate.totalGiB.toFixed(2)} / {item.vramGiB} GiB</strong></div><div className={`memory-bar${memoryUsage.offloadGiB > 0 ? ' has-offload' : ''}`} role="img" aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${item.vramGiB} GiB VRAM`}><div className="memory-bar-used" style={memoryStyle}><span className="weights" style={{ width: `${memoryParts[0]}%` }} /><span className="kv" style={{ width: `${memoryParts[1]}%` }} /><span className="runtime" style={{ width: `${memoryParts[2]}%` }} /><span className="memory-bar-risk" aria-hidden="true" style={{ opacity: memoryUsage.riskOpacity }} /></div><span className="memory-bar-remaining" aria-hidden="true" style={{ width: `${memoryUsage.remainingPercent}%` }} />{memoryUsage.offloadGiB > 0 && <span className="memory-bar-offload">OFFLOAD {memoryUsage.offloadGiB.toFixed(2)} GiB</span>}</div></div>}
+          {estimate && memoryUsage && <div className="compare-memory-bar"><div className="compare-memory-summary"><span>VRAM usage</span><strong>{estimate.totalGiB.toFixed(2)} / {item.vramGiB} GiB</strong></div><MemoryGauge showScale={false} parts={[{ label: 'Model weights', value: estimate.weightsGiB, className: 'weights' }, { label: 'KV cache', value: estimate.kvCacheGiB, className: 'kv' }, { label: 'Runtime buffer', value: estimate.runtimeGiB, className: 'runtime' }]} totalGiB={estimate.totalGiB} capacityGiB={item.vramGiB} ariaLabel={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${item.vramGiB} GiB VRAM`} /></div>}
           <dl className="compare-rows">
-            <div><dt>TOTAL</dt><dd>{formatGiB(estimate?.totalGiB ?? null)}{estimate?.isLowerBound ? ' lower bound' : ''}</dd></div>
-            <div><dt>WEIGHTS</dt><dd>{formatGiB(estimate?.weightsGiB ?? (model.tensorSizeBytes ? model.tensorSizeBytes / 1024 ** 3 : null))}</dd></div>
-            {comparable && <div><dt>KV CACHE</dt><dd>{formatGiB(estimate?.kvCacheGiB ?? null)}</dd></div>}
-            {comparable && <div><dt>RUNTIME</dt><dd>{formatGiB(estimate?.runtimeGiB ?? null)}</dd></div>}
-            <div><dt>HEADROOM / FIT</dt><dd>{estimate?.isLowerBound ? 'Fit not verified — runtime memory is incomplete' : estimate && fit ? `${(item.vramGiB - estimate.totalGiB).toFixed(2)} GiB · ${fit.replace('-', ' ')}` : 'Not comparable'}</dd></div>
-            <div><dt>PUBLISHED ARTIFACT</dt><dd>{formatBytes(selectedVariant?.weightSizeBytes ?? model.tensorSizeBytes)}</dd></div>
-            <div><dt>CONFIDENCE / EVIDENCE</dt><dd>{model.estimateConfidence} · {model.lastModified ? 'published metadata' : 'public metadata'}</dd></div>
-            <div><dt>NATIVE CONTEXT</dt><dd>{comparable && model.maxContext ? `${model.maxContext.toLocaleString()} tokens` : 'Not comparable'}</dd></div>
-            <div><dt>MODEL KIND</dt><dd>{model.modelKind}</dd></div>
+            <div><dt>Total</dt><dd>{formatGiB(estimate?.totalGiB ?? null)}{estimate?.isLowerBound ? ' lower bound' : ''}</dd></div>
+            <div><dt>Weights</dt><dd>{formatGiB(estimate?.weightsGiB ?? (model.tensorSizeBytes ? model.tensorSizeBytes / 1024 ** 3 : null))}</dd></div>
+            {comparable && <div><dt>KV cache</dt><dd>{formatGiB(estimate?.kvCacheGiB ?? null)}</dd></div>}
+            {comparable && <div><dt>Runtime</dt><dd>{formatGiB(estimate?.runtimeGiB ?? null)}</dd></div>}
+            <div><dt>Headroom / fit</dt><dd>{estimate?.isLowerBound ? 'Fit not verified — runtime memory is incomplete' : estimate && fit ? `${(item.vramGiB - estimate.totalGiB).toFixed(2)} GiB · ${fit.replace('-', ' ')}` : 'Not comparable'}</dd></div>
+            <div><dt>Published artifact</dt><dd>{formatBytes(selectedVariant?.weightSizeBytes ?? model.tensorSizeBytes)}</dd></div>
+            <div><dt>Confidence / evidence</dt><dd>{model.estimateConfidence} · {model.lastModified ? 'published metadata' : 'public metadata'}</dd></div>
+            <div><dt>Native context</dt><dd>{comparable && model.maxContext ? `${model.maxContext.toLocaleString()} tokens` : 'Not comparable'}</dd></div>
+            <div><dt>Model kind</dt><dd>{model.modelKind}</dd></div>
           </dl>
+          {comparable ? <div className="compare-controls" role="group" aria-label={`Settings for ${label}`}>
+            <fieldset className="compare-quant-control"><legend className="visually-hidden">Weight precision for {label}</legend><span className="compare-field-label" aria-hidden="true">Weight precision</span><div className="compare-quant-grid">{quantizations.map((value) => <button type="button" key={value.id} aria-label={`${value.label} for ${label}`} aria-pressed={item.quantization === value.id} className={item.quantization === value.id ? 'active' : ''} onClick={() => onChange({ quantization: value.id })}>{translate(value.label)}</button>)}</div></fieldset>
+            <label className="compare-context-control"><span className="compare-field-label">Context</span><input aria-label={`Context for ${label}`} type="number" min="1024" max={maximumContext} step="1024" value={item.context} onChange={(event) => onChange({ context: normalizedContext(Math.round(Number(event.target.value) / 1024) * 1024) })} /><span className="compare-context-presets">{contextPresets.map((value) => <button type="button" key={value} aria-label={`${value / 1024}K context for ${label}`} className={item.context === value ? 'active' : ''} onClick={() => onChange({ context: value })}>{value / 1024}K</button>)}</span></label>
+            <label><span className="compare-field-label">KV precision</span><select aria-label={`KV precision for ${label}`} value={item.kvPrecision} onChange={(event) => onChange({ kvPrecision: event.target.value as KvPrecisionId })}>{kvPrecisions.map((value) => <option key={value.id} value={value.id}>{translate(value.label)}</option>)}</select></label>
+            {model.spec?.kvCache?.kind === 'mla' && <label><span className="compare-field-label">MLA mode</span><select aria-label={`MLA mode for ${label}`} value={item.mlaCacheMode} onChange={(event) => onChange({ mlaCacheMode: event.target.value as 'expanded' | 'latent' })}><option value="expanded">Expanded</option><option value="latent">Latent</option></select></label>}
+            <label><span className="compare-field-label">VRAM</span><select aria-label={`VRAM for ${label}`} value={item.vramGiB} onChange={(event) => onChange({ vramGiB: Number(event.target.value) })}>{vramPresets.map((value) => <option key={value} value={value}>{value} GiB</option>)}</select></label>
+            {(sources.length > 1 || missingArtifact) && <label><span className="compare-field-label">Artifact source</span><select aria-label={`Artifact source for ${label}`} value={item.source} onChange={(event) => onChange({ source: event.target.value, variantId: variants.find((variant) => (variant.publisher ?? model.owner).toLowerCase() === event.target.value)?.id ?? null })}>{!sources.includes(item.source) && <option value={item.source}>{item.source} (unavailable)</option>}{sources.map((source) => <option key={source} value={source}>{source}</option>)}</select></label>}
+            {item.source !== 'estimated' && sourceVariants.length > 0 && <label><span className="compare-field-label">Artifact</span><select aria-label={`Artifact for ${label}`} value={item.variantId ?? ''} onChange={(event) => onChange({ variantId: event.target.value || null })}><option value="">Choose artifact</option>{sourceVariants.map((variant) => <option key={variant.id} value={variant.id}>{variant.label}</option>)}</select></label>}
+          </div> : <p className="compare-not-comparable">Not comparable — this public model has resource evidence but no safe autoregressive memory estimate.</p>}
         </>
       )}
     </article>
