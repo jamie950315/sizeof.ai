@@ -49,7 +49,6 @@
   "es | offload:missing | Use a compatible full-model GGUF, not an adapter or projector. For split GGUF weights, select the first shard and confirm all shards are available. GPU offload is a requested maximum, not a fit guarantee.",
   "es | publisher:avoid | Verify the original publisher and any declared base model.",
   "es | runbook:avoid | Your deployment runbook",
-  "es | style | Follow the official installation path for your GPU, operating system, and driver. CUDA, ROCm, and other supported backends have different requirements. Do not assume a generic package install selects the correct combination.",
   "es | style | What fills your memory?",
   "es | style | Write down your operating system, GPU model, available VRAM, system RAM, and free disk space.",
   "es | style | Your VRAM",

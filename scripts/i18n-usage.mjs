@@ -135,7 +135,7 @@ function jsxKey(children) {
 
 export function collectUsage() {
   const usage = new Map(Object.keys(messages).map(key => [key, { kinds: new Set(), pages: new Set(), files: new Set() }]))
-  const record = (text, file, line, kind) => {
+  const record = (text, file, kind) => {
     const candidates = new Set([text, text.trim()])
     if (text.includes('\n')) for (const part of text.split('\n')) {
       const raw = part.trim()
@@ -146,7 +146,7 @@ export function collectUsage() {
       const entry = usage.get(candidate)
       if (!entry) continue
       entry.kinds.add(text.includes('\n') && candidate !== text.trim() ? 'export' : kind)
-      entry.files.add(`${file}:${line}`)
+      entry.files.add(file)
       entry.pages.add(PAGES.find(([, , pattern]) => pattern.test(file))?.[0] ?? 'other')
     }
   }
@@ -154,25 +154,25 @@ export function collectUsage() {
     const file = relative(root, path)
     const ast = parse(readFileSync(path, 'utf8'), { sourceType: 'module', plugins: ['typescript', 'jsx'], errorRecovery: true })
     traverse(ast, {
-      StringLiteral(p) { record(p.node.value, file, p.node.loc?.start.line, classify(p, file)) },
+      StringLiteral(p) { record(p.node.value, file, classify(p, file)) },
       TemplateLiteral(p) {
         const key = p.node.quasis.map((part, index) => (part.value.cooked ?? '') + (index < p.node.expressions.length ? `{${index}}` : '')).join('')
-        record(key, file, p.node.loc?.start.line, classify(p, file))
+        record(key, file, classify(p, file))
       },
-      JSXText(p) { const text = normalizeJsx(p.node.value); if (text) record(text, file, p.node.loc?.start.line, classify(p, file)) },
-      JSXElement(p) { const key = jsxKey(p.node.children); if (key) record(key, file, p.node.loc?.start.line, classify(p, file)) },
-      JSXFragment(p) { const key = jsxKey(p.node.children); if (key) record(key, file, p.node.loc?.start.line, classify(p, file)) },
+      JSXText(p) { const text = normalizeJsx(p.node.value); if (text) record(text, file, classify(p, file)) },
+      JSXElement(p) { const key = jsxKey(p.node.children); if (key) record(key, file, classify(p, file)) },
+      JSXFragment(p) { const key = jsxKey(p.node.children); if (key) record(key, file, classify(p, file)) },
     })
   }
   // Seeded by the extractor rather than found in source: the language picker and its loading states.
-  for (const key of ['Language', 'Choose language', 'Translation unavailable. Please try again.', 'Loading translation…']) record(key, 'src/i18n/LanguageFooter.tsx', 1, key.length < 20 ? 'label' : 'body')
+  for (const key of ['Language', 'Choose language', 'Translation unavailable. Please try again.', 'Loading translation…']) record(key, 'src/i18n/LanguageFooter.tsx', key.length < 20 ? 'label' : 'body')
   const html = readFileSync(resolve(root, 'index.html'), 'utf8')
-  for (const match of html.matchAll(/<title>([^<]+)<\/title>|<meta\s+name="description"\s+content="([^"]+)"/g)) record(match[1] || match[2], 'index.html', 1, match[1] ? 'heading' : 'body')
+  for (const match of html.matchAll(/<title>([^<]+)<\/title>|<meta\s+name="description"\s+content="([^"]+)"/g)) record(match[1] || match[2], 'index.html', match[1] ? 'heading' : 'body')
   const diagrams = resolve(root, 'public/assets/docs')
   for (const name of readdirSync(diagrams).filter(file => /^[a-z0-9]+(?:-[a-z0-9]+)*\.svg$/.test(file))) {
     const svg = readFileSync(resolve(diagrams, name), 'utf8')
     for (const match of svg.matchAll(/<(text|title|desc)\b[^>]*>([\s\S]*?)<\/\1>/g)) {
-      record(match[2].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim(), `public/assets/docs/${name}`, 1, 'diagram')
+      record(match[2].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim(), `public/assets/docs/${name}`, 'diagram')
     }
   }
   return usage

@@ -20,7 +20,7 @@ export interface Violation { locale: string; rule: string; key: string; detail: 
 
 /** Remove marks that vary between equally correct spellings: Arabic harakat/tatweel and Devanagari nukta. */
 export function normalizeForMatch(text: string): string {
-  return text.normalize('NFC').replace(/[ً-ٰٟـ़]/g, '').normalize('NFC')
+  return text.normalize('NFC').replace(/[\u064B-\u065F\u0670\u0640\u093C]/g, '').normalize('NFC')
 }
 
 /** Display width with East Asian wide characters counted as two columns. Mirrors scripts/i18n-usage.mjs. */
@@ -42,9 +42,15 @@ function checkable(key: string, value: string): boolean {
   return true
 }
 
-/** `\\b` in glossary patterns means a Unicode word boundary, so accented and non-Latin letters count as word characters. */
+/** `\b` in glossary patterns means a Unicode word boundary, so accented and non-Latin letters count as word characters. */
 const boundary = '(?:(?<=[\\p{L}\\p{N}_])(?![\\p{L}\\p{N}_])|(?<![\\p{L}\\p{N}_])(?=[\\p{L}\\p{N}_]))'
-const pattern = (source: string, caseSensitive = false) => new RegExp(source.replaceAll('\\b', boundary), caseSensitive ? 'u' : 'iu')
+const compiled = new Map<string, RegExp>()
+function pattern(source: string, caseSensitive = false): RegExp {
+  const id = `${caseSensitive ? 'u' : 'iu'}:${source}`
+  let regex = compiled.get(id)
+  if (!regex) compiled.set(id, regex = new RegExp(source.replaceAll('\\b', boundary), caseSensitive ? 'u' : 'iu'))
+  return regex
+}
 
 export function glossaryViolations(glossary: Glossary, messages: Record<string, string>, catalogs: Record<string, Record<string, string>>): Violation[] {
   const violations: Violation[] = []

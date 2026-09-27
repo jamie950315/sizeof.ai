@@ -120,7 +120,7 @@
       "register": "Address the reader as usted (su, sus, verifique). Never tú.",
       "avoid": [
         {
-          "pattern": "\\b(?:tu|tus|tú|ti|contigo|puedes|quieres|necesitas|tienes|anota|elige)\\b",
+          "pattern": "\\b(?:tu|tus|tú|ti|contigo|puedes|quieres|necesitas|tienes)\\b",
           "reason": "Use the usted register."
         }
       ]
