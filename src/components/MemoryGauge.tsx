@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { formatMessage } from '../i18n/core'
 import { getMemoryBarPartPercents, getMemoryBarUsage } from '../lib/memory-bar'
 
 export interface MemoryPart {
@@ -23,7 +24,7 @@ function scaleLabel(value: number) {
 }
 
 export function offloadText(offloadGiB: number) {
-  return `OFFLOAD ${offloadGiB.toFixed(2)} GiB`
+  return formatMessage('OFFLOAD {0} GiB', [offloadGiB.toFixed(2)])
 }
 
 /** A ruler-scaled capacity bar: the track is the selected memory capacity. */

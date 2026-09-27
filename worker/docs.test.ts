@@ -15,8 +15,8 @@ describe('independent documentation site', () => {
     expect(html).not.toContain('href="https://sizeof.ai/"')
   })
   it('links the no-JavaScript workspace action to the deployment serving the docs', async () => {
-    const embedded = await (await handleDocsRequest(new Request('https://testnet2.0ruka.dev/docs/getting-started'), env, { pathPrefix: '/docs', publicOrigin: 'https://testnet2.0ruka.dev' })).text()
-    expect(embedded).toContain('href="https://testnet2.0ruka.dev/start?lang=en"')
+    const embedded = await (await handleDocsRequest(new Request('https://testnet2.sizeof.ai/docs/getting-started'), env, { pathPrefix: '/docs', publicOrigin: 'https://testnet2.sizeof.ai' })).text()
+    expect(embedded).toContain('href="https://testnet2.sizeof.ai/start?lang=en"')
     expect(embedded).not.toContain('https://testnet.sizeof.ai/start')
     expect(embedded).toContain('href="/docs/?lang=en"')
     const standalone = await (await handleDocsRequest(new Request('https://docs.sizeof.ai/getting-started?lang=ja'), env)).text()

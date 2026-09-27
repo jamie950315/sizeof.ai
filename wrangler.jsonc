@@ -51,7 +51,7 @@
       "name": "sizeof-ai-testnet2",
       "vars": {
         "ENVIRONMENT": "testnet",
-        "PUBLIC_ORIGIN": "https://testnet2.0ruka.dev"
+        "PUBLIC_ORIGIN": "https://testnet2.sizeof.ai"
       },
       "services": [
         { "binding": "UPSTREAM_API", "service": "sizeof-ai-testnet" }
@@ -64,7 +64,7 @@
         "run_worker_first": ["/*", "!/assets/*", "!/favicon*", "!/apple-touch-icon.png"]
       },
       "routes": [
-        { "pattern": "testnet2.0ruka.dev", "custom_domain": true }
+        { "pattern": "testnet2.sizeof.ai", "custom_domain": true }
       ]
     }
   }

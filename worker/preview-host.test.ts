@@ -14,7 +14,7 @@ function previewEnv() {
     env: {
       ASSETS: { fetch: assets },
       ENVIRONMENT: 'testnet',
-      PUBLIC_ORIGIN: 'https://testnet2.0ruka.dev',
+      PUBLIC_ORIGIN: 'https://testnet2.sizeof.ai',
       UPSTREAM_API: { fetch: upstream },
     } as unknown as Parameters<typeof handleWorkerRequest>[1],
   }
@@ -25,7 +25,7 @@ describe('preview host', () => {
     'serves %s through the upstream testnet Worker without local secrets',
     async (path) => {
       const { env, upstream, assets } = previewEnv()
-      const response = await handleWorkerRequest(new Request(`https://testnet2.0ruka.dev${path}`), env, ctx)
+      const response = await handleWorkerRequest(new Request(`https://testnet2.sizeof.ai${path}`), env, ctx)
       expect(upstream).toHaveBeenCalledTimes(1)
       expect(assets).not.toHaveBeenCalled()
       expect(await response.json()).toEqual({ proxied: path.split('?')[0] })
@@ -34,14 +34,14 @@ describe('preview host', () => {
 
   it('keeps pages local and uses the preview origin for canonical metadata', async () => {
     const { env, upstream } = previewEnv()
-    const response = await handleWorkerRequest(new Request('https://testnet2.0ruka.dev/'), env, ctx)
+    const response = await handleWorkerRequest(new Request('https://testnet2.sizeof.ai/'), env, ctx)
     expect(upstream).not.toHaveBeenCalled()
-    expect(await response.text()).toContain('https://testnet2.0ruka.dev/')
+    expect(await response.text()).toContain('https://testnet2.sizeof.ai/')
   })
 
   it('points robots and sitemap at the preview origin', async () => {
     const { env } = previewEnv()
-    const robots = await handleWorkerRequest(new Request('https://testnet2.0ruka.dev/robots.txt'), env, ctx)
-    expect(await robots.text()).toContain('Sitemap: https://testnet2.0ruka.dev/sitemap.xml')
+    const robots = await handleWorkerRequest(new Request('https://testnet2.sizeof.ai/robots.txt'), env, ctx)
+    expect(await robots.text()).toContain('Sitemap: https://testnet2.sizeof.ai/sitemap.xml')
   })
 })
