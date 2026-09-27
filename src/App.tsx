@@ -41,7 +41,7 @@ import {
   isSearchResponse,
   type HuggingFaceSearchModel,
 } from './lib/model-search-cache'
-import { translate } from './i18n/core'
+import { formatMessage, translate } from './i18n/core'
 
 const contextPresets = contextLevels
 
@@ -117,6 +117,13 @@ const fitLabels: Record<Fit, string> = {
   comfortable: 'COMFORTABLE',
   tight: 'TIGHT FIT',
   'too-large': 'TOO LARGE',
+}
+
+const fitOnLabels: Record<Fit | 'unverified', string> = {
+  comfortable: 'COMFORTABLE ON {0} GiB',
+  tight: 'TIGHT FIT ON {0} GiB',
+  'too-large': 'TOO LARGE ON {0} GiB',
+  unverified: 'FIT NOT VERIFIED ON {0} GiB',
 }
 
 export default function App() {
@@ -569,7 +576,7 @@ function HomePage() {
             <div className="result-panel">
               <div className="result-topline">
                 <span>{estimate.isLowerBound ? 'VRAM lower bound' : 'Estimated VRAM'}</span>
-                <span className={`fit-pill ${estimate.isLowerBound && currentFit !== 'too-large' ? 'unverified' : currentFit}`}>{translate(estimate.isLowerBound && currentFit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[currentFit])} {translate('ON')} {vramBudget} GiB</span>
+                <span className={`fit-pill ${estimate.isLowerBound && currentFit !== 'too-large' ? 'unverified' : currentFit}`}>{formatMessage(fitOnLabels[estimate.isLowerBound && currentFit !== 'too-large' ? 'unverified' : currentFit], [vramBudget])}</span>
               </div>
               <div className="total-number">
                 <span>{estimate.totalGiB.toFixed(2)}</span>

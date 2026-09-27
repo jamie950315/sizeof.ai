@@ -7,6 +7,13 @@ import ArtifactPicker from './ArtifactPicker'
 import type { DeploymentArtifact } from './artifact-picker'
 import SaveRunForm from './SaveRunForm'
 
+const copyLabels: Record<string, string> = {
+  'Download fixed model revision': 'Copy download fixed model revision',
+  'Start the server': 'Copy start the server',
+  'Check the API · second terminal': 'Copy check the API · second terminal',
+  'Request a first reply · second terminal': 'Copy request a first reply · second terminal',
+}
+
 export default function DeployPage() {
   const [restored] = useState(() => {
     try { return { input: restoreDeployment(window.location.search), error: '' } }
@@ -125,7 +132,7 @@ export default function DeployPage() {
             {commands.map(([title, command]) => <li className="deploy-listing" key={title}>
               <div className="deploy-listing-head">
                 <h3>{translate(title)}</h3>
-                <button type="button" className="icon-btn" aria-label={`Copy ${translate(title).toLowerCase()}`} onClick={() => void copy(command, 'Command copied. Review it before running.')}><Copy size={15} aria-hidden="true" /> Copy</button>
+                <button type="button" className="icon-btn" aria-label={copyLabels[title]} onClick={() => void copy(command, 'Command copied. Review it before running.')}><Copy size={15} aria-hidden="true" /> Copy</button>
               </div>
               <pre><code>{command}</code></pre>
             </li>)}

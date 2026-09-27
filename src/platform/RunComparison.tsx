@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import type { DeploymentRun } from './run-history'
 import { compareRuns, exportRunDiff, runDiffCaveat } from './run-diff'
-import { translate } from '../i18n/core'
+import { formatMessage, translate } from '../i18n/core'
 import './run-diff.css'
 
 export default function RunComparison({ left, right }: { left: DeploymentRun; right: DeploymentRun }) {
@@ -32,7 +32,7 @@ export default function RunComparison({ left, right }: { left: DeploymentRun; ri
   return <section className="run-comparison" aria-labelledby={heading}>
     <header className="run-diff-heading">
       <h2 id={heading}>Compare deployment records</h2>
-      <p className="run-diff-count"><strong>{changes} changed {changes === 1 ? 'field' : 'fields'}</strong><small>Excludes record metadata</small></p>
+      <p className="run-diff-count"><strong>{formatMessage(changes === 1 ? '{0} changed field' : '{0} changed fields', [changes])}</strong><small>Excludes record metadata</small></p>
     </header>
     <div className="run-diff-caveats">
       <p className="callout callout-warn">{translate(runDiffCaveat)}</p>

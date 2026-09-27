@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type CSSProperties } from 'react'
-import { translate } from '../i18n/core'
+import { formatMessage, translate } from '../i18n/core'
 import { readRuns } from './run-history'
 import { benchmarkByteLimit, benchmarkStorageKey, decodeSpeed, downloadBenchmarks, mergeBenchmarks, parseBenchmark, parseBenchmarks, rawBenchmarks, readBenchmarks, summarizeBenchmarks, writeBenchmarks, type BenchmarkRow } from './benchmark'
 import './keep.css'
@@ -60,7 +60,7 @@ export default function BenchmarkPage() {
           <header><h3>{group.sample.modelId}</h3><p>{group.sample.runtime} {group.sample.runtimeVersion || '(version unknown)'} · {group.sample.device}</p></header>
           <p className="benchmark-group-meta">{group.sample.quantization} · {group.sample.context.toLocaleString()} context · {fmt(group.sample.promptTokens)} prompt tokens · {group.sample.concurrency} concurrent · {group.sample.loadState}</p>
           <p className="benchmark-group-workload">{group.sample.workload}</p>
-          <p className="benchmark-revision">Revision: {group.sample.modelRevision || 'not recorded; isolated sample'}</p>
+          <p className="benchmark-revision">{group.sample.modelRevision ? formatMessage('Revision: {0}', [group.sample.modelRevision]) : translate('Revision: not recorded; isolated sample')}</p>
           <dl className="benchmark-readout"><div><dt>Median decode</dt><dd>{fmt(group.speed)}{group.speed !== null && ' tok/s'}<small>{group.speedSamples} measured samples</small></dd></div><div><dt>Median first token</dt><dd>{fmt(group.ttft)}{group.ttft !== null && ' ms'}<small>{group.ttftSamples} measured samples</small></dd></div><div><dt>Median peak memory</dt><dd>{fmt(group.peak)}{group.peak !== null && ' GiB'}<small>{group.peakSamples} measured samples</small></dd></div><div data-errors={group.failures > 0 || undefined}><dt>Error rate</dt><dd>{fmt(group.errorRate * 100)}%<small>{group.failures} / {group.count} attempts</small></dd></div></dl>
         </article>)}
         {readable && visible.length > 0 && <details className="disclosure benchmark-raw"><summary id={rawHeading}>All raw attempts ({visible.length})</summary>
