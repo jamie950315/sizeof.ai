@@ -41,7 +41,7 @@ export default function HardwarePage() {
   const memory = calculate(() => memoryBudget(plan)), storage = calculate(() => storageBudget(plan)), cost = calculate(() => costBudget(plan))
   function update(key: keyof HardwarePlan, value: string) { setPlan(p => ({ ...p, [key]: value })); setFeedback(null) }
   function field(key: keyof HardwarePlan, title: string, hint?: string) {
-    return <label className="field hardware-field" key={key}><span>{title}</span><input inputMode="decimal" maxLength={32} value={plan[key]} onChange={e => update(key, e.target.value)} />{hint && <small>{hint}</small>}</label>
+    return <label className="field hardware-field" key={key}><span>{translate(title)}</span><input inputMode="decimal" maxLength={32} value={plan[key]} onChange={e => update(key, e.target.value)} />{hint && <small>{translate(hint)}</small>}</label>
   }
   async function copy(kind: 'link' | 'summary') {
     try {

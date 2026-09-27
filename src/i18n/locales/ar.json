@@ -2365,7 +2365,7 @@
   "no-store": "no-store",
   "none": "لا شيء",
   "nosniff": "nosniff",
-  "not reached with these inputs": "لم يتم التوصل إلى هذه المدخلات",
+  "not reached with these inputs": "لا تتحقق فترة استرداد التكلفة بهذه المدخلات",
   "not recorded; isolated sample": "لم يتم تسجيله؛ عينة معزولة",
   "not-configured": "غير مهيأ",
   "not-guaranteed": "غير مضمونة",

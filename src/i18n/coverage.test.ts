@@ -9,6 +9,7 @@ const messages: Record<string, string> = JSON.parse(readFileSync(resolve(import.
 const placeholders = (value: string) => [...value.matchAll(/\{\d+\}/g)].map(match => match[0]).sort()
 const xmlText = (value: string) => value.replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&quot;', '"')
 const protocolLiterals = [
+  'Vary',
   'Accept, Content-Type', 'GET, HEAD', 'GET, OPTIONS',
   'application/json; charset=utf-8', 'application/xml; charset=utf-8',
   'image/svg+xml; charset=utf-8', 'text/html; charset=utf-8', 'text/plain; charset=utf-8',

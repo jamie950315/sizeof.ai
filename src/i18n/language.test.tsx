@@ -10,6 +10,7 @@ import DocsPage from '../docs/DocsPage'
 import RunComparison from '../platform/RunComparison'
 import RunHistoryPage from '../platform/RunHistoryPage'
 import StartPage from '../platform/StartPage'
+import HardwarePage from '../platform/HardwarePage'
 import { DEPLOYMENT_DEFAULTS } from '../platform/deployment'
 import { writeRuns, type DeploymentRun } from '../platform/run-history'
 import * as client from './client'
@@ -104,6 +105,15 @@ describe('site-wide persistent language routing', () => {
     expect(translate('64L / 4 KVH')).toBe('64L / 4 KVH')
     expect(translate('256K NATIVE')).toBe('256K NATIVE')
     expect(formatMessage('{0} GiB', [18.3])).toBe('18.3 GiB')
+  })
+  it('localizes authored hardware field labels and weighted-price guidance', () => {
+    setActiveLocale('fr')
+    render(<HardwarePage />)
+    expect(screen.getByLabelText(translate('Memory per device (GiB)', 'fr'))).toHaveValue('24')
+    fireEvent.click(screen.getByRole('button', { name: translate('Running costs', 'fr') }))
+    expect(screen.getByLabelText(new RegExp(translate('Blended API price per million tokens', 'fr')))).toBeVisible()
+    expect(screen.getByText(translate('Weight input, cached input, and output pricing by your actual usage.', 'fr'))).toBeVisible()
+    expect(screen.queryByText('Weight input, cached input, and output pricing by your actual usage.')).toBeNull()
   })
   it('does not translate catalog measurements as prose', () => {
     setActiveLocale('zh-TW')
