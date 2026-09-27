@@ -62,7 +62,7 @@ export default function LanguageFooter() {
       <div className="language-footer-copy">
         <span className="language-brand">sizeof<span>(</span>ai<span>)</span></span>
         <p>{translate('Estimates, not guarantees. Your hardware and runtime are the final test.', locale)}</p>
-        <nav aria-label={translate('Footer', locale)}>
+        <nav aria-label={translate('Platform navigation', locale)}>
           <a href={`${toolsBase}/docs`}>{translate('Documentation', locale)}</a>
           <a href={`${toolsBase}/status`}>{translate('Data status', locale)}</a>
           <a href={`${toolsBase}/docs/api`}>{translate('API & CLI', locale)}</a>

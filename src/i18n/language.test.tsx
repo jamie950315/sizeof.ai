@@ -63,6 +63,7 @@ describe('site-wide persistent language routing', () => {
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'zh-TW' } })
     await vi.waitFor(() => expect(document.documentElement.dir).toBe('ltr'))
     expect(getActiveLocale()).toBe('zh-TW')
+    expect(screen.getByRole('navigation', { name: translate('Platform navigation', 'zh-TW') })).toBeVisible()
   })
   it('does not treat locale parameters as context-workbook configuration', async () => {
     window.history.replaceState(null, '', '/context?lang=ja')
@@ -102,7 +103,7 @@ describe('site-wide persistent language routing', () => {
     setActiveLocale('zh-TW')
     expect(translate('64L / 4 KVH')).toBe('64L / 4 KVH')
     expect(translate('256K NATIVE')).toBe('256K NATIVE')
-    expect(formatMessage('{0} GiB', [18.3])).toBe('18.3GiB')
+    expect(formatMessage('{0} GiB', [18.3])).toBe('18.3 GiB')
   })
   it('does not translate catalog measurements as prose', () => {
     setActiveLocale('zh-TW')
@@ -115,8 +116,8 @@ describe('site-wide persistent language routing', () => {
   it('explicitly localizes fixed card data without translating arbitrary values', () => {
     setActiveLocale('zh-TW')
     render(<StartPage />)
-    expect(screen.getByRole('heading', { name: '模型瀏覽器' })).toBeVisible()
-    expect(screen.getByText('搜尋公開模型，並檢查各項設定背後的記憶體需求。')).toBeVisible()
+    expect(screen.getByRole('heading', { name: '模型探索' })).toBeVisible()
+    expect(screen.getByText('搜尋公開模型，檢視每種設定背後的記憶體需求。')).toBeVisible()
     expect(screen.queryByText('Model explorer')).toBeNull()
     expect(screen.queryByText('Search public models and inspect the memory behind every configuration.')).toBeNull()
   })

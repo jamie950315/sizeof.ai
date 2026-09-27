@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
-<title id="title">समर्पित GPU मेमोरी और Apple एकीकृत मेमोरी</title><desc id="desc">समर्पित जीपीयू सिस्टम में अलग सिस्टम रैम और जीपीयू वीआरएएम होता है। Apple एकीकृत मेमोरी CPU और GPU द्वारा साझा किया गया एक भौतिक पूल है। दोनों को वज़न, मॉडल स्थिति, कार्यस्थान और अन्य अनुप्रयोगों के लिए जगह की आवश्यकता होती है। बक्से पैमाने पर नहीं हैं.</desc>
+<title id="title">डेडिकेटेड GPU मेमोरी और Apple यूनिफ़ाइड मेमोरी</title><desc id="desc">डेडिकेटेड GPU वाले सिस्टम में सिस्टम RAM और GPU VRAM अलग-अलग होते हैं। Apple यूनिफ़ाइड मेमोरी एक फ़िज़िकल पूल है जिसे CPU और GPU साझा करते हैं। दोनों में वेट्स, मॉडल स्टेट, वर्कस्पेस और दूसरे ऐप्लिकेशन के लिए जगह चाहिए। बॉक्स अनुपात के अनुसार नहीं हैं।</desc>
 <style>
 .bg{fill:#fbfaf6}.ink,.t1{fill:#16150f}.t2{fill:#47443c}.t3{fill:#6b675d}.ln{fill:none;stroke:#16150f}.box{fill:#fbfaf6;stroke:#16150f}
 .soft{fill:#f6f4ee;stroke:#c3beb0}.os{fill:#d9d5c9;stroke:#16150f}.rl{fill:none;stroke:#6b675d}.tape{fill:#ffcd05}
@@ -12,46 +12,46 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 <pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" class="bg"/><circle cx="3.5" cy="3.5" r="1.35" class="ink"/></pattern>
 </defs>
 <rect width="1100" height="620" class="bg"/>
-<text x="40" y="52" font-size="24" font-weight="700" class="t1" data-fit="1010" data-rtl-x="1060">मॉडल मेमोरी कहाँ रहती है?</text>
-<text x="40" y="81" font-size="15" class="t2" data-fit="1010" data-rtl-x="1060">स्मृति का वैचारिक स्वामित्व · पैमाने पर नहीं</text>
+<text x="40" y="52" font-size="24" font-weight="700" class="t1" data-fit="1010" data-rtl-x="1060">मॉडल की मेमोरी कहाँ रहती है?</text>
+<text x="40" y="81" font-size="15" class="t2" data-fit="1010" data-rtl-x="1060">मेमोरी का वैचारिक बँटवारा · अनुपात के अनुसार नहीं</text>
 <path d="M40 106H1060" class="rl" stroke-dasharray="2 4"/>
-<text x="40" y="140" font-size="20" font-weight="650" class="t1" data-fit="460" data-rtl-x="500">समर्पित जीपीयू</text>
-<text x="600" y="140" font-size="20" font-weight="650" class="t1" data-fit="460" data-rtl-x="1060">Apple एकीकृत मेमोरी</text>
+<text x="40" y="140" font-size="20" font-weight="650" class="t1" data-fit="460" data-rtl-x="500">डेडिकेटेड GPU</text>
+<text x="600" y="140" font-size="20" font-weight="650" class="t1" data-fit="460" data-rtl-x="1060">Apple यूनिफ़ाइड मेमोरी</text>
 
 <rect x="40.5" y="162.5" width="459" height="109" rx="4" class="soft"/>
-<text x="62" y="194" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="478">सिस्टम रैम · सीपीयू</text>
-<text x="62" y="226" font-size="14.5" class="t2" data-fit="416" data-rtl-x="478">ओएस, एप्लिकेशन, लोडिंग और वैकल्पिक ऑफलोड</text>
+<text x="62" y="194" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="478">सिस्टम RAM · CPU</text>
+<text x="62" y="226" font-size="14.5" class="t2" data-fit="416" data-rtl-x="478">OS, ऐप्लिकेशन, लोडिंग और वैकल्पिक ऑफ़लोड</text>
 <path d="M270 278V310M263 302l7 8 7-8" class="ln" stroke-width="1.5"/>
-<text x="288" y="299" font-size="13" class="t3" data-fit="200" data-rtl-x="252">डेटा स्थानांतरण</text>
+<text x="288" y="299" font-size="13" class="t3" data-fit="200" data-rtl-x="252">डेटा ट्रांसफ़र</text>
 
 <rect x="40.5" y="322.5" width="459" height="209" rx="4" class="box" stroke-width="1.5"/>
 <rect x="40" y="322" width="460" height="5" class="tape"/>
-<text x="62" y="358" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="478">जीपीयू वीआरएएम · अलग क्षमता</text>
+<text x="62" y="358" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="478">GPU VRAM · अलग क्षमता</text>
 <rect x="62.5" y="378.5" width="415" height="33" class="box"/><rect x="62.5" y="378.5" width="44" height="33" class="ink"/>
-<text x="120" y="400" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">निवासी मॉडल वजन</text>
+<text x="120" y="400" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">मेमोरी में मौजूद मॉडल वेट्स</text>
 <rect x="62.5" y="422.5" width="415" height="33" class="box"/><rect x="62.5" y="422.5" width="44" height="33" fill="url(#hatch)"/><rect x="62.5" y="422.5" width="44" height="33" class="ln"/>
-<text x="120" y="444" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">केवी कैश/आर्किटेक्चर-विशिष्ट स्थिति</text>
+<text x="120" y="444" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">KV कैश / आर्किटेक्चर-विशिष्ट स्टेट</text>
 <rect x="62.5" y="466.5" width="415" height="33" class="box"/><rect x="62.5" y="466.5" width="44" height="33" fill="url(#dots)"/><rect x="62.5" y="466.5" width="44" height="33" class="ln"/>
-<text x="120" y="488" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">रनटाइम कार्यस्थान और अन्य आवंटन</text>
+<text x="120" y="488" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">रनटाइम वर्कस्पेस और अन्य मेमोरी आवंटन</text>
 
 <rect x="600.5" y="162.5" width="214" height="51" rx="4" class="soft"/><text x="707" y="194" font-size="17" font-weight="650" text-anchor="middle" class="t1">CPU</text>
 <rect x="845.5" y="162.5" width="214" height="51" rx="4" class="soft"/><text x="952" y="194" font-size="17" font-weight="650" text-anchor="middle" class="t1">GPU</text>
 <path d="M707 214V246H952V214M830 246V256M830 282V294" class="ln" stroke-width="1.5"/>
-<text x="830" y="274" font-size="13" text-anchor="middle" class="t3" data-fit="440">उसी भौतिक मेमोरी पूल तक पहुंचें</text>
+<text x="830" y="274" font-size="13" text-anchor="middle" class="t3" data-fit="440">एक ही फ़िज़िकल मेमोरी पूल का उपयोग करते हैं</text>
 
 <rect x="600.5" y="294.5" width="459" height="237" rx="4" class="box" stroke-width="1.5"/>
 <rect x="600" y="294" width="460" height="5" class="tape"/>
-<text x="622" y="330" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="1038">साझा क्षमता · सिस्टम हेडरूम छोड़ें</text>
+<text x="622" y="330" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="1038">साझा क्षमता · सिस्टम के लिए अतिरिक्त जगह छोड़ें</text>
 <rect x="622.5" y="344.5" width="415" height="31" class="box"/><rect x="622.5" y="344.5" width="44" height="31" class="os"/>
-<text x="680" y="365" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">ओएस और अन्य अनुप्रयोग</text>
+<text x="680" y="365" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">OS और दूसरे ऐप्लिकेशन</text>
 <rect x="622.5" y="386.5" width="415" height="31" class="box"/><rect x="622.5" y="386.5" width="44" height="31" class="ink"/>
-<text x="680" y="407" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">निवासी मॉडल वजन</text>
+<text x="680" y="407" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">मेमोरी में मौजूद मॉडल वेट्स</text>
 <rect x="622.5" y="428.5" width="415" height="31" class="box"/><rect x="622.5" y="428.5" width="44" height="31" fill="url(#hatch)"/><rect x="622.5" y="428.5" width="44" height="31" class="ln"/>
-<text x="680" y="449" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">केवी कैश/आर्किटेक्चर-विशिष्ट स्थिति</text>
+<text x="680" y="449" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">KV कैश / आर्किटेक्चर-विशिष्ट स्टेट</text>
 <rect x="622.5" y="470.5" width="415" height="31" class="box"/><rect x="622.5" y="470.5" width="44" height="31" fill="url(#dots)"/><rect x="622.5" y="470.5" width="44" height="31" class="ln"/>
-<text x="680" y="491" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">रनटाइम कार्यस्थान और अन्य आवंटन</text>
+<text x="680" y="491" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">रनटाइम वर्कस्पेस और अन्य मेमोरी आवंटन</text>
 
 <path d="M40 552H1060" class="rl" stroke-dasharray="2 4"/>
-<text x="40" y="578" font-size="14.5" class="t2" data-fit="1020" data-rtl-x="1060">डिस्क स्थान दोनों आरेखों से अलग है। डिस्क पर फिट होने वाला मॉडल यह साबित नहीं करता है कि यह मेमोरी में फिट बैठता है।</text>
-<text x="40" y="602" font-size="13" class="t3" data-fit="1020" data-rtl-x="1060">रनटाइम सीमा, ऑफलोड, शेयरिंग और पीक आवंटन डिवाइस, इंजन और वर्कलोड पर निर्भर करते हैं।</text>
+<text x="40" y="578" font-size="14.5" class="t2" data-fit="1020" data-rtl-x="1060">डिस्क स्पेस दोनों डायग्राम से अलग है। डिस्क पर आ जाने से यह साबित नहीं होता कि मॉडल मेमोरी में भी फ़िट होगा।</text>
+<text x="40" y="602" font-size="13" class="t3" data-fit="1020" data-rtl-x="1060">रनटाइम की सीमाएँ, ऑफ़लोडिंग, साझा उपयोग और अधिकतम मेमोरी आवंटन डिवाइस, इंजन और वर्कलोड पर निर्भर करते हैं।</text>
 </svg>

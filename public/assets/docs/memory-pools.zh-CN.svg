@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
-<title id="title">专用 GPU 内存和 Apple 统一内存</title><desc id="desc">专用 GPU 系统具有独立的系统 RAM 和 GPU VRAM。 Apple统一内存是CPU和GPU共享的物理池。两者都需要空间来容纳权重、模型状态、工作空间和其他应用程序。盒子不按比例。</desc>
+<title id="title">独立 GPU 显存与 Apple 统一内存</title><desc id="desc">独立 GPU 系统有各自分开的系统 RAM 和 GPU 显存。Apple 统一内存是 CPU 与 GPU 共享的同一块物理内存池。两者都需要为权重、模型状态、工作区和其他应用留出空间。图中方框未按比例绘制。</desc>
 <style>
 .bg{fill:#fbfaf6}.ink,.t1{fill:#16150f}.t2{fill:#47443c}.t3{fill:#6b675d}.ln{fill:none;stroke:#16150f}.box{fill:#fbfaf6;stroke:#16150f}
 .soft{fill:#f6f4ee;stroke:#c3beb0}.os{fill:#d9d5c9;stroke:#16150f}.rl{fill:none;stroke:#6b675d}.tape{fill:#ffcd05}
@@ -12,27 +12,27 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 <pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" class="bg"/><circle cx="3.5" cy="3.5" r="1.35" class="ink"/></pattern>
 </defs>
 <rect width="1100" height="620" class="bg"/>
-<text x="40" y="52" font-size="24" font-weight="700" class="t1" data-fit="1010" data-rtl-x="1060">模型内存位于哪里？</text>
-<text x="40" y="81" font-size="15" class="t2" data-fit="1010" data-rtl-x="1060">内存的概念所有权·未按比例</text>
+<text x="40" y="52" font-size="24" font-weight="700" class="t1" data-fit="1010" data-rtl-x="1060">模型内存存放在哪里？</text>
+<text x="40" y="81" font-size="15" class="t2" data-fit="1010" data-rtl-x="1060">内存归属示意图 · 未按比例绘制</text>
 <path d="M40 106H1060" class="rl" stroke-dasharray="2 4"/>
-<text x="40" y="140" font-size="20" font-weight="650" class="t1" data-fit="460" data-rtl-x="500">专用GPU</text>
-<text x="600" y="140" font-size="20" font-weight="650" class="t1" data-fit="460" data-rtl-x="1060">苹果统一内存</text>
+<text x="40" y="140" font-size="20" font-weight="650" class="t1" data-fit="460" data-rtl-x="500">独立 GPU</text>
+<text x="600" y="140" font-size="20" font-weight="650" class="t1" data-fit="460" data-rtl-x="1060">Apple 统一内存</text>
 
 <rect x="40.5" y="162.5" width="459" height="109" rx="4" class="soft"/>
-<text x="62" y="194" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="478">系统内存·CPU</text>
-<text x="62" y="226" font-size="14.5" class="t2" data-fit="416" data-rtl-x="478">操作系统、应用程序、加载和可选卸载</text>
+<text x="62" y="194" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="478">系统内存 · CPU</text>
+<text x="62" y="226" font-size="14.5" class="t2" data-fit="416" data-rtl-x="478">操作系统、应用、加载过程和可选的卸载</text>
 <path d="M270 278V310M263 302l7 8 7-8" class="ln" stroke-width="1.5"/>
 <text x="288" y="299" font-size="13" class="t3" data-fit="200" data-rtl-x="252">数据传输</text>
 
 <rect x="40.5" y="322.5" width="459" height="209" rx="4" class="box" stroke-width="1.5"/>
 <rect x="40" y="322" width="460" height="5" class="tape"/>
-<text x="62" y="358" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="478">GPU VRAM·独立容量</text>
+<text x="62" y="358" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="478">GPU 显存 · 独立容量</text>
 <rect x="62.5" y="378.5" width="415" height="33" class="box"/><rect x="62.5" y="378.5" width="44" height="33" class="ink"/>
 <text x="120" y="400" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">常驻模型权重</text>
 <rect x="62.5" y="422.5" width="415" height="33" class="box"/><rect x="62.5" y="422.5" width="44" height="33" fill="url(#hatch)"/><rect x="62.5" y="422.5" width="44" height="33" class="ln"/>
-<text x="120" y="444" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">KV 缓存/架构特定状态</text>
+<text x="120" y="444" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">KV 缓存 / 架构特定状态</text>
 <rect x="62.5" y="466.5" width="415" height="33" class="box"/><rect x="62.5" y="466.5" width="44" height="33" fill="url(#dots)"/><rect x="62.5" y="466.5" width="44" height="33" class="ln"/>
-<text x="120" y="488" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">运行时工作区和其他分配</text>
+<text x="120" y="488" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">运行时工作区及其他内存分配</text>
 
 <rect x="600.5" y="162.5" width="214" height="51" rx="4" class="soft"/><text x="707" y="194" font-size="17" font-weight="650" text-anchor="middle" class="t1">CPU</text>
 <rect x="845.5" y="162.5" width="214" height="51" rx="4" class="soft"/><text x="952" y="194" font-size="17" font-weight="650" text-anchor="middle" class="t1">GPU</text>
@@ -41,17 +41,17 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 
 <rect x="600.5" y="294.5" width="459" height="237" rx="4" class="box" stroke-width="1.5"/>
 <rect x="600" y="294" width="460" height="5" class="tape"/>
-<text x="622" y="330" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="1038">共享容量·留出系统空间</text>
+<text x="622" y="330" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="1038">共享容量 · 请为系统留出余量</text>
 <rect x="622.5" y="344.5" width="415" height="31" class="box"/><rect x="622.5" y="344.5" width="44" height="31" class="os"/>
-<text x="680" y="365" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">操作系统和其他应用程序</text>
+<text x="680" y="365" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">操作系统和其他应用</text>
 <rect x="622.5" y="386.5" width="415" height="31" class="box"/><rect x="622.5" y="386.5" width="44" height="31" class="ink"/>
 <text x="680" y="407" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">常驻模型权重</text>
 <rect x="622.5" y="428.5" width="415" height="31" class="box"/><rect x="622.5" y="428.5" width="44" height="31" fill="url(#hatch)"/><rect x="622.5" y="428.5" width="44" height="31" class="ln"/>
-<text x="680" y="449" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">KV 缓存/架构特定状态</text>
+<text x="680" y="449" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">KV 缓存 / 架构特定状态</text>
 <rect x="622.5" y="470.5" width="415" height="31" class="box"/><rect x="622.5" y="470.5" width="44" height="31" fill="url(#dots)"/><rect x="622.5" y="470.5" width="44" height="31" class="ln"/>
-<text x="680" y="491" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">运行时工作区和其他分配</text>
+<text x="680" y="491" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">运行时工作区及其他内存分配</text>
 
 <path d="M40 552H1060" class="rl" stroke-dasharray="2 4"/>
-<text x="40" y="578" font-size="14.5" class="t2" data-fit="1020" data-rtl-x="1060">磁盘空间与两个图是分开的。适合磁盘的模型并不能证明它适合内存。</text>
+<text x="40" y="578" font-size="14.5" class="t2" data-fit="1020" data-rtl-x="1060">磁盘空间与这两张图无关。模型能放进磁盘，并不能证明它能放进内存。</text>
 <text x="40" y="602" font-size="13" class="t3" data-fit="1020" data-rtl-x="1060">运行时限制、卸载、共享和峰值分配取决于设备、引擎和工作负载。</text>
 </svg>

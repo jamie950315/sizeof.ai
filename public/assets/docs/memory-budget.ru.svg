@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1100" height="600" viewBox="0 0 1100 600" role="img" aria-labelledby="title desc">
-<title id="title">Чем занята память?</title><desc id="desc">Веса модели, кэш KV и буферы времени выполнения сложены и сопоставлены с объемом памяти GPU. При коротком контексте итог помещается с запасом. При длинном контексте кэш KV растет, пока итог не превысит объем. Пропорции условные.</desc>
+<title id="title">На что расходуется память?</title><desc id="desc">Веса модели, KV-кэш и буферы рантайма суммируются и сопоставляются с объёмом памяти GPU. При коротком контексте итог помещается с запасом. При длинном контексте KV-кэш растёт, пока итог не превысит объём памяти. Пропорции условные.</desc>
 <style>
 .bg{fill:#fbfaf6}.ink,.t1{fill:#16150f}.t2{fill:#47443c}.t3{fill:#6b675d}.ln{fill:none;stroke:#16150f}.rl{fill:none;stroke:#c3beb0}
 .free{fill:#f1efe8;stroke:#16150f}.tape{fill:#ffcd05;stroke:#16150f}.ontape{fill:#16150f}.over{fill:#b8321f}.overln{fill:none;stroke:#b8321f}.ok{fill:#1b6a42}
@@ -13,7 +13,7 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 <pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" class="bg"/><circle cx="3.5" cy="3.5" r="1.35" class="ink"/></pattern>
 </defs>
 <rect width="1100" height="600" class="bg"/>
-<text x="60" y="62" font-size="26" font-weight="700" class="t1" data-fit="980" data-rtl-x="1040">Чем занята память?</text>
+<text x="60" y="62" font-size="26" font-weight="700" class="t1" data-fit="980" data-rtl-x="1040">На что расходуется память?</text>
 <text x="60" y="92" font-size="15" class="t2" data-fit="760" data-rtl-x="1040">Условные пропорции для одной модели на одном GPU · не измерение</text>
 
 <text x="60" y="152" font-size="17" font-weight="650" class="t1" data-fit="360" data-rtl-x="420">Короткий контекст</text>
@@ -26,13 +26,13 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 <text x="795" y="198" font-size="14" text-anchor="middle" class="t3" data-fit="190">Запас</text>
 
 <text x="60" y="292" font-size="17" font-weight="650" class="t1" data-fit="360" data-rtl-x="420">Длинный контекст</text>
-<text x="1040" y="292" font-size="15" font-weight="650" text-anchor="end" class="over" data-fit="300">Превышает объем</text>
+<text x="1040" y="292" font-size="15" font-weight="650" text-anchor="end" class="over" data-fit="300">Превышает ёмкость</text>
 <rect x="60" y="306" width="462" height="54" class="ink"/>
 <rect x="522" y="306" width="358" height="54" fill="url(#hatch)"/>
 <rect x="880" y="306" width="84" height="54" fill="url(#dots)"/>
 <rect x="60.5" y="306.5" width="903" height="53" class="ln"/>
 <rect x="901.5" y="302.5" width="66" height="61" class="overln" stroke-width="2" stroke-dasharray="5 3"/>
-<text x="60" y="386" font-size="15" class="t2" data-fit="820" data-rtl-x="880">Кэш KV растет с каждым токеном в контексте и с параллельными запросами.</text>
+<text x="60" y="386" font-size="15" class="t2" data-fit="820" data-rtl-x="880">KV-кэш растёт с каждым токеном в контексте и с числом параллельных запросов.</text>
 
 <path d="M60 430H900M60 422V438M144 430V435M228 430V435M312 430V435M396 430V435M480 422V438M564 430V435M648 430V435M732 430V435M816 430V435" class="ln"/>
 <text x="60" y="456" font-size="13" class="t3 mono">0%</text>
@@ -41,20 +41,20 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 
 <rect x="896" y="124" width="8" height="314" class="tape"/>
 <rect x="816" y="100" width="168" height="22" rx="2" class="tape"/>
-<text x="900" y="116" font-size="13" font-weight="700" text-anchor="middle" class="ontape" data-fit="156">Объем памяти GPU</text>
+<text x="900" y="116" font-size="13" font-weight="700" text-anchor="middle" class="ontape" data-fit="156">Объём памяти GPU</text>
 
 <path d="M60 484H1040" class="rl"/>
 <rect x="60.5" y="503.5" width="27" height="17" class="ink"/>
 <rect x="60.5" y="503.5" width="27" height="17" class="ln"/>
-<text x="98" y="517" font-size="15" font-weight="650" class="t1" data-fit="270" data-rtl-x="368">Вес модели</text>
-<text x="60" y="542" font-size="14" class="t2" data-fit="315" data-rtl-x="368">Зависит от числа параметров и квантования</text>
+<text x="98" y="517" font-size="15" font-weight="650" class="t1" data-fit="270" data-rtl-x="368">Веса модели</text>
+<text x="60" y="542" font-size="14" class="t2" data-fit="315" data-rtl-x="368" textLength="315" lengthAdjust="spacingAndGlyphs">Определяется числом параметров и квантованием</text>
 <rect x="390.5" y="503.5" width="27" height="17" fill="url(#hatch)"/>
 <rect x="390.5" y="503.5" width="27" height="17" class="ln"/>
-<text x="428" y="517" font-size="15" font-weight="650" class="t1" data-fit="270" data-rtl-x="698">КВ-кэш</text>
-<text x="390" y="542" font-size="14" class="t2" data-fit="315" data-rtl-x="698" textLength="315" lengthAdjust="spacingAndGlyphs">Растет с длиной контекста и числом параллельных запросов</text>
+<text x="428" y="517" font-size="15" font-weight="650" class="t1" data-fit="270" data-rtl-x="698">KV-кэш</text>
+<text x="390" y="542" font-size="14" class="t2" data-fit="315" data-rtl-x="698" textLength="315" lengthAdjust="spacingAndGlyphs">Растёт с длиной контекста и числом параллельных запросов</text>
 <rect x="720.5" y="503.5" width="27" height="17" fill="url(#dots)"/>
 <rect x="720.5" y="503.5" width="27" height="17" class="ln"/>
-<text x="758" y="517" font-size="15" font-weight="650" class="t1" data-fit="270" data-rtl-x="1040">Буферы времени выполнения</text>
-<text x="720" y="542" font-size="14" class="t2" data-fit="320" data-rtl-x="1040" textLength="320" lengthAdjust="spacingAndGlyphs">Рабочие области, графы и накладные расходы аллокатора</text>
-<text x="60" y="578" font-size="15" class="t3" data-fit="980" data-rtl-x="1040">Оцените все три части до загрузки. Одни веса — это еще не весь бюджет.</text>
+<text x="758" y="517" font-size="15" font-weight="650" class="t1" data-fit="270" data-rtl-x="1040">Буферы рантайма</text>
+<text x="720" y="542" font-size="14" class="t2" data-fit="320" data-rtl-x="1040" textLength="320" lengthAdjust="spacingAndGlyphs">Рабочие буферы, графы и накладные расходы распределителя памяти</text>
+<text x="60" y="578" font-size="15" class="t3" data-fit="980" data-rtl-x="1040">Оцените все три составляющие до загрузки. Одни веса — ещё не весь бюджет.</text>
 </svg>

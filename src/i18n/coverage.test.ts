@@ -8,9 +8,21 @@ const directory = resolve(import.meta.dirname, 'locales')
 const messages: Record<string, string> = JSON.parse(readFileSync(resolve(import.meta.dirname, 'messages.json'), 'utf8'))
 const placeholders = (value: string) => [...value.matchAll(/\{\d+\}/g)].map(match => match[0]).sort()
 const xmlText = (value: string) => value.replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&quot;', '"')
+const protocolLiterals = [
+  'Accept, Content-Type', 'GET, HEAD', 'GET, OPTIONS',
+  'application/json; charset=utf-8', 'application/xml; charset=utf-8',
+  'image/svg+xml; charset=utf-8', 'text/html; charset=utf-8', 'text/plain; charset=utf-8',
+  '110 - "Model metadata is stale; upstream refresh failed"',
+  "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors *",
+  'sizeof-language={0}; Path=/; Max-Age=31536000; SameSite=Lax; Secure{1}',
+  '{0}={1}; Path=/; Max-Age=31536000; SameSite=Lax{2}{3}',
+]
 const intentionallyUntranslated = (value: string) => /^(?:Hugging Face|LM Studio Community|AMD GPU|NVIDIA GPU|WSL2 Linux|Bash \/ Zsh|MLX LM · Apple Silicon|Audio VAE \/ FP32|Video VAE(?: \/ FP16)?|San Jose|Muse Glimmer(?: 30B)?|KAT-Coder V2\.5 Dev|Qwen3\.8 27B \+ Ornith 1\.5 35B A3B|MLX OptiQ \{0\}-bit\{1\}|\{0\} \| sizeof\.ai Docs|\| sizeof\.ai Docs)$/.test(value)
   || /^(?:-H |-d |python3 -m venv |Invoke-RestMethod |User-agent: \*|public, max-age=|llama(?: --help| cli(?: --help| -hf ))|\{0\} \{1\} --ctx-size )/.test(value)
   || /^(?:llama\.cpp · GGUF|model-change-kind model-change-\{0\}|- Total: \{0\} GiB|Hugging Face \{0\}|API & CLI|Adapter \/ LoRA)$/.test(value)
+  // Protocol values and hardware/product names are not translatable prose.
+  || protocolLiterals.includes(value)
+  || /^(?:NVIDIA GPU · CUDA|Apple silicon|Looping Sketch LoRA|Meta Models|R2V Diffusion Transformer \/ INT8 ConvRot)$/.test(value)
   // Class-name templates are extracted as string literals but never rendered as prose.
   || /^[a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*(?:\{\d+\})?)+$/.test(value)
 
@@ -37,6 +49,9 @@ describe('complete checked-in localization coverage', () => {
       expect(invalid).toEqual([])
       const untranslatedProse = Object.keys(messages).filter(key => catalog[key] === key && /[A-Za-z]{3}.*\s+[A-Za-z]{3}/.test(key) && !intentionallyUntranslated(key))
       expect(untranslatedProse, 'untranslated complete messages').toEqual([])
+      for (const key of protocolLiterals) {
+        expect(catalog[key], `${locale}: protocol literal ${key}`).toBe(key)
+      }
       for (const key of ['Language', 'Choose language', 'Private notes', 'LOWER BOUND', 'Where does model memory live?', 'Choose your language. Your choice stays with you across the site.']) {
         expect(catalog[key], `${locale}: ${key}`).toBeTruthy()
       }

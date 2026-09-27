@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1100" height="600" viewBox="0 0 1100 600" role="img" aria-labelledby="title desc">
-<title id="title">O que ocupa sua memória?</title><desc id="desc">Os pesos do modelo, o cache KV e os buffers de execução são empilhados em relação à capacidade de memória da GPU. Com um contexto curto, o total cabe com folga. Com um contexto longo, o cache KV cresce até o total exceder a capacidade. As proporções são ilustrativas.</desc>
+<title id="title">O que ocupa sua memória?</title><desc id="desc">Os pesos do modelo, o cache KV e os buffers de runtime são empilhados contra a capacidade de memória da GPU. Com um contexto curto, o total cabe com folga. Com um contexto longo, o cache KV cresce até o total ultrapassar a capacidade. As proporções são ilustrativas.</desc>
 <style>
 .bg{fill:#fbfaf6}.ink,.t1{fill:#16150f}.t2{fill:#47443c}.t3{fill:#6b675d}.ln{fill:none;stroke:#16150f}.rl{fill:none;stroke:#c3beb0}
 .free{fill:#f1efe8;stroke:#16150f}.tape{fill:#ffcd05;stroke:#16150f}.ontape{fill:#16150f}.over{fill:#b8321f}.overln{fill:none;stroke:#b8321f}.ok{fill:#1b6a42}
@@ -14,7 +14,7 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 </defs>
 <rect width="1100" height="600" class="bg"/>
 <text x="60" y="62" font-size="26" font-weight="700" class="t1" data-fit="980" data-rtl-x="1040">O que ocupa sua memória?</text>
-<text x="60" y="92" font-size="15" class="t2" data-fit="760" data-rtl-x="1040">Proporções ilustrativas de um modelo em uma GPU · não é uma medição</text>
+<text x="60" y="92" font-size="15" class="t2" data-fit="760" data-rtl-x="1040">Proporções ilustrativas para um modelo em uma GPU · não é uma medição</text>
 
 <text x="60" y="152" font-size="17" font-weight="650" class="t1" data-fit="360" data-rtl-x="420">Contexto curto</text>
 <text x="880" y="152" font-size="15" font-weight="650" text-anchor="end" class="ok" data-fit="300">Cabe com folga</text>
@@ -32,7 +32,7 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 <rect x="880" y="306" width="84" height="54" fill="url(#dots)"/>
 <rect x="60.5" y="306.5" width="903" height="53" class="ln"/>
 <rect x="901.5" y="302.5" width="66" height="61" class="overln" stroke-width="2" stroke-dasharray="5 3"/>
-<text x="60" y="386" font-size="15" class="t2" data-fit="820" data-rtl-x="880">O cache KV cresce a cada token mantido no contexto e com as solicitações paralelas.</text>
+<text x="60" y="386" font-size="15" class="t2" data-fit="820" data-rtl-x="880">O cache KV cresce a cada token mantido no contexto e com as requisições em paralelo.</text>
 
 <path d="M60 430H900M60 422V438M144 430V435M228 430V435M312 430V435M396 430V435M480 422V438M564 430V435M648 430V435M732 430V435M816 430V435" class="ln"/>
 <text x="60" y="456" font-size="13" class="t3 mono">0%</text>
@@ -51,10 +51,10 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 <rect x="390.5" y="503.5" width="27" height="17" fill="url(#hatch)"/>
 <rect x="390.5" y="503.5" width="27" height="17" class="ln"/>
 <text x="428" y="517" font-size="15" font-weight="650" class="t1" data-fit="270" data-rtl-x="698">Cache KV</text>
-<text x="390" y="542" font-size="14" class="t2" data-fit="315" data-rtl-x="698" textLength="315" lengthAdjust="spacingAndGlyphs">Cresce com o comprimento do contexto e as solicitações paralelas</text>
+<text x="390" y="542" font-size="14" class="t2" data-fit="315" data-rtl-x="698" textLength="315" lengthAdjust="spacingAndGlyphs">Cresce com o comprimento de contexto e as requisições em paralelo</text>
 <rect x="720.5" y="503.5" width="27" height="17" fill="url(#dots)"/>
 <rect x="720.5" y="503.5" width="27" height="17" class="ln"/>
-<text x="758" y="517" font-size="15" font-weight="650" class="t1" data-fit="270" data-rtl-x="1040">Buffers de execução</text>
-<text x="720" y="542" font-size="14" class="t2" data-fit="320" data-rtl-x="1040" textLength="320" lengthAdjust="spacingAndGlyphs">Espaços de trabalho, grafos e overhead do alocador</text>
+<text x="758" y="517" font-size="15" font-weight="650" class="t1" data-fit="270" data-rtl-x="1040">Buffers de runtime</text>
+<text x="720" y="542" font-size="14" class="t2" data-fit="320" data-rtl-x="1040" textLength="320" lengthAdjust="spacingAndGlyphs">Áreas de trabalho, grafos e overhead do alocador</text>
 <text x="60" y="578" font-size="15" class="t3" data-fit="980" data-rtl-x="1040">Estime os três antes de baixar. Os pesos sozinhos não são o orçamento inteiro.</text>
 </svg>
