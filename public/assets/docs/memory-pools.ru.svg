@@ -26,7 +26,7 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 
 <rect x="40.5" y="322.5" width="459" height="209" rx="4" class="box" stroke-width="1.5"/>
 <rect x="40" y="322" width="460" height="5" class="tape"/>
-<text x="62" y="358" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="478">VRAM GPU · отдельная ёмкость</text>
+<text x="62" y="358" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="478">VRAM GPU · отдельный объём</text>
 <rect x="62.5" y="378.5" width="415" height="33" class="box"/><rect x="62.5" y="378.5" width="44" height="33" class="ink"/>
 <text x="120" y="400" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">Веса модели в памяти</text>
 <rect x="62.5" y="422.5" width="415" height="33" class="box"/><rect x="62.5" y="422.5" width="44" height="33" fill="url(#hatch)"/><rect x="62.5" y="422.5" width="44" height="33" class="ln"/>
@@ -41,7 +41,7 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 
 <rect x="600.5" y="294.5" width="459" height="237" rx="4" class="box" stroke-width="1.5"/>
 <rect x="600" y="294" width="460" height="5" class="tape"/>
-<text x="622" y="330" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="1038">Общая ёмкость · оставьте запас для системы</text>
+<text x="622" y="330" font-size="17" font-weight="650" class="t1" data-fit="416" data-rtl-x="1038">Общий объём · оставьте запас для системы</text>
 <rect x="622.5" y="344.5" width="415" height="31" class="box"/><rect x="622.5" y="344.5" width="44" height="31" class="os"/>
 <text x="680" y="365" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">ОС и другие приложения</text>
 <rect x="622.5" y="386.5" width="415" height="31" class="box"/><rect x="622.5" y="386.5" width="44" height="31" class="ink"/>
