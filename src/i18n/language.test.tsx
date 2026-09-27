@@ -11,6 +11,7 @@ import RunComparison from '../platform/RunComparison'
 import RunHistoryPage from '../platform/RunHistoryPage'
 import StartPage from '../platform/StartPage'
 import HardwarePage from '../platform/HardwarePage'
+import DeployPage from '../platform/DeployPage'
 import { DEPLOYMENT_DEFAULTS } from '../platform/deployment'
 import { writeRuns, type DeploymentRun } from '../platform/run-history'
 import * as client from './client'
@@ -144,6 +145,20 @@ describe('site-wide persistent language routing', () => {
     expect(await screen.findByText('My library', { selector: 'dd' })).toBeVisible()
     expect(screen.getByText('Private notes', { selector: 'p' })).toBeVisible()
     expect(screen.getByText('Context window', { selector: 'p' })).toBeVisible()
+  })
+  it('renders sentences with values as one translated message instead of joined fragments', () => {
+    setActiveLocale('zh-TW')
+    render(<App />)
+    const pill = document.querySelector('.result-topline .fit-pill')
+    expect(pill?.textContent).toBe(formatMessage('FIT NOT VERIFIED ON {0} GiB', [32], 'zh-TW'))
+    expect(pill?.textContent).not.toContain(translate('FIT NOT VERIFIED', 'zh-TW') + ' ')
+    cleanup()
+    window.history.replaceState(null, '', '/deploy')
+    render(<DeployPage />)
+    fireEvent.change(screen.getByLabelText(translate('Model ID or URL', 'zh-TW')), { target: { value: 'example/model' } })
+    fireEvent.change(screen.getByLabelText(new RegExp(translate('Exact GGUF filename', 'zh-TW'))), { target: { value: 'model.gguf' } })
+    expect(screen.getByRole('button', { name: translate('Copy start the server', 'zh-TW') })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Copy start the server' })).toBeNull()
   })
   it('keeps the previous language and configuration if a language asset fails', async () => {
     window.history.replaceState(null, '', '/deploy?model=org%2Fmodel&lang=en#settings')

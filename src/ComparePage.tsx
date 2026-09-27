@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { translate } from './i18n/core'
+import { formatMessage, translate } from './i18n/core'
 import { useCopy } from './lib/use-copy'
 import PlatformNav from './platform/PlatformNav'
 import { Check, Link2, Plus, X } from 'lucide-react'
@@ -382,7 +382,7 @@ export default function ComparePage() {
       {pendingDrafts.length > 0 && (
         <section className="compare-pending" aria-label="Additional comparison models">
           {pendingDrafts.map((draft, index) => (
-            <label key={index}>Model {items.length + index + 1}
+            <label key={index}>{formatMessage('Model {0}', [items.length + index + 1])}
               <SuggestedModelSelect index={items.length + index} onChoose={(value) => value && setPendingDrafts((current) => current.map((draft, draftIndex) => draftIndex === index ? value : draft))} />
               <input
                 id={`compare-pending-${items.length + index + 1}`}
