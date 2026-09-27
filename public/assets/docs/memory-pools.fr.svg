@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
-<title id="title">Mémoire GPU dédiée et mémoire unifiée Apple</title><desc id="desc">Les systèmes à GPU dédié ont une RAM système et une VRAM GPU séparées. La mémoire unifiée Apple est un pool physique partagé par le CPU et le GPU. Dans les deux cas, il faut de la place pour les poids, l'état du modèle, les espaces de travail et les autres applications. Les blocs ne sont pas à l'échelle.</desc>
+<title id="title">Mémoire GPU dédiée et mémoire unifiée Apple</title><desc id="desc">Les systèmes à GPU dédié ont une RAM système et une VRAM GPU séparées. La mémoire unifiée Apple est un pool physique partagé par le CPU et le GPU. Dans les deux cas, il faut de la place pour les poids, l’état du modèle, les espaces de travail et les autres applications. Les blocs ne sont pas à l’échelle.</desc>
 <style>
 .bg{fill:#fbfaf6}.ink,.t1{fill:#16150f}.t2{fill:#47443c}.t3{fill:#6b675d}.ln{fill:none;stroke:#16150f}.box{fill:#fbfaf6;stroke:#16150f}
 .soft{fill:#f6f4ee;stroke:#c3beb0}.os{fill:#d9d5c9;stroke:#16150f}.rl{fill:none;stroke:#6b675d}.tape{fill:#ffcd05}
@@ -12,8 +12,8 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 <pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" class="bg"/><circle cx="3.5" cy="3.5" r="1.35" class="ink"/></pattern>
 </defs>
 <rect width="1100" height="620" class="bg"/>
-<text x="40" y="52" font-size="24" font-weight="700" class="t1" data-fit="1010" data-rtl-x="1060">Où se trouve la mémoire du modèle ?</text>
-<text x="40" y="81" font-size="15" class="t2" data-fit="1010" data-rtl-x="1060">Répartition conceptuelle de la mémoire · pas à l'échelle</text>
+<text x="40" y="52" font-size="24" font-weight="700" class="t1" data-fit="1010" data-rtl-x="1060">Où se trouve la mémoire du modèle ?</text>
+<text x="40" y="81" font-size="15" class="t2" data-fit="1010" data-rtl-x="1060">Répartition conceptuelle de la mémoire · pas à l’échelle</text>
 <path d="M40 106H1060" class="rl" stroke-dasharray="2 4"/>
 <text x="40" y="140" font-size="20" font-weight="650" class="t1" data-fit="460" data-rtl-x="500">GPU dédié</text>
 <text x="600" y="140" font-size="20" font-weight="650" class="t1" data-fit="460" data-rtl-x="1060">Mémoire unifiée Apple</text>
@@ -30,9 +30,9 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 <rect x="62.5" y="378.5" width="415" height="33" class="box"/><rect x="62.5" y="378.5" width="44" height="33" class="ink"/>
 <text x="120" y="400" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">Poids du modèle résidents</text>
 <rect x="62.5" y="422.5" width="415" height="33" class="box"/><rect x="62.5" y="422.5" width="44" height="33" fill="url(#hatch)"/><rect x="62.5" y="422.5" width="44" height="33" class="ln"/>
-<text x="120" y="444" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">Cache KV / état propre à l'architecture</text>
+<text x="120" y="444" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466">Cache KV / état propre à l’architecture</text>
 <rect x="62.5" y="466.5" width="415" height="33" class="box"/><rect x="62.5" y="466.5" width="44" height="33" fill="url(#dots)"/><rect x="62.5" y="466.5" width="44" height="33" class="ln"/>
-<text x="120" y="488" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466" textLength="350" lengthAdjust="spacingAndGlyphs">Espaces de travail du runtime et autres allocations</text>
+<text x="120" y="488" font-size="14.5" class="t1" data-fit="350" data-rtl-x="466" textLength="350" lengthAdjust="spacingAndGlyphs">Espaces de travail de l’environnement d’exécution et autres allocations</text>
 
 <rect x="600.5" y="162.5" width="214" height="51" rx="4" class="soft"/><text x="707" y="194" font-size="17" font-weight="650" text-anchor="middle" class="t1">CPU</text>
 <rect x="845.5" y="162.5" width="214" height="51" rx="4" class="soft"/><text x="952" y="194" font-size="17" font-weight="650" text-anchor="middle" class="t1">GPU</text>
@@ -47,11 +47,11 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 <rect x="622.5" y="386.5" width="415" height="31" class="box"/><rect x="622.5" y="386.5" width="44" height="31" class="ink"/>
 <text x="680" y="407" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">Poids du modèle résidents</text>
 <rect x="622.5" y="428.5" width="415" height="31" class="box"/><rect x="622.5" y="428.5" width="44" height="31" fill="url(#hatch)"/><rect x="622.5" y="428.5" width="44" height="31" class="ln"/>
-<text x="680" y="449" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">Cache KV / état propre à l'architecture</text>
+<text x="680" y="449" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026">Cache KV / état propre à l’architecture</text>
 <rect x="622.5" y="470.5" width="415" height="31" class="box"/><rect x="622.5" y="470.5" width="44" height="31" fill="url(#dots)"/><rect x="622.5" y="470.5" width="44" height="31" class="ln"/>
-<text x="680" y="491" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026" textLength="350" lengthAdjust="spacingAndGlyphs">Espaces de travail du runtime et autres allocations</text>
+<text x="680" y="491" font-size="14.5" class="t1" data-fit="350" data-rtl-x="1026" textLength="350" lengthAdjust="spacingAndGlyphs">Espaces de travail de l’environnement d’exécution et autres allocations</text>
 
 <path d="M40 552H1060" class="rl" stroke-dasharray="2 4"/>
-<text x="40" y="578" font-size="14.5" class="t2" data-fit="1020" data-rtl-x="1060">L'espace disque est distinct des deux schémas. Un modèle qui tient sur le disque ne tient pas forcément en mémoire.</text>
-<text x="40" y="602" font-size="13" class="t3" data-fit="1020" data-rtl-x="1060">Les limites du runtime, le délestage, le partage et les pics d'allocation dépendent du périphérique, du moteur et de la charge de travail.</text>
+<text x="40" y="578" font-size="14.5" class="t2" data-fit="1020" data-rtl-x="1060">L’espace disque est distinct des deux schémas. Un modèle qui tient sur le disque ne tient pas forcément en mémoire.</text>
+<text x="40" y="602" font-size="13" class="t3" data-fit="1020" data-rtl-x="1060" textLength="1020" lengthAdjust="spacingAndGlyphs">Les limites de l’environnement d’exécution, le délestage, le partage et les pics d’allocation dépendent du périphérique, du moteur et de la charge de travail.</text>
 </svg>
