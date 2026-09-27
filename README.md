@@ -44,14 +44,17 @@ Workspaces and docs are loaded on demand. Static assets bypass the application W
 - `/benchmarks` can preview and explicitly confirm local tool JSON imports (2 MB/200 rows). vLLM requires detailed per-request arrays with coherent completion counts; llama-bench requires a single generation-only configuration with explicit `n_prompt=0`, `n_depth=0` and raw `samples_ns`. Aggregate-only reports are rejected. Unit conversions preserve measurement scope, and no HTTP latency or memory is invented. Imported response text, error bodies and file paths are not retained. UI validation uses labeled synthetic fixtures, not claimed hardware benchmarks.
 
 - VRAM calculator with separate weight, KV-cache, and runtime estimates
-- Eight weight-precision estimates from 16 bits through 1 bit per weight
-- Configurable context window and KV-cache precision
+- Eight weight-precision estimates labeled 16bit, 8bit, 6bit, 5bit, 4bit, 3bit, 2bit and 1bit (see `src/data/quantizations.ts` for the effective bits per weight behind each label)
+- Community quantization tabs on model pages (Unsloth, LM Studio Community, mlx-community, Bartowski) that use published artifact sizes instead of bit-per-weight estimates
+- Configurable context window (1024-token steps, quick picks through 256K and beyond) and KV-cache precision
 - Shareable calculator state in the URL
-- Shared VRAM capacities from 8–512 GiB, with safe-fit recommendations only where justified
+- Shared VRAM capacities from 8–512 GiB, defaulting to 32 GiB, with safe-fit recommendations only where justified
+- Homepage Hugging Face model search that runs on Search or Enter, ranks exact and official-author matches first, filters by author and model type, and loads results in cursor-paginated batches of 12
 - Searchable, source-linked model catalog
 - Dynamic Hugging Face model detail pages by replacing `huggingface.co` with `sizeof.ai`
 - Engine-aware MLA cache estimates with expanded-reference and compressed-latent modes
 - Responsive, accessible interface with no account or tracking requirement
+- Interface and documentation in 12 languages (see [Localization](#localization))
 
 ## Hugging Face URL shortcut
 
@@ -66,13 +69,13 @@ The Worker reads public Hugging Face metadata plus the model's revision-locked `
 
 ## Estimation model
 
-Weight memory uses the model parameter count and an approximate effective bits-per-weight value for each GGUF quantization. KV-cache memory is calculated for batch size one from:
+Weight memory uses the model parameter count and an approximate effective bits-per-weight value for each bit tier (16bit through 1bit). When a verified community artifact is selected, its published file size replaces the estimate. KV-cache memory is calculated for batch size one from:
 
 ```text
 layers × KV heads × head dimension × 2 (K and V) × context × bytes per cache value
 ```
 
-For MLA models, cache memory depends on the inference engine. The model detail page exposes both the repository-style expanded K/V layout and the optimized compressed-latent layout instead of presenting one engine-dependent value as universal. Published facts such as context length and layer count remain visible even when the repository does not expose enough data for an estimate. Repository-native quantization is labeled separately; GGUF choices remain hypothetical sizing scenarios.
+For MLA models, cache memory depends on the inference engine. The model detail page exposes both the repository-style expanded K/V layout and the optimized compressed-latent layout instead of presenting one engine-dependent value as universal. Published facts such as context length and layer count remain visible even when the repository does not expose enough data for an estimate. Repository-native quantization is labeled separately; bit-tier choices remain hypothetical sizing scenarios.
 
 The total adds 10% of weights plus KV cache as workspace and a fixed 0.5 GiB runtime allowance. Results are planning estimates, not guarantees: inference engine, GPU offload, batch size, flash attention, multimodal projectors, and driver allocations can change real usage.
 
@@ -149,6 +152,12 @@ The stdio MCP server exposes `estimate`, `compare` (two to four models), and `fi
 
 The server performs no filesystem writes, shell execution, credential handling, or telemetry.
 
+## Localization
+
+The interface and documentation ship in English plus 11 locales: `ar`, `de`, `es`, `fr`, `hi`, `id`, `ja`, `ko`, `pt`, `ru`, `zh-CN` and `zh-TW`. The English source catalog is `src/i18n/messages.json`; each locale in `src/i18n/locales/` is a complete catalog of whole-sentence messages with numbered placeholders, never assembled from fragments at runtime.
+
+Product terminology and each locale's register are fixed in `src/i18n/glossary.json` (rendered as `src/i18n/GLOSSARY.md`). `src/i18n/glossary.test.ts` fails on any new terminology, register or display-width violation, and the build refuses missing or invalid translations. See [src/i18n/README.md](src/i18n/README.md) for the catalog workflow.
+
 ## Development
 
 Node.js 24 or later is recommended.
@@ -168,14 +177,19 @@ npm run build
 npm run cf:check
 ```
 
+GitHub Actions (`.github/workflows/ci.yml`) runs `npm ci`, typecheck, tests, build and `cf:check` on every pull request and on pushes to `main` and `claude/testnet2-redesign`.
+
 ## Cloudflare deployment
 
 Current platform work stays on testnet. Deploy documentation independently; do not use the production command without explicit approval:
 
 ```bash
 npm run deploy:testnet
+npm run deploy:testnet2
 npm run deploy:docs
 ```
+
+`deploy:testnet2` publishes the redesign preview at `https://testnet2.sizeof.ai`. It serves the current frontend and forwards API requests to the `sizeof-ai-testnet` Worker through a service binding, so it needs no KV namespace or secrets of its own. Check it first with `npm run cf:check:testnet2`.
 
 `wrangler.docs.jsonc` owns only `docs.sizeof.ai`. The documentation source is in `src/docs/content.ts`. Add a guide there with unique section IDs, related guides, reviewed primary sources, and explicit limits; route metadata and machine-readable versions use the same registry.
 
