@@ -16,6 +16,7 @@ html[lang^=zh], html[lang=ja], html[lang=ko], html[lang=hi], html[lang=ar] { lin
 html[dir=rtl] pre, html[dir=rtl] code, html[dir=rtl] .memory-bar, html[dir=rtl] .gauge, html[dir=rtl] .ruler-track, html[dir=rtl] .hero-call { direction: ltr; unicode-bidi: isolate; }
 html:not([lang=en]) .page-head h1, html:not([lang=en]) .compare-builder h1 { line-height: 1.15; letter-spacing: -.01em; }
 html[lang^=zh] body, html[lang=ja] body, html[lang=ko] body { letter-spacing: .01em; }
+html[lang=ko] body { word-break: keep-all; overflow-wrap: break-word; }
 @media (max-width: 700px) {
   .language-control { grid-template-columns: auto minmax(0, 1fr); width: 100%; }
 }
