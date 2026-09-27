@@ -1,0 +1,1695 @@
+{
+  "$comment": "Approved terminology for every locale. `match` finds the English term in a source message; `use` is the approved rendering a translator writes; `accept` is the inflection-aware pattern the test requires in the translation; `avoid` lists known wrong variants. Patterns are case-insensitive and run on text with Arabic diacritics, tatweel and Devanagari nukta removed. `except` lists English messages where the word is an identifier or carries a different meaning. See src/i18n/GLOSSARY.md.",
+  "style": {
+    "zh-TW": {
+      "register": "Address the reader as 你, never 您. Use Taiwan terminology and full-width punctuation around Chinese text.",
+      "avoid": [
+        {
+          "pattern": "您",
+          "reason": "Use 你."
+        },
+        {
+          "pattern": "默認|缺省",
+          "reason": "Use 預設."
+        },
+        {
+          "pattern": "內存|内存|顯存",
+          "reason": "Use 記憶體 or VRAM."
+        },
+        {
+          "pattern": "緩存",
+          "reason": "Use 快取."
+        },
+        {
+          "pattern": "服務器|服务器",
+          "reason": "Use 伺服器."
+        },
+        {
+          "pattern": "軟件|硬件",
+          "reason": "Use 軟體 / 硬體."
+        },
+        {
+          "pattern": "數據庫",
+          "reason": "Use 資料庫."
+        },
+        {
+          "pattern": "網絡",
+          "reason": "Use 網路."
+        },
+        {
+          "pattern": "加載",
+          "reason": "Use 載入."
+        },
+        {
+          "pattern": "信息",
+          "reason": "Use 資訊 or 訊息."
+        },
+        {
+          "pattern": "用戶(?!端)",
+          "reason": "Use 使用者."
+        },
+        {
+          "pattern": "設置",
+          "reason": "Use 設定."
+        },
+        {
+          "pattern": "鏈接|链接",
+          "reason": "Use 連結."
+        },
+        {
+          "pattern": "視頻",
+          "reason": "Use 影片."
+        },
+        {
+          "pattern": "屏幕",
+          "reason": "Use 螢幕."
+        },
+        {
+          "pattern": "運行時|运行时",
+          "reason": "Use 執行階段 or 執行環境."
+        },
+        {
+          "pattern": "[这们来时为说对会发开关还进过应该实现网络数据库软显记忆体缓设运]",
+          "reason": "Simplified Chinese character in a Traditional Chinese catalog."
+        }
+      ]
+    },
+    "zh-CN": {
+      "register": "Address the reader as 你, never 您. Use mainland terminology.",
+      "avoid": [
+        {
+          "pattern": "您",
+          "reason": "Use 你."
+        },
+        {
+          "pattern": "記憶體|记忆体|快取",
+          "reason": "Use 内存 / 显存 / 缓存."
+        },
+        {
+          "pattern": "伺服器",
+          "reason": "Use 服务器."
+        },
+        {
+          "pattern": "軟體|软体|硬體|硬体",
+          "reason": "Use 软件 / 硬件."
+        },
+        {
+          "pattern": "預設|预设值",
+          "reason": "Use 默认."
+        },
+        {
+          "pattern": "[這們來時為說對會發開關還進過應該實現網絡數據庫軟體顯記憶設執]",
+          "reason": "Traditional Chinese character in a Simplified Chinese catalog."
+        }
+      ]
+    },
+    "ja": {
+      "register": "Polite です/ます style for sentences; noun phrases for buttons and labels.",
+      "avoid": [
+        {
+          "pattern": "パラメーター",
+          "reason": "Use パラメータ."
+        }
+      ]
+    },
+    "ko": {
+      "register": "Polite 합니다/하세요 style; noun phrases for buttons and labels.",
+      "avoid": []
+    },
+    "es": {
+      "register": "Address the reader as usted (su, sus, verifique). Never tú.",
+      "avoid": [
+        {
+          "pattern": "\\b(?:tu|tus|tú|ti|contigo|puedes|quieres|necesitas|tienes)\\b",
+          "reason": "Use the usted register."
+        }
+      ]
+    },
+    "pt": {
+      "register": "Brazilian Portuguese with você.",
+      "avoid": [
+        {
+          "pattern": "\\b(?:teu|teus|tua|tuas|vós)\\b",
+          "reason": "Use você."
+        },
+        {
+          "pattern": "\\b(?:ficheiro|ecrã|utilizador)",
+          "reason": "European Portuguese; use arquivo / tela / usuário."
+        }
+      ]
+    },
+    "fr": {
+      "register": "Address the reader as vous. Use a non-breaking space before : ; ? !",
+      "avoid": [
+        {
+          "pattern": "\\b(?:tu|ton|ta|tes|toi)\\b",
+          "reason": "Use vous."
+        }
+      ]
+    },
+    "de": {
+      "register": "Address the reader as Sie. Buttons use the infinitive (\"Datei verwenden\"), not an imperative sentence.",
+      "avoid": [
+        {
+          "pattern": "\\b(?:du|dein|deine|deinen|deinem|deiner)\\b",
+          "reason": "Use Sie."
+        }
+      ]
+    },
+    "ru": {
+      "register": "Address the reader as вы (lowercase in running text). Buttons use the infinitive.",
+      "avoid": [
+        {
+          "pattern": "(?:^|[^а-яё])(?:ты|твой|твоя|твоё|твои)(?:$|[^а-яё])",
+          "reason": "Use вы."
+        }
+      ]
+    },
+    "ar": {
+      "register": "Modern Standard Arabic, second person singular imperative for instructions.",
+      "avoid": []
+    },
+    "hi": {
+      "register": "आप register. Common English technical terms are transliterated (मेमोरी, कॉन्टेक्स्ट, टोकन).",
+      "avoid": []
+    },
+    "id": {
+      "register": "Formal Anda register.",
+      "avoid": [
+        {
+          "pattern": "\\b(?:kamu|kau|engkau)\\b",
+          "reason": "Use Anda."
+        }
+      ]
+    }
+  },
+  "terms": [
+    {
+      "id": "vram",
+      "en": "VRAM",
+      "match": "\\bVRAM\\b",
+      "caseSensitive": true,
+      "sense": "Dedicated GPU memory, or the memory budget a user enters.",
+      "translations": {
+        "zh-TW": {
+          "use": "VRAM",
+          "accept": "VRAM",
+          "avoid": "顯示記憶體|顯存|视频内存"
+        },
+        "zh-CN": {
+          "use": "显存",
+          "accept": "显存",
+          "avoid": "VRAM|视频内存"
+        },
+        "ja": {
+          "use": "VRAM",
+          "accept": "VRAM",
+          "avoid": "ビデオメモリ"
+        },
+        "ko": {
+          "use": "VRAM",
+          "accept": "VRAM",
+          "avoid": "비디오 메모리"
+        },
+        "es": {
+          "use": "VRAM",
+          "accept": "VRAM"
+        },
+        "pt": {
+          "use": "VRAM",
+          "accept": "VRAM"
+        },
+        "fr": {
+          "use": "VRAM",
+          "accept": "VRAM"
+        },
+        "de": {
+          "use": "VRAM",
+          "accept": "VRAM"
+        },
+        "ru": {
+          "use": "VRAM",
+          "accept": "VRAM",
+          "avoid": "видеопамят"
+        },
+        "ar": {
+          "use": "VRAM",
+          "accept": "VRAM"
+        },
+        "hi": {
+          "use": "VRAM",
+          "accept": "VRAM"
+        },
+        "id": {
+          "use": "VRAM",
+          "accept": "VRAM"
+        }
+      }
+    },
+    {
+      "id": "kv-cache",
+      "en": "KV cache",
+      "match": "\\bKV[- ]cache\\b",
+      "sense": "Attention key/value cache that grows with context length.",
+      "translations": {
+        "zh-TW": {
+          "use": "KV 快取",
+          "accept": "KV\\s?快取",
+          "avoid": "緩存|缓存"
+        },
+        "zh-CN": {
+          "use": "KV 缓存",
+          "accept": "KV\\s?缓存",
+          "avoid": "快取"
+        },
+        "ja": {
+          "use": "KV キャッシュ",
+          "accept": "KV\\s?キャッシュ"
+        },
+        "ko": {
+          "use": "KV 캐시",
+          "accept": "KV\\s?캐시"
+        },
+        "es": {
+          "use": "caché KV",
+          "accept": "caché KV|caché de KV",
+          "avoid": "\\bcache\\b"
+        },
+        "pt": {
+          "use": "cache KV",
+          "accept": "cache KV|cache de KV"
+        },
+        "fr": {
+          "use": "cache KV",
+          "accept": "cache KV|cache de KV"
+        },
+        "de": {
+          "use": "KV-Cache",
+          "accept": "KV-Cache"
+        },
+        "ru": {
+          "use": "KV-кэш",
+          "accept": "KV-кэш",
+          "avoid": "кеш"
+        },
+        "ar": {
+          "use": "ذاكرة KV المؤقتة",
+          "accept": "ذاكرة KV (?:ال)?مؤقتة|ذاكرة التخزين المؤقت KV"
+        },
+        "hi": {
+          "use": "KV कैश",
+          "accept": "KV कैश"
+        },
+        "id": {
+          "use": "cache KV",
+          "accept": "cache KV"
+        }
+      }
+    },
+    {
+      "id": "quantization",
+      "en": "quantization",
+      "match": "\\bquantiz(?:e|es|ed|ing|ation|ations)\\b",
+      "sense": "Reducing weight precision (GGUF, MLX, EXL2 and similar formats).",
+      "translations": {
+        "zh-TW": {
+          "use": "量化",
+          "accept": "量化"
+        },
+        "zh-CN": {
+          "use": "量化",
+          "accept": "量化"
+        },
+        "ja": {
+          "use": "量子化",
+          "accept": "量子化"
+        },
+        "ko": {
+          "use": "양자화",
+          "accept": "양자화"
+        },
+        "es": {
+          "use": "cuantización",
+          "accept": "cuantiz"
+        },
+        "pt": {
+          "use": "quantização",
+          "accept": "quantiz"
+        },
+        "fr": {
+          "use": "quantification",
+          "accept": "quantifi",
+          "avoid": "quantization|quantisation"
+        },
+        "de": {
+          "use": "Quantisierung",
+          "accept": "quantisier",
+          "avoid": "quantifizier"
+        },
+        "ru": {
+          "use": "квантование",
+          "accept": "квантов"
+        },
+        "ar": {
+          "use": "التكميم",
+          "accept": "تكميم|مكمم"
+        },
+        "hi": {
+          "use": "क्वांटाइज़ेशन",
+          "accept": "क्वांटाइज",
+          "avoid": "परिमाणीकरण"
+        },
+        "id": {
+          "use": "kuantisasi",
+          "accept": "kuantisasi|terkuantisasi|dikuantisasi"
+        }
+      }
+    },
+    {
+      "id": "context",
+      "en": "context",
+      "match": "\\bcontext\\b",
+      "sense": "The LLM context window measured in tokens. Not the general sense of 'situation'.",
+      "except": [
+        "^context\\b",
+        "\\bcontext (?:uses|must)\\b",
+        "discrete-gpu",
+        "--ctx-size",
+        "context=\\d"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "上下文",
+          "accept": "上下文",
+          "avoid": "語境|脈絡|情境"
+        },
+        "zh-CN": {
+          "use": "上下文",
+          "accept": "上下文",
+          "avoid": "语境"
+        },
+        "ja": {
+          "use": "コンテキスト",
+          "accept": "コンテキスト",
+          "avoid": "文脈"
+        },
+        "ko": {
+          "use": "컨텍스트",
+          "accept": "컨텍스트",
+          "avoid": "맥락|문맥"
+        },
+        "es": {
+          "use": "contexto",
+          "accept": "contexto"
+        },
+        "pt": {
+          "use": "contexto",
+          "accept": "contexto"
+        },
+        "fr": {
+          "use": "contexte",
+          "accept": "contexte"
+        },
+        "de": {
+          "use": "Kontext",
+          "accept": "kontext"
+        },
+        "ru": {
+          "use": "контекст",
+          "accept": "контекст"
+        },
+        "ar": {
+          "use": "السياق",
+          "accept": "سياق"
+        },
+        "hi": {
+          "use": "कॉन्टेक्स्ट",
+          "accept": "कॉन्टेक्स्ट",
+          "avoid": "संदर्भ"
+        },
+        "id": {
+          "use": "konteks",
+          "accept": "konteks"
+        }
+      }
+    },
+    {
+      "id": "capacity",
+      "en": "capacity",
+      "match": "\\bcapacity\\b",
+      "sense": "Total memory available on a device (VRAM capacity, usable capacity).",
+      "except": [
+        "^capacity$",
+        "notebook capacity"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "容量",
+          "accept": "容量"
+        },
+        "zh-CN": {
+          "use": "容量",
+          "accept": "容量"
+        },
+        "ja": {
+          "use": "容量",
+          "accept": "容量"
+        },
+        "ko": {
+          "use": "용량",
+          "accept": "용량"
+        },
+        "es": {
+          "use": "capacidad",
+          "accept": "capacidad"
+        },
+        "pt": {
+          "use": "capacidade",
+          "accept": "capacidade"
+        },
+        "fr": {
+          "use": "capacité",
+          "accept": "capacité"
+        },
+        "de": {
+          "use": "Kapazität",
+          "accept": "kapazität"
+        },
+        "ru": {
+          "use": "объём",
+          "accept": "объ[её]м",
+          "avoid": "[её]мкост"
+        },
+        "ar": {
+          "use": "السعة",
+          "accept": "سعة|سعت|سعات"
+        },
+        "hi": {
+          "use": "क्षमता",
+          "accept": "क्षमता"
+        },
+        "id": {
+          "use": "kapasitas",
+          "accept": "kapasitas"
+        }
+      }
+    },
+    {
+      "id": "verified",
+      "en": "verified / unverified",
+      "match": "\\b(?:un)?verified\\b",
+      "sense": "Evidence status label: checked against a primary source or a measurement. Ordinary prose such as 'not independently verified' is not checked.",
+      "except": [
+        "^verified$",
+        "independently verified",
+        "has not verified",
+        "verified (?:user-test|geometry)",
+        "verified fit",
+        "Unknown does not",
+        "verified, but",
+        "relationship cannot be verified",
+        "owner/repository",
+        "files are not verified"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "已驗證 / 未驗證",
+          "accept": "驗證",
+          "avoid": "核實"
+        },
+        "zh-CN": {
+          "use": "已验证 / 未验证",
+          "accept": "验证",
+          "avoid": "核实"
+        },
+        "ja": {
+          "use": "検証済み / 未検証",
+          "accept": "検証"
+        },
+        "ko": {
+          "use": "검증됨 / 미검증",
+          "accept": "검증"
+        },
+        "es": {
+          "use": "verificado / sin verificar",
+          "accept": "verific"
+        },
+        "pt": {
+          "use": "verificado / não verificado",
+          "accept": "verific"
+        },
+        "fr": {
+          "use": "vérifié / non vérifié",
+          "accept": "vérifi"
+        },
+        "de": {
+          "use": "verifiziert / nicht verifiziert",
+          "accept": "verifiz"
+        },
+        "ru": {
+          "use": "проверено / не проверено",
+          "accept": "провер",
+          "avoid": "подтвержд"
+        },
+        "ar": {
+          "use": "مُتحقَّق منه / غير مُتحقَّق منه",
+          "accept": "تحقق|متحقق"
+        },
+        "hi": {
+          "use": "सत्यापित / असत्यापित",
+          "accept": "सत्यापित"
+        },
+        "id": {
+          "use": "terverifikasi / belum terverifikasi",
+          "accept": "verifikasi"
+        }
+      }
+    },
+    {
+      "id": "derived",
+      "en": "derived",
+      "match": "\\bderived\\b",
+      "sense": "Evidence status label: calculated from verified facts rather than published directly. The verb ('is derived from') is ordinary prose and is not checked.",
+      "except": [
+        "^derived$",
+        "derived from",
+        "be derived"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "推算",
+          "accept": "推算",
+          "avoid": "推導所得|衍生"
+        },
+        "zh-CN": {
+          "use": "推算",
+          "accept": "推算",
+          "avoid": "推导出|衍生"
+        },
+        "ja": {
+          "use": "算出",
+          "accept": "算出",
+          "avoid": "派生"
+        },
+        "ko": {
+          "use": "산출",
+          "accept": "산출",
+          "avoid": "파생"
+        },
+        "es": {
+          "use": "derivado",
+          "accept": "derivad"
+        },
+        "pt": {
+          "use": "derivado",
+          "accept": "derivad"
+        },
+        "fr": {
+          "use": "dérivé",
+          "accept": "dérivé"
+        },
+        "de": {
+          "use": "abgeleitet",
+          "accept": "abgeleitet"
+        },
+        "ru": {
+          "use": "расчётное",
+          "accept": "расч[её]т|рассчитан",
+          "avoid": "производн"
+        },
+        "ar": {
+          "use": "مشتق",
+          "accept": "مشتق"
+        },
+        "hi": {
+          "use": "गणना से निकाला गया",
+          "accept": "निकाल"
+        },
+        "id": {
+          "use": "turunan",
+          "accept": "turunan|diturunkan"
+        }
+      }
+    },
+    {
+      "id": "weights",
+      "en": "weights",
+      "match": "\\bweights?\\b",
+      "sense": "Model parameters stored in memory. Not the sense of physical weight.",
+      "except": [
+        "^weights$",
+        "bits? per weight",
+        "bit/weight",
+        "^Weight input"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "權重",
+          "accept": "權重"
+        },
+        "zh-CN": {
+          "use": "权重",
+          "accept": "权重"
+        },
+        "ja": {
+          "use": "重み",
+          "accept": "重み"
+        },
+        "ko": {
+          "use": "가중치",
+          "accept": "가중치"
+        },
+        "es": {
+          "use": "pesos",
+          "accept": "\\bpesos?\\b"
+        },
+        "pt": {
+          "use": "pesos",
+          "accept": "\\bpesos?\\b"
+        },
+        "fr": {
+          "use": "poids",
+          "accept": "\\bpoids\\b"
+        },
+        "de": {
+          "use": "Modellgewichte",
+          "accept": "gewicht"
+        },
+        "ru": {
+          "use": "веса",
+          "accept": "(?:^|[^а-яё])вес"
+        },
+        "ar": {
+          "use": "الأوزان",
+          "accept": "وزن|أوزان|الأوزان"
+        },
+        "hi": {
+          "use": "मॉडल वेट्स",
+          "accept": "वेट"
+        },
+        "id": {
+          "use": "bobot",
+          "accept": "bobot"
+        }
+      }
+    },
+    {
+      "id": "runtime",
+      "en": "runtime",
+      "match": "\\bruntimes?\\b",
+      "sense": "Three senses share one word family: the inference software (llama.cpp, vLLM), the Runtime buffer row in the memory breakdown, and the adjective 'at run time' (runtime memory). Use the approved noun for the first two; the adjective may use the locale's natural 'at execution time' form.",
+      "except": [
+        "^runtime$",
+        "^No runtime inference",
+        "runtime speed"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "執行階段 (memory row) / 執行環境 (software) / 執行時 (adjective)",
+          "accept": "執行階段|執行環境|執行時",
+          "avoid": "運行時|运行时"
+        },
+        "zh-CN": {
+          "use": "运行时",
+          "accept": "运行时|运行环境"
+        },
+        "ja": {
+          "use": "ランタイム (noun) / 実行時 (adjective)",
+          "accept": "ランタイム|実行時|実行環境"
+        },
+        "ko": {
+          "use": "런타임",
+          "accept": "런타임|실행 시"
+        },
+        "es": {
+          "use": "runtime (noun) / de ejecución (adjective)",
+          "accept": "runtime|ejecución"
+        },
+        "pt": {
+          "use": "runtime",
+          "accept": "runtime|execução"
+        },
+        "fr": {
+          "use": "environnement d’exécution",
+          "accept": "runtime|exécution"
+        },
+        "de": {
+          "use": "Runtime / Laufzeit-",
+          "accept": "runtime|laufzeit"
+        },
+        "ru": {
+          "use": "среда выполнения / рантайм",
+          "accept": "рантайм|выполнени"
+        },
+        "ar": {
+          "use": "بيئة التشغيل / وقت التشغيل",
+          "accept": "تشغيل"
+        },
+        "hi": {
+          "use": "रनटाइम",
+          "accept": "रनटाइम"
+        },
+        "id": {
+          "use": "runtime",
+          "accept": "runtime|saat berjalan|eksekusi"
+        }
+      }
+    },
+    {
+      "id": "offload",
+      "en": "offload",
+      "match": "\\boffload(?:s|ed|ing)?\\b",
+      "sense": "Moving layers or cache out of VRAM into system RAM when the model does not fit. llama.cpp's \"GPU offload\" (moving layers onto the GPU) is the opposite direction and is an exception.",
+      "except": [
+        "^has-offload$",
+        "\\boffload(?:=|-)",
+        "GPU offload"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "卸載",
+          "accept": "卸載"
+        },
+        "zh-CN": {
+          "use": "卸载",
+          "accept": "卸载"
+        },
+        "ja": {
+          "use": "オフロード",
+          "accept": "オフロード"
+        },
+        "ko": {
+          "use": "오프로드",
+          "accept": "오프로드"
+        },
+        "es": {
+          "use": "descarga a RAM",
+          "accept": "descarg"
+        },
+        "pt": {
+          "use": "descarregamento",
+          "accept": "descarreg"
+        },
+        "fr": {
+          "use": "délestage",
+          "accept": "délest"
+        },
+        "de": {
+          "use": "Auslagerung",
+          "accept": "auslager|ausgelagert"
+        },
+        "ru": {
+          "use": "выгрузка",
+          "accept": "выгру[зж]"
+        },
+        "ar": {
+          "use": "التفريغ",
+          "accept": "تفريغ|مفرغ"
+        },
+        "hi": {
+          "use": "ऑफ़लोड",
+          "accept": "ऑफलोड"
+        },
+        "id": {
+          "use": "offload",
+          "accept": "offload"
+        }
+      }
+    },
+    {
+      "id": "estimate",
+      "en": "estimate",
+      "match": "\\bestimat(?:e|es|ed|ion|ing)\\b",
+      "sense": "A calculated memory figure. Always an estimate, never a guarantee.",
+      "except": [
+        "^estimate$",
+        "\\bestimate\\b(?= (?:\\||or exact))",
+        "non-estimated",
+        "Estimated transfer time"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "估算",
+          "accept": "估算",
+          "avoid": "估計值"
+        },
+        "zh-CN": {
+          "use": "估算",
+          "accept": "估算"
+        },
+        "ja": {
+          "use": "見積もり",
+          "accept": "見積",
+          "avoid": "推定"
+        },
+        "ko": {
+          "use": "추정",
+          "accept": "추정"
+        },
+        "es": {
+          "use": "estimación",
+          "accept": "estim"
+        },
+        "pt": {
+          "use": "estimativa",
+          "accept": "estim"
+        },
+        "fr": {
+          "use": "estimation",
+          "accept": "estim"
+        },
+        "de": {
+          "use": "Schätzung",
+          "accept": "schätz"
+        },
+        "ru": {
+          "use": "оценка",
+          "accept": "оцен"
+        },
+        "ar": {
+          "use": "تقدير",
+          "accept": "تقدير|قدر"
+        },
+        "hi": {
+          "use": "अनुमान",
+          "accept": "अनुमान"
+        },
+        "id": {
+          "use": "estimasi",
+          "accept": "estimasi"
+        }
+      }
+    },
+    {
+      "id": "artifact",
+      "en": "artifact",
+      "match": "\\bartifacts?\\b",
+      "sense": "A published, downloadable model file set (a GGUF file, an MLX folder, a quantized repository). In running prose 'model file' is acceptable where it reads more naturally.",
+      "except": [
+        "^artifact(?: is invalid| and a non-estimated)",
+        "^workflow-artifact$",
+        "^artifact$"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "成品",
+          "accept": "成品"
+        },
+        "zh-CN": {
+          "use": "制品",
+          "accept": "制品|文件"
+        },
+        "ja": {
+          "use": "アーティファクト",
+          "accept": "アーティファクト|モデルファイル|ファイル"
+        },
+        "ko": {
+          "use": "아티팩트",
+          "accept": "아티팩트|모델 파일|파일"
+        },
+        "es": {
+          "use": "artefacto",
+          "accept": "artefacto"
+        },
+        "pt": {
+          "use": "artefato",
+          "accept": "artefato"
+        },
+        "fr": {
+          "use": "artefact",
+          "accept": "artefact"
+        },
+        "de": {
+          "use": "Artefakt",
+          "accept": "artefakt"
+        },
+        "ru": {
+          "use": "артефакт",
+          "accept": "артефакт"
+        },
+        "ar": {
+          "use": "الحزمة المنشورة",
+          "accept": "حزم|ملف|عناصر",
+          "avoid": "قطعة أثرية|قطع أثرية"
+        },
+        "hi": {
+          "use": "आर्टिफ़ैक्ट",
+          "accept": "आर्टिफैक्ट"
+        },
+        "id": {
+          "use": "artefak",
+          "accept": "artefak"
+        }
+      }
+    },
+    {
+      "id": "repository",
+      "en": "repository",
+      "match": "\\brepositor(?:y|ies)\\b",
+      "sense": "A Hugging Face model repository (owner/name).",
+      "except": [
+        "owner/repository",
+        "^repository(?: \\{0\\})?$",
+        "repositoryId"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "儲存庫",
+          "accept": "儲存庫",
+          "avoid": "倉庫|存放庫|仓库"
+        },
+        "zh-CN": {
+          "use": "仓库",
+          "accept": "仓库",
+          "avoid": "存储库|儲存庫"
+        },
+        "ja": {
+          "use": "リポジトリ",
+          "accept": "リポジトリ"
+        },
+        "ko": {
+          "use": "저장소",
+          "accept": "저장소",
+          "avoid": "리포지토리|레포지토리"
+        },
+        "es": {
+          "use": "repositorio",
+          "accept": "repositorio"
+        },
+        "pt": {
+          "use": "repositório",
+          "accept": "repositório"
+        },
+        "fr": {
+          "use": "dépôt",
+          "accept": "dépôt",
+          "avoid": "référentiel"
+        },
+        "de": {
+          "use": "Repository",
+          "accept": "repositor|repo"
+        },
+        "ru": {
+          "use": "репозиторий",
+          "accept": "репозитор"
+        },
+        "ar": {
+          "use": "المستودع",
+          "accept": "مستودع"
+        },
+        "hi": {
+          "use": "रिपॉज़िटरी",
+          "accept": "रिपॉजिटरी"
+        },
+        "id": {
+          "use": "repositori",
+          "accept": "repositori|repo"
+        }
+      }
+    },
+    {
+      "id": "precision",
+      "en": "precision",
+      "match": "\\bprecision\\b",
+      "sense": "Numeric format of weights or KV cache (FP16, Q8_0, 4-bit).",
+      "translations": {
+        "zh-TW": {
+          "use": "精度",
+          "accept": "精度"
+        },
+        "zh-CN": {
+          "use": "精度",
+          "accept": "精度"
+        },
+        "ja": {
+          "use": "精度",
+          "accept": "精度"
+        },
+        "ko": {
+          "use": "정밀도",
+          "accept": "정밀도"
+        },
+        "es": {
+          "use": "precisión",
+          "accept": "precisión"
+        },
+        "pt": {
+          "use": "precisão",
+          "accept": "precisão"
+        },
+        "fr": {
+          "use": "précision",
+          "accept": "précision"
+        },
+        "de": {
+          "use": "Präzision",
+          "accept": "präzis"
+        },
+        "ru": {
+          "use": "точность",
+          "accept": "точност"
+        },
+        "ar": {
+          "use": "الدقة",
+          "accept": "دقة"
+        },
+        "hi": {
+          "use": "प्रिसिज़न",
+          "accept": "प्रिसिजन",
+          "avoid": "परिशुद्धता"
+        },
+        "id": {
+          "use": "presisi",
+          "accept": "presisi"
+        }
+      }
+    },
+    {
+      "id": "parameters",
+      "en": "parameters",
+      "match": "\\bparameters?\\b",
+      "sense": "Model parameter count (8B, 70B). API query parameters are listed as exceptions.",
+      "except": [
+        "^parameters$",
+        "query parameters?",
+        "\\bparameter (?:name|value)",
+        "^Unknown parameter",
+        "URL parameters?"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "參數",
+          "accept": "參數"
+        },
+        "zh-CN": {
+          "use": "参数",
+          "accept": "参数"
+        },
+        "ja": {
+          "use": "パラメータ",
+          "accept": "パラメータ"
+        },
+        "ko": {
+          "use": "파라미터",
+          "accept": "파라미터",
+          "avoid": "매개변수"
+        },
+        "es": {
+          "use": "parámetros",
+          "accept": "parámetro"
+        },
+        "pt": {
+          "use": "parâmetros",
+          "accept": "parâmetro"
+        },
+        "fr": {
+          "use": "paramètres",
+          "accept": "paramètre"
+        },
+        "de": {
+          "use": "Parameter",
+          "accept": "parameter"
+        },
+        "ru": {
+          "use": "параметры",
+          "accept": "параметр"
+        },
+        "ar": {
+          "use": "المعاملات",
+          "accept": "معامل",
+          "avoid": "معلمات|المعلمات"
+        },
+        "hi": {
+          "use": "पैरामीटर",
+          "accept": "पैरामीटर"
+        },
+        "id": {
+          "use": "parameter",
+          "accept": "parameter"
+        }
+      }
+    },
+    {
+      "id": "token",
+      "en": "token",
+      "match": "\\btokens?\\b",
+      "sense": "A unit of model text. Hugging Face access tokens use the same word.",
+      "except": [
+        "^tokens?$",
+        "HF_TOKEN",
+        "max_tokens"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "token",
+          "accept": "token",
+          "avoid": "詞元|標記|令牌"
+        },
+        "zh-CN": {
+          "use": "token",
+          "accept": "token|令牌",
+          "avoid": "词元"
+        },
+        "ja": {
+          "use": "トークン",
+          "accept": "トークン"
+        },
+        "ko": {
+          "use": "토큰",
+          "accept": "토큰"
+        },
+        "es": {
+          "use": "tokens",
+          "accept": "token"
+        },
+        "pt": {
+          "use": "tokens",
+          "accept": "token"
+        },
+        "fr": {
+          "use": "tokens",
+          "accept": "token",
+          "avoid": "jeton"
+        },
+        "de": {
+          "use": "Token",
+          "accept": "token"
+        },
+        "ru": {
+          "use": "токены",
+          "accept": "токен"
+        },
+        "ar": {
+          "use": "الرموز",
+          "accept": "رمز|رموز"
+        },
+        "hi": {
+          "use": "टोकन",
+          "accept": "टोकन"
+        },
+        "id": {
+          "use": "token",
+          "accept": "token"
+        }
+      }
+    },
+    {
+      "id": "lower-bound",
+      "en": "lower bound",
+      "match": "\\blower bound\\b",
+      "sense": "The estimate is a minimum; real usage can be higher.",
+      "translations": {
+        "zh-TW": {
+          "use": "下限",
+          "accept": "下限"
+        },
+        "zh-CN": {
+          "use": "下限",
+          "accept": "下限"
+        },
+        "ja": {
+          "use": "下限",
+          "accept": "下限"
+        },
+        "ko": {
+          "use": "하한",
+          "accept": "하한"
+        },
+        "es": {
+          "use": "límite inferior",
+          "accept": "límite inferior"
+        },
+        "pt": {
+          "use": "limite inferior",
+          "accept": "limite inferior"
+        },
+        "fr": {
+          "use": "borne inférieure",
+          "accept": "borne inférieure"
+        },
+        "de": {
+          "use": "Untergrenze",
+          "accept": "untergrenze"
+        },
+        "ru": {
+          "use": "нижняя граница",
+          "accept": "нижн\\S* границ"
+        },
+        "ar": {
+          "use": "الحد الأدنى",
+          "accept": "الحد الأدنى|حدا? أدنى"
+        },
+        "hi": {
+          "use": "निचली सीमा",
+          "accept": "निचली सीमा"
+        },
+        "id": {
+          "use": "batas bawah",
+          "accept": "batas bawah"
+        }
+      }
+    },
+    {
+      "id": "publisher",
+      "en": "publisher",
+      "match": "\\bpublishers?\\b",
+      "sense": "The Hugging Face account that published a model or quantization (Unsloth, bartowski).",
+      "translations": {
+        "zh-TW": {
+          "use": "發布者",
+          "accept": "發布者",
+          "avoid": "發行者|出版者|發佈者"
+        },
+        "zh-CN": {
+          "use": "发布者",
+          "accept": "发布者"
+        },
+        "ja": {
+          "use": "公開元",
+          "accept": "公開元",
+          "avoid": "公開者"
+        },
+        "ko": {
+          "use": "게시자",
+          "accept": "게시자"
+        },
+        "es": {
+          "use": "publicador",
+          "accept": "publicador",
+          "avoid": "\\beditor"
+        },
+        "pt": {
+          "use": "publicador",
+          "accept": "publicador"
+        },
+        "fr": {
+          "use": "éditeur",
+          "accept": "éditeur"
+        },
+        "de": {
+          "use": "Herausgeber",
+          "accept": "herausgeber"
+        },
+        "ru": {
+          "use": "издатель",
+          "accept": "издател"
+        },
+        "ar": {
+          "use": "الناشر",
+          "accept": "ناشر"
+        },
+        "hi": {
+          "use": "पब्लिशर",
+          "accept": "पब्लिशर",
+          "avoid": "प्रकाशक"
+        },
+        "id": {
+          "use": "penerbit",
+          "accept": "penerbit"
+        }
+      }
+    },
+    {
+      "id": "community",
+      "en": "community",
+      "match": "(?<![-\\w])community(?![-\\w])",
+      "sense": "Third-party quantizations published by community accounts. Publisher names such as mlx-community and LM Studio Community stay unchanged.",
+      "except": [
+        "^community$",
+        "LM Studio Community"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "社群",
+          "accept": "社群",
+          "avoid": "社區"
+        },
+        "zh-CN": {
+          "use": "社区",
+          "accept": "社区"
+        },
+        "ja": {
+          "use": "コミュニティ",
+          "accept": "コミュニティ"
+        },
+        "ko": {
+          "use": "커뮤니티",
+          "accept": "커뮤니티"
+        },
+        "es": {
+          "use": "comunidad",
+          "accept": "comunidad"
+        },
+        "pt": {
+          "use": "comunidade",
+          "accept": "comunidade"
+        },
+        "fr": {
+          "use": "communauté",
+          "accept": "communaut"
+        },
+        "de": {
+          "use": "Community",
+          "accept": "community"
+        },
+        "ru": {
+          "use": "сообщество",
+          "accept": "сообществ"
+        },
+        "ar": {
+          "use": "المجتمع",
+          "accept": "مجتمع"
+        },
+        "hi": {
+          "use": "कम्युनिटी",
+          "accept": "कम्युनिटी",
+          "avoid": "समुदाय"
+        },
+        "id": {
+          "use": "komunitas",
+          "accept": "komunitas"
+        }
+      }
+    },
+    {
+      "id": "memory",
+      "en": "memory",
+      "match": "\\bmemory\\b",
+      "sense": "RAM or VRAM in general. zh-CN uses 显存 when the sentence is specifically about GPU memory.",
+      "except": [
+        "^memory$",
+        "unified-memory",
+        "“memory”",
+        "[Uu]nified memory"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "記憶體",
+          "accept": "記憶體"
+        },
+        "zh-CN": {
+          "use": "内存",
+          "accept": "内存|显存"
+        },
+        "ja": {
+          "use": "メモリ",
+          "accept": "メモリ"
+        },
+        "ko": {
+          "use": "메모리",
+          "accept": "메모리"
+        },
+        "es": {
+          "use": "memoria",
+          "accept": "memoria"
+        },
+        "pt": {
+          "use": "memória",
+          "accept": "memória"
+        },
+        "fr": {
+          "use": "mémoire",
+          "accept": "mémoire"
+        },
+        "de": {
+          "use": "Speicher",
+          "accept": "speicher"
+        },
+        "ru": {
+          "use": "память",
+          "accept": "памят"
+        },
+        "ar": {
+          "use": "الذاكرة",
+          "accept": "ذاكر"
+        },
+        "hi": {
+          "use": "मेमोरी",
+          "accept": "मेमोरी"
+        },
+        "id": {
+          "use": "memori",
+          "accept": "memori"
+        }
+      }
+    },
+    {
+      "id": "evidence",
+      "en": "evidence",
+      "match": "\\bevidence\\b",
+      "sense": "The facts and sources behind an estimate or a troubleshooting answer (Estimate evidence, evidence questions).",
+      "except": [
+        "^evidence$",
+        "useful evidence",
+        "does not prove",
+        "Keep evidence, provenance",
+        "is not evidence",
+        "no safe autoregressive",
+        "is evidence about",
+        "Evidence over promises",
+        "includes missing evidence"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "依據",
+          "accept": "依據",
+          "avoid": "證據"
+        },
+        "zh-CN": {
+          "use": "证据",
+          "accept": "证据",
+          "avoid": "依据"
+        },
+        "ja": {
+          "use": "根拠",
+          "accept": "根拠",
+          "avoid": "証拠"
+        },
+        "ko": {
+          "use": "근거",
+          "accept": "근거"
+        },
+        "es": {
+          "use": "evidencia",
+          "accept": "evidencia",
+          "avoid": "\\bpruebas?\\b"
+        },
+        "pt": {
+          "use": "evidência",
+          "accept": "evidência"
+        },
+        "fr": {
+          "use": "preuves",
+          "accept": "preuve",
+          "avoid": "justificatif"
+        },
+        "de": {
+          "use": "Nachweise",
+          "accept": "nachweis",
+          "avoid": "\\bbeleg"
+        },
+        "ru": {
+          "use": "данные",
+          "accept": "данн"
+        },
+        "ar": {
+          "use": "الأدلة",
+          "accept": "أدل|دليل"
+        },
+        "hi": {
+          "use": "साक्ष्य",
+          "accept": "साक्ष्य",
+          "avoid": "प्रमाण"
+        },
+        "id": {
+          "use": "bukti",
+          "accept": "bukti"
+        }
+      }
+    },
+    {
+      "id": "engine",
+      "en": "engine",
+      "match": "\\bengines?\\b",
+      "sense": "Inference software (llama.cpp, vLLM, MLX LM).",
+      "except": [
+        "^engines?$"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "引擎",
+          "accept": "引擎"
+        },
+        "zh-CN": {
+          "use": "引擎",
+          "accept": "引擎"
+        },
+        "ja": {
+          "use": "エンジン",
+          "accept": "エンジン"
+        },
+        "ko": {
+          "use": "엔진",
+          "accept": "엔진"
+        },
+        "es": {
+          "use": "motor",
+          "accept": "motor"
+        },
+        "pt": {
+          "use": "engine",
+          "accept": "engine",
+          "avoid": "\\bmotor"
+        },
+        "fr": {
+          "use": "moteur",
+          "accept": "moteur"
+        },
+        "de": {
+          "use": "Engine",
+          "accept": "engine"
+        },
+        "ru": {
+          "use": "движок",
+          "accept": "движ"
+        },
+        "ar": {
+          "use": "المحرك",
+          "accept": "محرك"
+        },
+        "hi": {
+          "use": "इंजन",
+          "accept": "इंजन"
+        },
+        "id": {
+          "use": "engine",
+          "accept": "engine",
+          "avoid": "\\bmesin"
+        }
+      }
+    },
+    {
+      "id": "runbook",
+      "en": "runbook",
+      "match": "\\brunbooks?\\b",
+      "sense": "The step-by-step deployment document generated on /deploy.",
+      "translations": {
+        "zh-TW": {
+          "use": "操作手冊",
+          "accept": "操作手冊",
+          "avoid": "操作指南"
+        },
+        "zh-CN": {
+          "use": "部署手册",
+          "accept": "手册"
+        },
+        "ja": {
+          "use": "ランブック",
+          "accept": "ランブック",
+          "avoid": "手順書"
+        },
+        "ko": {
+          "use": "런북",
+          "accept": "런북"
+        },
+        "es": {
+          "use": "runbook",
+          "accept": "runbook",
+          "avoid": "\\bguía"
+        },
+        "pt": {
+          "use": "runbook",
+          "accept": "runbook"
+        },
+        "fr": {
+          "use": "runbook",
+          "accept": "runbook"
+        },
+        "de": {
+          "use": "Runbook",
+          "accept": "runbook"
+        },
+        "ru": {
+          "use": "runbook",
+          "accept": "runbook",
+          "avoid": "инструкци"
+        },
+        "ar": {
+          "use": "دليل التشغيل",
+          "accept": "دليل"
+        },
+        "hi": {
+          "use": "रनबुक",
+          "accept": "रनबुक"
+        },
+        "id": {
+          "use": "runbook",
+          "accept": "runbook"
+        }
+      }
+    },
+    {
+      "id": "draft-model",
+      "en": "draft model",
+      "match": "\\bdraft\\b",
+      "sense": "The small model in speculative decoding (DFlash, EAGLE).",
+      "except": [
+        "^draft(?:-model)?$",
+        "--draft",
+        "draft-model"
+      ],
+      "translations": {
+        "zh-TW": {
+          "use": "草稿模型",
+          "accept": "草稿"
+        },
+        "zh-CN": {
+          "use": "草稿模型",
+          "accept": "草稿"
+        },
+        "ja": {
+          "use": "ドラフトモデル",
+          "accept": "ドラフト"
+        },
+        "ko": {
+          "use": "드래프트 모델",
+          "accept": "드래프트",
+          "avoid": "초안"
+        },
+        "es": {
+          "use": "modelo borrador",
+          "accept": "borrador"
+        },
+        "pt": {
+          "use": "modelo draft",
+          "accept": "draft"
+        },
+        "fr": {
+          "use": "modèle draft",
+          "accept": "draft",
+          "avoid": "brouillon"
+        },
+        "de": {
+          "use": "Draft-Modell",
+          "accept": "draft"
+        },
+        "ru": {
+          "use": "черновая модель",
+          "accept": "чернов"
+        },
+        "ar": {
+          "use": "نموذج المسودة",
+          "accept": "مسود"
+        },
+        "hi": {
+          "use": "ड्राफ़्ट मॉडल",
+          "accept": "ड्राफ्ट"
+        },
+        "id": {
+          "use": "model draft",
+          "accept": "draft"
+        }
+      }
+    }
+  ]
+}

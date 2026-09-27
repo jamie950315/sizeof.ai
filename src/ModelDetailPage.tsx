@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useLanguage } from './i18n/LanguageFooter'
-import { formatMessage, translate } from './i18n/core'
+import { formatMessage, formatRichMessage, translate } from './i18n/core'
 import PlatformNav from './platform/PlatformNav'
 import SaveModelButton from './platform/SaveModelButton'
 import {
@@ -43,10 +43,17 @@ interface Props {
 }
 
 const contexts = contextLevels
-const fitLabels: Record<Fit, string> = {
-  comfortable: 'COMFORTABLE',
-  tight: 'TIGHT FIT',
-  'too-large': 'TOO LARGE',
+const fitOnLabels: Record<Fit | 'unverified', string> = {
+  comfortable: 'COMFORTABLE ON {0} GiB',
+  tight: 'TIGHT FIT ON {0} GiB',
+  'too-large': 'TOO LARGE ON {0} GiB',
+  unverified: 'FIT NOT VERIFIED ON {0} GiB',
+}
+const fitCapacityLabels: Record<Fit | 'unverified', string> = {
+  comfortable: 'COMFORTABLE · {0} GiB capacity',
+  tight: 'TIGHT FIT · {0} GiB capacity',
+  'too-large': 'TOO LARGE · {0} GiB capacity',
+  unverified: 'FIT NOT VERIFIED · {0} GiB capacity',
 }
 
 const modelKindLabels: Record<HuggingFaceModel['modelKind'], string> = {
@@ -259,7 +266,7 @@ export default function ModelDetailPage({ route }: Props) {
   }, [context, kvPrecision, mlaCacheMode, model, quantization, selectedSource, selectedVariantId, vram])
 
   useEffect(() => {
-    if (model) document.title = `${model.name} ${translate('VRAM & specs')} — sizeof.ai`
+    if (model) document.title = formatMessage('{0} VRAM & specs — sizeof.ai', [model.name])
     return () => { document.title = `sizeof.ai — ${translate('LLM memory, measured')}` }
   }, [model, locale])
 
@@ -481,8 +488,7 @@ export default function ModelDetailPage({ route }: Props) {
     : 'The repository does not publish enough architecture data for a safe estimate.'
   const needsIdentification = !resourceEstimate && modelKind === 'workflow'
   const updatedLabel = model.lastModified ? new Date(model.lastModified).toLocaleDateString('en-CA') : translate('unknown')
-  const fitClass = fit ? (isLowerBound && fit !== 'too-large' ? 'unverified' : fit) : ''
-  const fitText = fit ? translate(isLowerBound && fit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[fit]) : ''
+  const fitClass: Fit | 'unverified' | '' = fit ? (isLowerBound && fit !== 'too-large' ? 'unverified' : fit) : ''
 
   const architecturePanel = (
     <section className="detail-block detail-architecture-list" role="region" aria-label="Architecture assumptions">
@@ -498,7 +504,7 @@ export default function ModelDetailPage({ route }: Props) {
           ? `${model.moe.routedExperts} ROUTED${model.moe.sharedExperts ? ` + ${model.moe.sharedExperts} SHARED` : ''} / ${model.moe.expertsPerToken ?? '—'} ACTIVE`
           : `${model.moe.totalExperts ?? '—'} TOTAL / ${model.moe.expertsPerToken ?? '—'} ACTIVE`}</dd></div>}
         {model.attentionProfile?.stateKind && <div><dt>Stateful layers</dt><dd>{model.attentionProfile.stateKind.toUpperCase()} / {model.attentionProfile.kdaLayers + model.attentionProfile.linearLayers + model.attentionProfile.recurrentLayers + model.attentionProfile.ssmLayers} STATE LAYERS</dd></div>}
-        {model.attentionProfile?.slidingLayers > 0 && <div><dt>Sliding attention</dt><dd>{model.attentionProfile.slidingLayers} layers / {model.attentionProfile.slidingWindow ? formatContext(model.attentionProfile.slidingWindow) : 'runtime window'}</dd></div>}
+        {model.attentionProfile?.slidingLayers > 0 && <div><dt>Sliding attention</dt><dd>{model.attentionProfile.slidingWindow ? formatMessage('{0} layers / {1}', [model.attentionProfile.slidingLayers, formatContext(model.attentionProfile.slidingWindow)]) : formatMessage('{0} layers / runtime window', [model.attentionProfile.slidingLayers])}</dd></div>}
         {model.speculative?.targetModelId && <div><dt>Speculative target</dt><dd>{model.speculative.targetModelId}</dd></div>}
         {model.spec && <>
           <div><dt>Full attention layers</dt><dd>{fullAttentionLayers !== null && layers ? `${fullAttentionLayers} / ${layers}` : '—'}</dd></div>
@@ -671,7 +677,9 @@ export default function ModelDetailPage({ route }: Props) {
                     </div>
                   )}
                   {selectedVariant?.role === 'model' ? (
-                    <p className="control-help quant-source">Uses the published {formatBytes(selectedVariant.weightSizeBytes)} weight artifact{selectedVariant.sourceUrl && <> from <a href={selectedVariant.sourceUrl} target="_blank" rel="noreferrer">{selectedVariant.repositoryId ?? selectedVariant.publisher}</a></>}.</p>
+                    <p className="control-help quant-source">{selectedVariant.sourceUrl
+                      ? formatRichMessage('Uses the published {0} weight artifact from {1}.', [formatBytes(selectedVariant.weightSizeBytes), <a key="source" href={selectedVariant.sourceUrl} target="_blank" rel="noreferrer">{selectedVariant.repositoryId ?? selectedVariant.publisher}</a>])
+                      : formatMessage('Uses the published {0} weight artifact.', [formatBytes(selectedVariant.weightSizeBytes)])}</p>
                   ) : (
                     <p className="control-help">{sourcePublishers.length > 0 ? 'Estimated mode uses parameters × effective bits per weight. Choose a publisher tab to use published artifact sizes.' : 'No matching published quantized artifact was found. Weight memory is estimated from parameters × effective bits per weight.'}</p>
                   )}
@@ -749,7 +757,7 @@ export default function ModelDetailPage({ route }: Props) {
               <div className="result-panel detail-result" role="region" aria-label="Memory summary">
                 <div className="result-topline">
                   <span>{estimate.isLowerBound ? 'Estimated lower bound' : 'Estimated VRAM'}</span>
-                  <span className={`fit-pill ${fitClass}`}>{fitText} {translate('ON')} {vram} GiB</span>
+                  <span className={`fit-pill ${fitClass}`}>{fitClass && formatMessage(fitOnLabels[fitClass], [vram])}</span>
                 </div>
                 <div className="total-number"><span>{estimate.totalGiB.toFixed(2)}</span><small>GiB</small></div>
                 <MemoryGauge
@@ -806,7 +814,7 @@ export default function ModelDetailPage({ route }: Props) {
             </div>
             <div className="detail-sticky-result" role="status" aria-label="Current memory result">
                   <strong>{estimate.isLowerBound ? `${estimate.totalGiB.toFixed(2)} GiB lower bound` : `${estimate.totalGiB.toFixed(2)} GiB`}</strong>
-                  <span>{fitText} · {vram} GiB {translate('capacity')}</span>
+                  <span>{fitClass && formatMessage(fitCapacityLabels[fitClass], [vram])}</span>
                 </div>
           </section>
         ) : resourceEstimate && selectedResourceOption ? (

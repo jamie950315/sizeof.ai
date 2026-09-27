@@ -86,8 +86,8 @@ export default function ModelChangesPage() {
       <div className="mc-snapshots">{(['before', 'after'] as const).map((side, i) => <article key={side} className={`mc-snapshot mc-snapshot-${side}`}>
         <h3><span className="mc-sign" aria-hidden="true" />{i ? 'Later revision' : 'Earlier revision'}</h3>
         <code>{result[side].revision}</code>
-        <p>{result[side].files.toLocaleString()} files · configuration {result[side].configAvailable ? 'available' : 'unavailable'}</p>
-        <p>License metadata: {result[side].license ?? 'Unknown / not published'}</p>
+        <p>{formatMessage(result[side].configAvailable ? '{0} files · configuration available' : '{0} files · configuration unavailable', [result[side].files.toLocaleString()])}</p>
+        <p>{result[side].license == null ? translate('License metadata: Unknown / not published') : formatMessage('License metadata: {0}', [result[side].license])}</p>
         <a target="_blank" rel="noreferrer" href={`https://huggingface.co/${result.modelId}/tree/${result[side].revision}`}>{i ? 'Inspect later repository files' : 'Inspect earlier repository files'}<ExternalLink size={13} aria-hidden="true" /></a>
       </article>)}</div>
       <p className="callout callout-warn mc-caution">{result.unknownContentFiles.toLocaleString()} files have content that cannot be compared reliably. Unknown does not mean unchanged. License labels are metadata, not a legal-text review. Architecture changes do not prove quality, speed or runtime compatibility.</p>

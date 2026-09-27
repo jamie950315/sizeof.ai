@@ -26,7 +26,7 @@ text{font-family:'Schibsted Grotesk Variable','Schibsted Grotesk',system-ui,-app
 <text x="795" y="198" font-size="14" text-anchor="middle" class="t3" data-fit="190">Запас</text>
 
 <text x="60" y="292" font-size="17" font-weight="650" class="t1" data-fit="360" data-rtl-x="420">Длинный контекст</text>
-<text x="1040" y="292" font-size="15" font-weight="650" text-anchor="end" class="over" data-fit="300">Превышает ёмкость</text>
+<text x="1040" y="292" font-size="15" font-weight="650" text-anchor="end" class="over" data-fit="300">Превышает объём</text>
 <rect x="60" y="306" width="462" height="54" class="ink"/>
 <rect x="522" y="306" width="358" height="54" fill="url(#hatch)"/>
 <rect x="880" y="306" width="84" height="54" fill="url(#dots)"/>
