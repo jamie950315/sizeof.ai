@@ -41,14 +41,6 @@
             "src/App.tsx"
           ]
         },
-        "{0} {1} {2} GiB": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/App.tsx",
-            "src/ModelDetailPage.tsx"
-          ]
-        },
         "{0} GiB": {
           "kind": "button",
           "maxWidth": 14,
@@ -308,6 +300,13 @@
           "kind": "body",
           "maxWidth": null,
           "where": [
+            "src/App.tsx"
+          ]
+        },
+        "COMFORTABLE ON {0} GiB": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
             "src/App.tsx",
             "src/ModelDetailPage.tsx"
           ]
@@ -547,6 +546,13 @@
           ]
         },
         "FIT NOT VERIFIED": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/App.tsx"
+          ]
+        },
+        "FIT NOT VERIFIED ON {0} GiB": {
           "kind": "body",
           "maxWidth": null,
           "where": [
@@ -958,14 +964,6 @@
             "api"
           ]
         },
-        "ON": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/App.tsx",
-            "src/ModelDetailPage.tsx"
-          ]
-        },
         "Open {0}": {
           "kind": "accessibility",
           "maxWidth": null,
@@ -1309,6 +1307,13 @@
           "kind": "body",
           "maxWidth": null,
           "where": [
+            "src/App.tsx"
+          ]
+        },
+        "TIGHT FIT ON {0} GiB": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
             "src/App.tsx",
             "src/ModelDetailPage.tsx"
           ]
@@ -1323,6 +1328,13 @@
           ]
         },
         "TOO LARGE": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/App.tsx"
+          ]
+        },
+        "TOO LARGE ON {0} GiB": {
           "kind": "body",
           "maxWidth": null,
           "where": [
@@ -1506,28 +1518,6 @@
     "model-detail": {
       "title": "Model detail (/{owner}/{repo})",
       "messages": {
-        "{0} · {1} GiB {2}": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx"
-          ]
-        },
-        "{0} {1} — sizeof.ai": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx"
-          ]
-        },
-        "{0} {1} {2} GiB": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/App.tsx",
-            "src/ModelDetailPage.tsx"
-          ]
-        },
         "{0} / {1} STATE LAYERS": {
           "kind": "body",
           "maxWidth": null,
@@ -1571,6 +1561,20 @@
             "src/ModelDetailPage.tsx"
           ]
         },
+        "{0} layers / {1}": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/ModelDetailPage.tsx"
+          ]
+        },
+        "{0} layers / runtime window": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/ModelDetailPage.tsx"
+          ]
+        },
         "{0} MiB": {
           "kind": "body",
           "maxWidth": null,
@@ -1600,6 +1604,13 @@
           ]
         },
         "{0} TOTAL / {1} ACTIVE": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/ModelDetailPage.tsx"
+          ]
+        },
+        "{0} VRAM & specs — sizeof.ai": {
           "kind": "body",
           "maxWidth": null,
           "where": [
@@ -1802,20 +1813,6 @@
             "src/ModelDetailPage.tsx"
           ]
         },
-        "capacity": {
-          "kind": "error",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx",
-            "src/platform/ContextBudgetPage.tsx",
-            "src/platform/HardwarePage.tsx"
-          ],
-          "alsoUsedAs": [
-            "body",
-            "export",
-            "api"
-          ]
-        },
         "Category": {
           "kind": "label",
           "maxWidth": 20,
@@ -1823,7 +1820,14 @@
             "src/ModelDetailPage.tsx"
           ]
         },
-        "COMFORTABLE": {
+        "COMFORTABLE · {0} GiB capacity": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/ModelDetailPage.tsx"
+          ]
+        },
+        "COMFORTABLE ON {0} GiB": {
           "kind": "body",
           "maxWidth": null,
           "where": [
@@ -2131,16 +2135,14 @@
             "src/ModelDetailPage.tsx"
           ]
         },
-        "field": {
+        "FIT NOT VERIFIED · {0} GiB capacity": {
           "kind": "body",
           "maxWidth": null,
           "where": [
-            "src/ModelDetailPage.tsx",
-            "src/platform/ArtifactPicker.tsx",
-            "src/platform/BenchmarkImportPanel.tsx"
+            "src/ModelDetailPage.tsx"
           ]
         },
-        "FIT NOT VERIFIED": {
+        "FIT NOT VERIFIED ON {0} GiB": {
           "kind": "body",
           "maxWidth": null,
           "where": [
@@ -2158,13 +2160,6 @@
           ]
         },
         "Format": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx"
-          ]
-        },
-        "from {0}": {
           "kind": "body",
           "maxWidth": null,
           "where": [
@@ -2368,13 +2363,6 @@
             "src/ComparePage.tsx",
             "src/ModelDetailPage.tsx",
             "src/components/FitPlanner.tsx"
-          ]
-        },
-        "layers /": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx"
           ]
         },
         "License / {0}": {
@@ -2743,14 +2731,6 @@
             "api"
           ]
         },
-        "ON": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/App.tsx",
-            "src/ModelDetailPage.tsx"
-          ]
-        },
         "Optimized / compressed latent": {
           "kind": "option",
           "maxWidth": 58,
@@ -2957,13 +2937,6 @@
             "src/ModelDetailPage.tsx"
           ]
         },
-        "runtime window": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx"
-          ]
-        },
         "Select one": {
           "kind": "body",
           "maxWidth": null,
@@ -2992,6 +2965,18 @@
           "maxWidth": 34,
           "where": [
             "src/ModelDetailPage.tsx"
+          ]
+        },
+        "source": {
+          "kind": "link",
+          "maxWidth": null,
+          "where": [
+            "src/ModelDetailPage.tsx",
+            "src/components/ServingScenario.tsx",
+            "src/lib/detail-state.ts"
+          ],
+          "alsoUsedAs": [
+            "body"
           ]
         },
         "Source": {
@@ -3201,7 +3186,14 @@
             "src/ModelDetailPage.tsx"
           ]
         },
-        "TIGHT FIT": {
+        "TIGHT FIT · {0} GiB capacity": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/ModelDetailPage.tsx"
+          ]
+        },
+        "TIGHT FIT ON {0} GiB": {
           "kind": "body",
           "maxWidth": null,
           "where": [
@@ -3218,7 +3210,14 @@
             "src/components/FitPlanner.tsx"
           ]
         },
-        "TOO LARGE": {
+        "TOO LARGE · {0} GiB capacity": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/ModelDetailPage.tsx"
+          ]
+        },
+        "TOO LARGE ON {0} GiB": {
           "kind": "body",
           "maxWidth": null,
           "where": [
@@ -3279,12 +3278,11 @@
           "maxWidth": 19,
           "where": [
             "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx",
-            "src/data/engine-profiles.ts"
+            "src/data/engine-profiles.ts",
+            "src/lib/evidence.ts"
           ],
           "alsoUsedAs": [
             "label",
-            "heading",
             "body",
             "api"
           ]
@@ -3337,7 +3335,14 @@
             "src/ModelDetailPage.tsx"
           ]
         },
-        "Uses the published": {
+        "Uses the published {0} weight artifact from {1}.": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/ModelDetailPage.tsx"
+          ]
+        },
+        "Uses the published {0} weight artifact.": {
           "kind": "body",
           "maxWidth": null,
           "where": [
@@ -3345,15 +3350,12 @@
           ]
         },
         "verified": {
-          "kind": "heading",
-          "maxWidth": 22,
+          "kind": "body",
+          "maxWidth": null,
           "where": [
             "src/ComparePage.tsx",
             "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx"
-          ],
-          "alsoUsedAs": [
-            "body"
+            "src/lib/evidence.ts"
           ]
         },
         "Video": {
@@ -3397,23 +3399,9 @@
             "src/lib/model-task.ts"
           ]
         },
-        "VRAM & specs": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx"
-          ]
-        },
         "VRAM estimate unavailable.": {
           "kind": "heading",
           "maxWidth": 58,
-          "where": [
-            "src/ModelDetailPage.tsx"
-          ]
-        },
-        "weight artifact": {
-          "kind": "body",
-          "maxWidth": null,
           "where": [
             "src/ModelDetailPage.tsx"
           ]
@@ -4461,15 +4449,12 @@
           ]
         },
         "verified": {
-          "kind": "heading",
-          "maxWidth": 22,
+          "kind": "body",
+          "maxWidth": null,
           "where": [
             "src/ComparePage.tsx",
             "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx"
-          ],
-          "alsoUsedAs": [
-            "body"
+            "src/lib/evidence.ts"
           ]
         },
         "VRAM": {
@@ -5642,8 +5627,29 @@
             "src/platform/DeployPage.tsx"
           ]
         },
-        "Copy {0}": {
-          "kind": "accessibility",
+        "Copy check the API · second terminal": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/platform/DeployPage.tsx"
+          ]
+        },
+        "Copy download fixed model revision": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/platform/DeployPage.tsx"
+          ]
+        },
+        "Copy request a first reply · second terminal": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/platform/DeployPage.tsx"
+          ]
+        },
+        "Copy start the server": {
+          "kind": "body",
           "maxWidth": null,
           "where": [
             "src/platform/DeployPage.tsx"
@@ -5784,15 +5790,6 @@
           "maxWidth": 38,
           "where": [
             "src/platform/DeployPage.tsx"
-          ]
-        },
-        "field": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx",
-            "src/platform/ArtifactPicker.tsx",
-            "src/platform/BenchmarkImportPanel.tsx"
           ]
         },
         "file": {
@@ -7362,9 +7359,9 @@
           "kind": "error",
           "maxWidth": null,
           "where": [
-            "src/ModelDetailPage.tsx",
             "src/platform/ContextBudgetPage.tsx",
-            "src/platform/HardwarePage.tsx"
+            "src/platform/HardwarePage.tsx",
+            "src/platform/context-budget.ts"
           ],
           "alsoUsedAs": [
             "body",
@@ -7617,13 +7614,6 @@
             "src/platform/HardwarePage.tsx"
           ]
         },
-        "entered size": {
-          "kind": "label",
-          "maxWidth": 24,
-          "where": [
-            "src/platform/HardwarePage.tsx"
-          ]
-        },
         "estimate": {
           "kind": "body",
           "maxWidth": null,
@@ -7647,13 +7637,6 @@
         "Estimated transfer time": {
           "kind": "label",
           "maxWidth": 46,
-          "where": [
-            "src/platform/HardwarePage.tsx"
-          ]
-        },
-        "estimated weights": {
-          "kind": "label",
-          "maxWidth": 34,
           "where": [
             "src/platform/HardwarePage.tsx"
           ]
@@ -7938,9 +7921,16 @@
             "src/platform/HardwarePage.tsx"
           ]
         },
-        "One variant ·": {
+        "One variant · entered size": {
           "kind": "label",
-          "maxWidth": 26,
+          "maxWidth": 52,
+          "where": [
+            "src/platform/HardwarePage.tsx"
+          ]
+        },
+        "One variant · estimated weights": {
+          "kind": "label",
+          "maxWidth": 62,
           "where": [
             "src/platform/HardwarePage.tsx"
           ]
@@ -8151,9 +8141,9 @@
           "kind": "link",
           "maxWidth": null,
           "where": [
+            "src/ModelDetailPage.tsx",
             "src/components/ServingScenario.tsx",
-            "src/lib/detail-state.ts",
-            "src/lib/public-estimate.ts"
+            "src/lib/detail-state.ts"
           ],
           "alsoUsedAs": [
             "body"
@@ -8610,15 +8600,6 @@
             "src/platform/LibraryPage.tsx"
           ]
         },
-        "field": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx",
-            "src/platform/ArtifactPicker.tsx",
-            "src/platform/BenchmarkImportPanel.tsx"
-          ]
-        },
         "file": {
           "kind": "body",
           "maxWidth": null,
@@ -9025,6 +9006,20 @@
             "src/platform/RunHistoryPage.tsx"
           ]
         },
+        "{0} changed field": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/platform/RunComparison.tsx"
+          ]
+        },
+        "{0} changed fields": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/platform/RunComparison.tsx"
+          ]
+        },
         "{0} Existing records were not replaced. {1}": {
           "kind": "body",
           "maxWidth": null,
@@ -9174,13 +9169,6 @@
           "maxWidth": null,
           "where": [
             "src/platform/RunHistoryPage.tsx"
-          ]
-        },
-        "changed": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/platform/RunComparison.tsx"
           ]
         },
         "Changed": {
@@ -9479,27 +9467,11 @@
             "src/platform/SaveRunForm.tsx"
           ]
         },
-        "field": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx",
-            "src/platform/ArtifactPicker.tsx",
-            "src/platform/BenchmarkImportPanel.tsx"
-          ]
-        },
         "Field": {
           "kind": "table-header",
           "maxWidth": 15,
           "where": [
             "src/platform/ModelChangesPage.tsx",
-            "src/platform/RunComparison.tsx"
-          ]
-        },
-        "fields": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
             "src/platform/RunComparison.tsx"
           ]
         },
@@ -10134,14 +10106,6 @@
             "api"
           ]
         },
-        "Revision:": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/platform/BenchmarkPage.tsx",
-            "src/platform/RunHistoryPage.tsx"
-          ]
-        },
         "Revision: {0}": {
           "kind": "body",
           "maxWidth": null,
@@ -10400,14 +10364,6 @@
           "maxWidth": null,
           "where": [
             "src/platform/RunComparison.tsx"
-          ]
-        },
-        "tokens /": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/platform/BenchmarkImportPanel.tsx",
-            "src/platform/RunHistoryPage.tsx"
           ]
         },
         "Troubleshoot a failure": {
@@ -10963,15 +10919,6 @@
           "maxWidth": null,
           "where": [
             "src/platform/TroubleshootPage.tsx"
-          ]
-        },
-        "field": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx",
-            "src/platform/ArtifactPicker.tsx",
-            "src/platform/BenchmarkImportPanel.tsx"
           ]
         },
         "Find the first failure.": {
@@ -11722,12 +11669,11 @@
           "maxWidth": 19,
           "where": [
             "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx",
-            "src/data/engine-profiles.ts"
+            "src/data/engine-profiles.ts",
+            "src/lib/evidence.ts"
           ],
           "alsoUsedAs": [
             "label",
-            "heading",
             "body",
             "api"
           ]
@@ -11861,20 +11807,6 @@
             "src/platform/BenchmarkImportPanel.tsx"
           ]
         },
-        "· first token": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/platform/BenchmarkImportPanel.tsx"
-          ]
-        },
-        "· prompt": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/platform/BenchmarkImportPanel.tsx"
-          ]
-        },
         "(version unknown)": {
           "kind": "body",
           "maxWidth": null,
@@ -11894,6 +11826,13 @@
           "maxWidth": null,
           "where": [
             "src/platform/BenchmarkPage.tsx"
+          ]
+        },
+        "{0} · prompt {1} · first token {2} ms · decode {3} tokens / {4} s · total {5} s": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/platform/BenchmarkImportPanel.tsx"
           ]
         },
         "{0} / {1} attempts": {
@@ -12356,15 +12295,6 @@
             "src/platform/benchmark-import.ts"
           ]
         },
-        "field": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx",
-            "src/platform/ArtifactPicker.tsx",
-            "src/platform/BenchmarkImportPanel.tsx"
-          ]
-        },
         "file": {
           "kind": "body",
           "maxWidth": null,
@@ -12763,13 +12693,6 @@
             "src/platform/BenchmarkPage.tsx"
           ]
         },
-        "ms · decode": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/platform/BenchmarkImportPanel.tsx"
-          ]
-        },
         "No measurements yet for this view. Record an attempt to start collecting evidence.": {
           "kind": "body",
           "maxWidth": null,
@@ -12778,13 +12701,6 @@
           ]
         },
         "Not measured": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/platform/BenchmarkPage.tsx"
-          ]
-        },
-        "not recorded; isolated sample": {
           "kind": "body",
           "maxWidth": null,
           "where": [
@@ -13000,7 +12916,7 @@
             "src/platform/benchmark-import.ts"
           ]
         },
-        "Revision:": {
+        "Revision: {0}": {
           "kind": "body",
           "maxWidth": null,
           "where": [
@@ -13008,12 +12924,11 @@
             "src/platform/RunHistoryPage.tsx"
           ]
         },
-        "Revision: {0}": {
+        "Revision: not recorded; isolated sample": {
           "kind": "body",
           "maxWidth": null,
           "where": [
-            "src/platform/BenchmarkPage.tsx",
-            "src/platform/RunHistoryPage.tsx"
+            "src/platform/BenchmarkPage.tsx"
           ]
         },
         "run": {
@@ -13064,20 +12979,6 @@
             "src/platform/BenchmarkImportPanel.tsx",
             "src/platform/BenchmarkPage.tsx",
             "src/platform/benchmark-import.ts"
-          ]
-        },
-        "s": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/platform/BenchmarkImportPanel.tsx"
-          ]
-        },
-        "s · total": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/platform/BenchmarkImportPanel.tsx"
           ]
         },
         "Save measurement": {
@@ -13234,14 +13135,6 @@
             "src/platform/benchmark-import.ts"
           ]
         },
-        "tokens /": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/platform/BenchmarkImportPanel.tsx",
-            "src/platform/RunHistoryPage.tsx"
-          ]
-        },
         "Tokens in decode interval": {
           "kind": "body",
           "maxWidth": null,
@@ -13314,12 +13207,11 @@
           "maxWidth": 19,
           "where": [
             "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx",
-            "src/data/engine-profiles.ts"
+            "src/data/engine-profiles.ts",
+            "src/lib/evidence.ts"
           ],
           "alsoUsedAs": [
             "label",
-            "heading",
             "body",
             "api"
           ]
@@ -13910,12 +13802,11 @@
           "maxWidth": 19,
           "where": [
             "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx",
-            "src/data/engine-profiles.ts"
+            "src/data/engine-profiles.ts",
+            "src/lib/evidence.ts"
           ],
           "alsoUsedAs": [
             "label",
-            "heading",
             "body",
             "api"
           ]
@@ -14170,15 +14061,6 @@
           "maxWidth": null,
           "where": [
             "src/platform/CompatibilityPage.tsx"
-          ]
-        },
-        "field": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx",
-            "src/platform/ArtifactPicker.tsx",
-            "src/platform/BenchmarkImportPanel.tsx"
           ]
         },
         "fit-pill {0}": {
@@ -14674,12 +14556,11 @@
           "maxWidth": 19,
           "where": [
             "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx",
-            "src/data/engine-profiles.ts"
+            "src/data/engine-profiles.ts",
+            "src/lib/evidence.ts"
           ],
           "alsoUsedAs": [
             "label",
-            "heading",
             "body",
             "api"
           ]
@@ -14896,9 +14777,9 @@
           "kind": "error",
           "maxWidth": null,
           "where": [
-            "src/ModelDetailPage.tsx",
             "src/platform/ContextBudgetPage.tsx",
-            "src/platform/HardwarePage.tsx"
+            "src/platform/HardwarePage.tsx",
+            "src/platform/context-budget.ts"
           ],
           "alsoUsedAs": [
             "body",
@@ -15410,6 +15291,20 @@
             "src/platform/ModelChangesPage.tsx"
           ]
         },
+        "{0} files · configuration available": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/platform/ModelChangesPage.tsx"
+          ]
+        },
+        "{0} files · configuration unavailable": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/platform/ModelChangesPage.tsx"
+          ]
+        },
         "{0} files have content that cannot be compared reliably. Unknown does not mean unchanged. License labels are metadata, not a legal-text review. Architecture changes do not prove quality, speed or runtime compatibility.": {
           "kind": "body",
           "maxWidth": null,
@@ -15480,15 +15375,6 @@
           "kind": "option",
           "maxWidth": 30,
           "where": [
-            "src/platform/ModelChangesPage.tsx"
-          ]
-        },
-        "available": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/components/FitPlanner.tsx",
-            "src/lib/planner.ts",
             "src/platform/ModelChangesPage.tsx"
           ]
         },
@@ -15697,15 +15583,6 @@
             "src/platform/ModelChangesPage.tsx"
           ]
         },
-        "field": {
-          "kind": "body",
-          "maxWidth": null,
-          "where": [
-            "src/ModelDetailPage.tsx",
-            "src/platform/ArtifactPicker.tsx",
-            "src/platform/BenchmarkImportPanel.tsx"
-          ]
-        },
         "Field": {
           "kind": "table-header",
           "maxWidth": 15,
@@ -15724,13 +15601,6 @@
         "File differences and unresolved content": {
           "kind": "heading",
           "maxWidth": 86,
-          "where": [
-            "src/platform/ModelChangesPage.tsx"
-          ]
-        },
-        "files · configuration": {
-          "kind": "body",
-          "maxWidth": null,
           "where": [
             "src/platform/ModelChangesPage.tsx"
           ]
@@ -15801,7 +15671,14 @@
             "src/platform/ModelChangesPage.tsx"
           ]
         },
-        "License metadata:": {
+        "License metadata: {0}": {
+          "kind": "body",
+          "maxWidth": null,
+          "where": [
+            "src/platform/ModelChangesPage.tsx"
+          ]
+        },
+        "License metadata: Unknown / not published": {
           "kind": "body",
           "maxWidth": null,
           "where": [
@@ -16094,30 +15971,16 @@
             "api"
           ]
         },
-        "unavailable": {
-          "kind": "error",
-          "maxWidth": null,
-          "where": [
-            "src/ComparePage.tsx",
-            "src/components/FitPlanner.tsx",
-            "src/components/ServingScenario.tsx"
-          ],
-          "alsoUsedAs": [
-            "body",
-            "api"
-          ]
-        },
         "unknown": {
           "kind": "option",
           "maxWidth": 19,
           "where": [
             "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx",
-            "src/data/engine-profiles.ts"
+            "src/data/engine-profiles.ts",
+            "src/lib/evidence.ts"
           ],
           "alsoUsedAs": [
             "label",
-            "heading",
             "body",
             "api"
           ]
@@ -16134,9 +15997,6 @@
           "maxWidth": null,
           "where": [
             "src/platform/ModelChangesPage.tsx"
-          ],
-          "alsoUsedAs": [
-            "body"
           ]
         },
         "Unknown content": {
@@ -19593,8 +19453,7 @@
           "maxWidth": null,
           "where": [
             "src/components/FitPlanner.tsx",
-            "src/lib/planner.ts",
-            "src/platform/ModelChangesPage.tsx"
+            "src/lib/planner.ts"
           ]
         },
         "Batch or micro-batch label (optional)": {
@@ -19739,17 +19598,6 @@
             "src/components/ServingScenario.tsx"
           ]
         },
-        "derived": {
-          "kind": "heading",
-          "maxWidth": 21,
-          "where": [
-            "src/components/EvidenceDrawer.tsx",
-            "src/lib/evidence.ts"
-          ],
-          "alsoUsedAs": [
-            "body"
-          ]
-        },
         "Discrete GPU": {
           "kind": "option",
           "maxWidth": 24,
@@ -19806,13 +19654,17 @@
           ]
         },
         "Estimate evidence": {
-          "kind": "heading",
-          "maxWidth": 38,
+          "kind": "accessibility",
+          "maxWidth": null,
           "where": [
             "src/components/EvidenceDrawer.tsx"
-          ],
-          "alsoUsedAs": [
-            "accessibility"
+          ]
+        },
+        "Estimate evidence: {0} verified, {1} derived, {2} unknown": {
+          "kind": "heading",
+          "maxWidth": 106,
+          "where": [
+            "src/components/EvidenceDrawer.tsx"
           ]
         },
         "Example: workstation GPU": {
@@ -20178,9 +20030,9 @@
           "kind": "link",
           "maxWidth": null,
           "where": [
+            "src/ModelDetailPage.tsx",
             "src/components/ServingScenario.tsx",
-            "src/lib/detail-state.ts",
-            "src/lib/public-estimate.ts"
+            "src/lib/detail-state.ts"
           ],
           "alsoUsedAs": [
             "body"
@@ -20325,21 +20177,6 @@
             "src/lib/hardware-profile.ts"
           ]
         },
-        "unknown": {
-          "kind": "option",
-          "maxWidth": 19,
-          "where": [
-            "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx",
-            "src/data/engine-profiles.ts"
-          ],
-          "alsoUsedAs": [
-            "label",
-            "heading",
-            "body",
-            "api"
-          ]
-        },
         "Unknown factors": {
           "kind": "body",
           "maxWidth": null,
@@ -20366,18 +20203,6 @@
           "maxWidth": null,
           "where": [
             "src/components/FitPlanner.tsx"
-          ]
-        },
-        "verified": {
-          "kind": "heading",
-          "maxWidth": 22,
-          "where": [
-            "src/ComparePage.tsx",
-            "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx"
-          ],
-          "alsoUsedAs": [
-            "body"
           ]
         },
         "View source": {
@@ -20842,8 +20667,7 @@
           "maxWidth": null,
           "where": [
             "src/components/FitPlanner.tsx",
-            "src/lib/planner.ts",
-            "src/platform/ModelChangesPage.tsx"
+            "src/lib/planner.ts"
           ]
         },
         "B": {
@@ -21096,14 +20920,10 @@
           ]
         },
         "derived": {
-          "kind": "heading",
-          "maxWidth": 21,
+          "kind": "body",
+          "maxWidth": null,
           "where": [
-            "src/components/EvidenceDrawer.tsx",
             "src/lib/evidence.ts"
-          ],
-          "alsoUsedAs": [
-            "body"
           ]
         },
         "Derived memory estimate": {
@@ -22997,9 +22817,9 @@
           "kind": "link",
           "maxWidth": null,
           "where": [
+            "src/ModelDetailPage.tsx",
             "src/components/ServingScenario.tsx",
-            "src/lib/detail-state.ts",
-            "src/lib/public-estimate.ts"
+            "src/lib/detail-state.ts"
           ],
           "alsoUsedAs": [
             "body"
@@ -23401,12 +23221,11 @@
           "maxWidth": 19,
           "where": [
             "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx",
-            "src/data/engine-profiles.ts"
+            "src/data/engine-profiles.ts",
+            "src/lib/evidence.ts"
           ],
           "alsoUsedAs": [
             "label",
-            "heading",
             "body",
             "api"
           ]
@@ -23562,15 +23381,12 @@
           ]
         },
         "verified": {
-          "kind": "heading",
-          "maxWidth": 22,
+          "kind": "body",
+          "maxWidth": null,
           "where": [
             "src/ComparePage.tsx",
             "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx"
-          ],
-          "alsoUsedAs": [
-            "body"
+            "src/lib/evidence.ts"
           ]
         },
         "Verified safe attention architecture facts are available.": {
@@ -24260,9 +24076,9 @@
           "kind": "error",
           "maxWidth": null,
           "where": [
-            "src/ModelDetailPage.tsx",
             "src/platform/ContextBudgetPage.tsx",
-            "src/platform/HardwarePage.tsx"
+            "src/platform/HardwarePage.tsx",
+            "src/platform/context-budget.ts"
           ],
           "alsoUsedAs": [
             "body",
@@ -26585,12 +26401,11 @@
           "maxWidth": 19,
           "where": [
             "src/ModelDetailPage.tsx",
-            "src/components/EvidenceDrawer.tsx",
-            "src/data/engine-profiles.ts"
+            "src/data/engine-profiles.ts",
+            "src/lib/evidence.ts"
           ],
           "alsoUsedAs": [
             "label",
-            "heading",
             "body",
             "api"
           ]
