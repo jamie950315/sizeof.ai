@@ -1659,7 +1659,7 @@
   "TIGHT FIT ON {0} GiB": "{0} GiB에서 빠듯함",
   "TIGHT FIT · {0} GiB capacity": "빠듯함 · {0} GiB 용량",
   "TOO LARGE": "너무 큼",
-  "TOO LARGE ON {0} GiB": "{0} GiB에 너무 큼",
+  "TOO LARGE ON {0} GiB": "{0} GiB에는 너무 큼",
   "TOO LARGE · {0} GiB capacity": "너무 큼 · {0} GiB 용량",
   "Tags": "태그",
   "Tags for {0}": "{0}에 대한 태그",

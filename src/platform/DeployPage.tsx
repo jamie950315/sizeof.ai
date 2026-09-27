@@ -132,7 +132,7 @@ export default function DeployPage() {
             {commands.map(([title, command]) => <li className="deploy-listing" key={title}>
               <div className="deploy-listing-head">
                 <h3>{translate(title)}</h3>
-                <button type="button" className="icon-btn" aria-label={copyLabels[title]} onClick={() => void copy(command, 'Command copied. Review it before running.')}><Copy size={15} aria-hidden="true" /> Copy</button>
+                <button type="button" className="icon-btn" aria-label={translate(copyLabels[title] ?? title)} onClick={() => void copy(command, 'Command copied. Review it before running.')}><Copy size={15} aria-hidden="true" /> Copy</button>
               </div>
               <pre><code>{command}</code></pre>
             </li>)}
