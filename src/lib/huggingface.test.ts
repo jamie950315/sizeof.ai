@@ -4,6 +4,7 @@ import {
   parseHuggingFaceModelPath,
 } from './huggingface'
 import type { HuggingFaceVariant } from './huggingface-variants'
+import { estimateVram } from './estimator'
 
 const metadata = {
   id: 'Qwen/Qwen3.8-27B',
@@ -227,6 +228,97 @@ describe('normalizeHuggingFaceModel', () => {
     })
     expect(model.spec?.attentionProfile).toMatchObject({ fullLayers: 12, slidingLayers: 12, slidingWindow: 128 })
     expect(model.moe?.activeParametersB).toBe(3.6)
+  })
+
+  it('ignores a declared sliding window when the config disables sliding attention', () => {
+    // Qwen2/Qwen2.5 configs ship sliding_window alongside use_sliding_window: false.
+    const model = normalizeHuggingFaceModel(
+      {
+        ...metadata,
+        id: 'Qwen/Qwen2.5-7B-Instruct',
+        pipeline_tag: 'text-generation',
+        safetensors: { total: 7_615_616_512 },
+      },
+      {
+        architectures: ['Qwen2ForCausalLM'],
+        model_type: 'qwen2',
+        hidden_size: 3584,
+        num_hidden_layers: 28,
+        num_attention_heads: 28,
+        num_key_value_heads: 4,
+        max_position_embeddings: 32768,
+        sliding_window: 131072,
+        use_sliding_window: false,
+        max_window_layers: 28,
+      },
+    )
+
+    expect(model.estimateConfidence).toBe('safe')
+    expect(model.attentionProfile).toMatchObject({ fullLayers: 28, slidingLayers: 0, slidingWindow: null })
+    // 28 layers * 4 KV heads * 128 dims * 2 (K+V) * 2 bytes * 262144 tokens = 14 GiB
+    const estimate = estimateVram(model.spec!, { quantization: 'fp16', context: 262144, kvPrecision: 'fp16' })
+    expect(estimate.kvCacheGiB).toBe(14)
+    expect(estimate.isLowerBound).toBe(false)
+  })
+
+  it('derives Gemma global layers from the sliding-window pattern when layer_types are absent', () => {
+    const gemma3 = normalizeHuggingFaceModel(
+      {
+        ...metadata,
+        id: 'google/gemma-3-27b-it',
+        safetensors: { total: 27_432_406_640 },
+      },
+      {
+        architectures: ['Gemma3ForConditionalGeneration'],
+        model_type: 'gemma3',
+        text_config: {
+          model_type: 'gemma3_text',
+          hidden_size: 5376,
+          num_hidden_layers: 62,
+          num_attention_heads: 32,
+          num_key_value_heads: 16,
+          head_dim: 128,
+          sliding_window: 1024,
+          max_position_embeddings: 131072,
+        },
+      },
+    )
+    // Gemma 3 defaults to sliding_window_pattern 6: every sixth layer is global.
+    expect(gemma3.attentionProfile).toMatchObject({ fullLayers: 10, slidingLayers: 52, slidingWindow: 1024 })
+    // (10 * 131072 + 52 * 1024) tokens * 16 * 128 * 2 * 2 bytes = 10.40625 GiB
+    const estimate = estimateVram(gemma3.spec!, { quantization: 'fp16', context: 131072, kvPrecision: 'fp16' })
+    expect(estimate.kvCacheGiB).toBeCloseTo(10.40625, 5)
+
+    const gemma2 = normalizeHuggingFaceModel(
+      { ...metadata, id: 'google/gemma-2-9b', pipeline_tag: 'text-generation', safetensors: { total: 9_241_705_984 } },
+      {
+        architectures: ['Gemma2ForCausalLM'],
+        model_type: 'gemma2',
+        num_hidden_layers: 42,
+        num_attention_heads: 16,
+        num_key_value_heads: 8,
+        head_dim: 256,
+        sliding_window: 4096,
+        max_position_embeddings: 8192,
+      },
+    )
+    expect(gemma2.attentionProfile).toMatchObject({ fullLayers: 21, slidingLayers: 21, slidingWindow: 4096 })
+
+    const explicitPattern = normalizeHuggingFaceModel(
+      { ...metadata, id: 'CohereLabs/example', pipeline_tag: 'text-generation' },
+      {
+        architectures: ['Cohere2ForCausalLM'],
+        model_type: 'cohere2',
+        num_hidden_layers: 40,
+        num_attention_heads: 64,
+        num_key_value_heads: 8,
+        head_dim: 128,
+        sliding_window: 4096,
+        sliding_window_pattern: 4,
+        max_position_embeddings: 131072,
+      },
+    )
+    expect(explicitPattern.attentionProfile).toMatchObject({ fullLayers: 10, slidingLayers: 30 })
   })
 
   it('detects config-declared integrated MTP even when the repository name omits MTP', () => {

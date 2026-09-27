@@ -452,7 +452,18 @@ function countPeriodicLayers(layers: number | null, period: number | null, offse
   return count
 }
 
+// Layers per sliding-window cycle (one global layer each) for configs that omit layer_types.
+function slidingWindowPattern(textConfig: UnknownRecord) {
+  const explicit = positiveNumber(textConfig.sliding_window_pattern)
+  if (explicit !== null && Number.isInteger(explicit)) return explicit
+  const modelType = asString(textConfig.model_type)?.toLowerCase() ?? ''
+  if (modelType === 'gemma2') return 2
+  if (modelType === 'gemma3' || modelType === 'gemma3_text') return 6
+  return null
+}
+
 function deriveAttentionProfile(textConfig: UnknownRecord, layers: number | null): AttentionProfile {
+  const slidingDisabled = textConfig.use_sliding_window === false
   const declaredLayerTypes = stringArray(textConfig.layer_types).map((item) => item.toLowerCase())
   const blockTypes = stringArray(textConfig.block_types).map((item) => item.toLowerCase())
   const layerTypes = layers !== null && declaredLayerTypes.length > 0
@@ -509,16 +520,20 @@ function deriveAttentionProfile(textConfig: UnknownRecord, layers: number | null
       ssmLayers = hasMambaState ? layers - periodicAttention : 0
     } else if (hasMambaState) {
       ssmLayers = layers
-    } else if (positiveNumber(textConfig.sliding_window) !== null
-      || positiveNumber(textConfig.attention_window_size) !== null) {
-      slidingLayers = layers
+    } else if (!slidingDisabled && (positiveNumber(textConfig.sliding_window) !== null
+      || positiveNumber(textConfig.attention_window_size) !== null)) {
+      const pattern = slidingWindowPattern(textConfig)
+      fullLayers = pattern !== null && pattern > 1 ? Math.floor(layers / pattern) : 0
+      slidingLayers = layers - fullLayers
     } else {
       fullLayers = layers
     }
   }
 
-  const slidingWindow = positiveNumber(textConfig.sliding_window)
-    ?? positiveNumber(textConfig.attention_window_size)
+  const slidingWindow = slidingDisabled && slidingLayers === 0
+    ? null
+    : positiveNumber(textConfig.sliding_window)
+      ?? positiveNumber(textConfig.attention_window_size)
   const stateKind = kdaLayers > 0
     ? 'kda' as const
     : ssmLayers > 0
