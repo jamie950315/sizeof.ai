@@ -439,7 +439,8 @@
       "match": "\\bcapacity\\b",
       "sense": "Total memory available on a device (VRAM capacity, usable capacity).",
       "except": [
-        "^capacity$"
+        "^capacity$",
+        "notebook capacity"
       ],
       "translations": {
         "zh-TW": {
@@ -481,7 +482,7 @@
         },
         "ar": {
           "use": "السعة",
-          "accept": "سعة|السعة"
+          "accept": "سعة|سعت|سعات"
         },
         "hi": {
           "use": "क्षमता",
@@ -507,7 +508,8 @@
         "Unknown does not",
         "verified, but",
         "relationship cannot be verified",
-        "owner/repository"
+        "owner/repository",
+        "files are not verified"
       ],
       "translations": {
         "zh-TW": {
@@ -621,7 +623,7 @@
         },
         "hi": {
           "use": "गणना से निकाला गया",
-          "accept": "निकाला"
+          "accept": "निकाल"
         },
         "id": {
           "use": "turunan",
@@ -698,7 +700,8 @@
       "sense": "Three senses share one word family: the inference software (llama.cpp, vLLM), the Runtime buffer row in the memory breakdown, and the adjective 'at run time' (runtime memory). Use the approved noun for the first two; the adjective may use the locale's natural 'at execution time' form.",
       "except": [
         "^runtime$",
-        "^No runtime inference"
+        "^No runtime inference",
+        "runtime speed"
       ],
       "translations": {
         "zh-TW": {
@@ -756,10 +759,11 @@
       "id": "offload",
       "en": "offload",
       "match": "\\boffload(?:s|ed|ing)?\\b",
-      "sense": "Moving layers or cache out of VRAM into system RAM when the model does not fit.",
+      "sense": "Moving layers or cache out of VRAM into system RAM when the model does not fit. llama.cpp's \"GPU offload\" (moving layers onto the GPU) is the opposite direction and is an exception.",
       "except": [
         "^has-offload$",
-        "\\boffload(?:=|-)"
+        "\\boffload(?:=|-)",
+        "GPU offload"
       ],
       "translations": {
         "zh-TW": {
@@ -1039,8 +1043,7 @@
         },
         "de": {
           "use": "Präzision",
-          "accept": "präzision",
-          "avoid": "genauigkeit"
+          "accept": "präzis"
         },
         "ru": {
           "use": "точность",
@@ -1234,7 +1237,7 @@
         },
         "ar": {
           "use": "الحد الأدنى",
-          "accept": "الحد الأدنى|حد أدنى"
+          "accept": "الحد الأدنى|حدا? أدنى"
         },
         "hi": {
           "use": "निचली सीमा",
@@ -1418,7 +1421,7 @@
         },
         "ar": {
           "use": "الذاكرة",
-          "accept": "ذاكرة|الذاكرة"
+          "accept": "ذاكر"
         },
         "hi": {
           "use": "मेमोरी",
@@ -1443,7 +1446,8 @@
         "is not evidence",
         "no safe autoregressive",
         "is evidence about",
-        "Evidence over promises"
+        "Evidence over promises",
+        "includes missing evidence"
       ],
       "translations": {
         "zh-TW": {
@@ -1490,7 +1494,7 @@
         },
         "ar": {
           "use": "الأدلة",
-          "accept": "أدلة|الأدلة|دليل"
+          "accept": "أدل|دليل"
         },
         "hi": {
           "use": "साक्ष्य",

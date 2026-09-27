@@ -121,7 +121,7 @@ Avoid: zh-TW `運行時|运行时`.
 
 ### offload
 
-Moving layers or cache out of VRAM into system RAM when the model does not fit.
+Moving layers or cache out of VRAM into system RAM when the model does not fit. llama.cpp's "GPU offload" (moving layers onto the GPU) is the opposite direction and is an exception.
 
 ### estimate
 
@@ -145,7 +145,7 @@ Avoid: zh-TW `倉庫|存放庫|仓库`; zh-CN `存储库|儲存庫`; ko `리포�
 
 Numeric format of weights or KV cache (FP16, Q8_0, 4-bit).
 
-Avoid: de `genauigkeit`; hi `परिशुद्धता`.
+Avoid: hi `परिशुद्धता`.
 
 ### parameters
 
