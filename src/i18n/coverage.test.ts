@@ -56,6 +56,10 @@ describe('complete checked-in localization coverage', () => {
       for (const key of ['Language', 'Choose language', 'Private notes', 'LOWER BOUND', 'Where does model memory live?', 'Choose your language. Your choice stays with you across the site.']) {
         expect(catalog[key], `${locale}: ${key}`).toBeTruthy()
       }
+      // Single-word fragments rendered through translate() escape the multi-word prose check above.
+      for (const key of ['capacity', 'verified', 'derived', 'unknown']) {
+        expect(catalog[key], `${locale}: rendered fragment ${key}`).not.toBe(key)
+      }
     })
 
     const diagramDirectory = resolve(import.meta.dirname, '../../public/assets/docs')
