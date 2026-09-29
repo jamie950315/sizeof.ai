@@ -23,6 +23,7 @@
   },
   "vars": {
     "PUBLIC_ORIGIN": "https://sizeof.ai",
+    "HF_ENTERPRISE_KEYS_ENABLED": "true",
     "SIZEOF_SEARCH_JP_URL": "https://ccsearch.0ruka.dev/__sizeof_index",
     "SIZEOF_SEARCH_US_URL": "https://sizeof-search-us.0ruka.dev"
   },

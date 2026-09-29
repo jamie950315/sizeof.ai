@@ -87,6 +87,7 @@ describe('site-wide persistent language routing', () => {
   })
   it('rewrites testnet documentation links without touching upstream sources or APIs', () => {
     expect(localizeHref('https://docs.sizeof.ai/kv-cache.md', 'fr', 'https://testnet.sizeof.ai')).toBe('https://testnet.sizeof.ai/docs/kv-cache.md?lang=fr')
+    expect(localizeHref('https://docs.sizeof.ai/kv-cache', 'zh-TW', 'https://sizeof.ai')).toBe('https://sizeof.ai/docs/kv-cache?lang=zh-TW')
     expect(localizeHref('/deploy?model=Qwen%2FQwen3#result', 'es')).toContain('lang=es#result')
     expect(localizeHref('https://huggingface.co/Qwen/Qwen3', 'ja')).toBe('https://huggingface.co/Qwen/Qwen3')
     expect(localizeHref('/api/v1/estimate?model=Qwen%2FQwen3', 'ja')).toBe('/api/v1/estimate?model=Qwen%2FQwen3')

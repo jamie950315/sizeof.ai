@@ -69,7 +69,7 @@ export default function DocsPage({ basePath, pathname }: { basePath?: string; pa
   const [navOpen, setNavOpen] = useState(false)
   const results = searchDocs(query, level)
   const filtered = Boolean(query) || level !== 'All'
-  const platformOrigin = window.location.hostname === 'docs.sizeof.ai' ? 'https://testnet.sizeof.ai' : ''
+  const platformOrigin = window.location.hostname === 'docs.sizeof.ai' ? 'https://sizeof.ai' : ''
   const categories = [...new Set(docsArticles.map((item) => item.category))]
   const home = base || '/'
   const isHome = !slug

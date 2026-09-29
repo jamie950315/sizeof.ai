@@ -2,15 +2,15 @@
 
 sizeof.ai is a fast reference tool for estimating the VRAM required to run large language models at different weight quantizations, context sizes, and KV-cache precisions. It also recommends the strongest catalog models that fit a selected VRAM budget.
 
-## Testnet review status
+## Review status
 
-The current roadmap and review fixes are deployed only to `testnet.sizeof.ai`; production is unchanged. Model cache namespace v5 requires current artifact manifests. Configured search indexes fail explicitly instead of silently switching to Hugging Face. Validated stale model metadata is labeled on interactive pages only after transient upstream failure; malformed data never uses stale fallback, and public estimates/badges/embeds reject stale metadata with 503.
+The roadmap and review fixes are live on `sizeof.ai`; `testnet.sizeof.ai` remains the staging deployment. Model cache namespace v5 requires current artifact manifests. Configured search indexes fail explicitly instead of silently switching to Hugging Face. Validated stale model metadata is labeled on interactive pages only after transient upstream failure; malformed data never uses stale fallback, and public estimates/badges/embeds reject stale metadata with 503.
 
 Model listing reads are bounded and reject incomplete pagination. Incomplete weight shards and importance-matrix calibration files are not offered as complete model weights. Runtime-specific lower bounds never claim a verified fit. Copy/export/storage failures are visible rather than reported as success. See [REVIEW.md](REVIEW.md) for review coverage and validation boundaries.
 
 ## Features
 
-### Local deployment platform (testnet)
+### Local deployment platform
 
 - `/start`: beginner and advanced entry paths with shared navigation across the platform.
 - `/deploy`: reviewed llama.cpp, MLX LM and vLLM command templates; OS/hardware compatibility checks, safe local-only endpoints, startup checklist, API smoke requests, share links and Markdown runbooks. These commands are not executed by the site and are not a promise that a given model/engine/device combination works.
@@ -18,7 +18,7 @@ Model listing reads are bounded and reject incomplete pagination. Incomplete wei
 - `/library`: up to 200 saved model names with tags/notes, selection for comparison, import/export, removal undo and corrupt-storage recovery. Browser-local only; never store API keys in notes. Backups are bounded to 4 MB.
 - `/docs`: searchable 17-guide knowledge base, experience filters, article navigation and original sources. Also independently hosted at `https://docs.sizeof.ai`, where articles render without JavaScript and provide `.md`, `/llms.txt`, and `/sitemap.xml` endpoints.
 
-Workspaces and docs are loaded on demand. Static assets bypass the application Worker on testnet and docs. The docs Worker has no Hugging Face secrets or model-cache binding. Model-detail pages link directly to deployment planning and saving a shortlist.
+Workspaces and docs are loaded on demand. Static assets bypass the application Worker on testnet and docs; production routes every request through the Worker. The docs Worker has no Hugging Face secrets or model-cache binding. Model-detail pages link directly to deployment planning and saving a shortlist.
 
 ### Deployment follow-through
 
@@ -79,23 +79,23 @@ For MLA models, cache memory depends on the inference engine. The model detail p
 
 The total adds 10% of weights plus KV cache as workspace and a fixed 0.5 GiB runtime allowance. Results are planning estimates, not guarantees: inference engine, GPU offload, batch size, flash attention, multimodal projectors, and driver allocations can change real usage.
 
-## Testnet preview
+## Public interfaces
 
-The public ecosystem interfaces below are a testnet preview at `https://testnet.sizeof.ai`. Their schemas and commands may change before a stable release. They require no account, credential, or telemetry setup, and every result retains its evidence and estimate disclaimer.
+The public ecosystem interfaces below are served from `https://sizeof.ai`. Their schemas and commands may still change. They require no account, credential, or telemetry setup, and every result retains its evidence and estimate disclaimer.
 
 ### Public API
 
 `GET /api/v1/estimate` returns the versioned `sizeof-estimate/v1` schema. The model is required; all other inputs are bounded and optional.
 
 ```bash
-curl 'https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FQwen3.8-27B&quant=q4_k_m&context=8192&kv=q8_0&vram=32'
+curl 'https://sizeof.ai/api/v1/estimate?model=Qwen%2FQwen3.8-27B&quant=q4_k_m&context=8192&kv=q8_0&vram=32'
 ```
 
 The response includes canonical model facts, the selected configuration and capacity, an estimate/lower-bound/unavailable state, fit and inverse-planner results when safe, provenance, evidence, a reproducible detail URL, and the disclaimer. Add `engine=vllm&prompt=2048&generated=256&concurrency=4` to request a conservative serving scenario. The API never treats a serving result as a benchmark.
 
 ### CLI
 
-The checked-in CLI uses only Node.js built-ins and defaults to the testnet API:
+The checked-in CLI uses only Node.js built-ins and defaults to the production API:
 
 ```bash
 node ./cli/sizeof.mjs Qwen/Qwen3.8-27B --quant q4_k_m --context 8192 --kv q8_0 --vram 32
@@ -125,13 +125,13 @@ Pin a reviewed commit while this interface remains a preview.
 The badge is a bounded, script-free SVG generated from the same estimate core:
 
 ```text
-https://testnet.sizeof.ai/badge/v1/estimate.svg?model=Qwen%2FQwen3.8-27B&vram=32
+https://sizeof.ai/badge/v1/estimate.svg?model=Qwen%2FQwen3.8-27B&vram=32
 ```
 
 The accessible static card has no script and links to the reproducible detail page:
 
 ```html
-<iframe title="Qwen memory estimate" src="https://testnet.sizeof.ai/embed/v1/estimate?model=Qwen%2FQwen3.8-27B&amp;vram=32"></iframe>
+<iframe title="Qwen memory estimate" src="https://sizeof.ai/embed/v1/estimate?model=Qwen%2FQwen3.8-27B&amp;vram=32"></iframe>
 ```
 
 ### MCP
@@ -141,10 +141,10 @@ The stdio MCP server exposes `estimate`, `compare` (two to four models), and `fi
 ```json
 {
   "mcpServers": {
-    "sizeof-testnet": {
+    "sizeof": {
       "command": "node",
       "args": ["/absolute/path/to/sizeof.ai/mcp/server.mjs"],
-      "env": { "SIZEOF_API_BASE": "https://testnet.sizeof.ai" }
+      "env": { "SIZEOF_API_BASE": "https://sizeof.ai" }
     }
   }
 }
@@ -181,9 +181,10 @@ GitHub Actions (`.github/workflows/ci.yml`) runs `npm ci`, typecheck, tests, bui
 
 ## Cloudflare deployment
 
-Current platform work stays on testnet. Deploy documentation independently; do not use the production command without explicit approval:
+Validate changes on testnet before promoting them to production. Deploy documentation independently:
 
 ```bash
+npm run deploy
 npm run deploy:testnet
 npm run deploy:testnet2
 npm run deploy:docs

@@ -3,7 +3,7 @@
 import { pathToFileURL } from 'node:url'
 import { validateResponse } from './action-result.mjs'
 
-const DEFAULT_BASE_URL = 'https://testnet.sizeof.ai'
+const DEFAULT_BASE_URL = 'https://sizeof.ai'
 const MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}\/[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/
 const QUANTIZATIONS = new Set(['fp16', 'q8_0', 'q6_k', 'q5_k_m', 'q4_k_m', 'q3_k_m', 'q2_k', 'q1'])
 const KV_PRECISIONS = new Set(['fp16', 'q8_0', 'q4_0'])
@@ -131,7 +131,7 @@ export async function runCli(argv, dependencies = {}) {
   const stdout = dependencies.stdout ?? ((value) => process.stdout.write(value))
   const stderr = dependencies.stderr ?? ((value) => process.stderr.write(value))
   if (argv.length === 1 && (argv[0] === '--help' || argv[0] === '-h')) {
-    stdout('Usage: sizeof owner/repository [options]\n\nOptions:\n  --quant PRECISION   Weight precision (default: q4_k_m)\n  --context TOKENS    Context in 1024-token steps\n  --kv PRECISION      KV precision: fp16, q8_0, q4_0\n  --vram GIB          Available memory\n  --engine ENGINE     llama.cpp, mlx, or vllm\n  --concurrency N     Concurrent sequences (1-256)\n  --base-url URL      API base (default: https://testnet.sizeof.ai)\n  --json              Print JSON\n  --help, -h          Show this help\n')
+    stdout('Usage: sizeof owner/repository [options]\n\nOptions:\n  --quant PRECISION   Weight precision (default: q4_k_m)\n  --context TOKENS    Context in 1024-token steps\n  --kv PRECISION      KV precision: fp16, q8_0, q4_0\n  --vram GIB          Available memory\n  --engine ENGINE     llama.cpp, mlx, or vllm\n  --concurrency N     Concurrent sequences (1-256)\n  --base-url URL      API base (default: https://sizeof.ai)\n  --json              Print JSON\n  --help, -h          Show this help\n')
     return 0
   }
   let options

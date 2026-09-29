@@ -35,10 +35,10 @@ describe('sizeof CLI', () => {
     })
     expect(stdout.mock.calls.flat().join('')).not.toContain('\u001b')
   })
-  it('parses bounded arguments and constructs the testnet API URL by default', () => {
+  it('parses bounded arguments and constructs the production API URL by default', () => {
     const parsed = parseArgs(['Qwen/Qwen3.8-27B', '--quant', 'q4_k_m', '--context', '8192', '--kv', 'q8_0', '--vram', '48', '--engine', 'vllm', '--concurrency', '4'])
-    expect(parsed.baseUrl).toBe('https://testnet.sizeof.ai')
-    expect(buildEstimateUrl(parsed).toString()).toBe('https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FQwen3.8-27B&quant=q4_k_m&context=8192&kv=q8_0&vram=48&engine=vllm&concurrency=4')
+    expect(parsed.baseUrl).toBe('https://sizeof.ai')
+    expect(buildEstimateUrl(parsed).toString()).toBe('https://sizeof.ai/api/v1/estimate?model=Qwen%2FQwen3.8-27B&quant=q4_k_m&context=8192&kv=q8_0&vram=48&engine=vllm&concurrency=4')
   })
 
   it('honors process configuration overrides but rejects credentials and invalid arguments', () => {
@@ -91,10 +91,10 @@ describe('sizeof CLI', () => {
     expect(output.length).toBeLessThanOrEqual(220)
   })
 
-  it('ships a composite Action with bounded inputs, testnet default, outputs, and no token surface', async () => {
+  it('ships a composite Action with bounded inputs, production default, outputs, and no token surface', async () => {
     const action = await readFile(`${process.cwd()}/action.yml`, 'utf8')
     expect(action).toContain('using: composite')
-    expect(action).toContain('default: https://testnet.sizeof.ai')
+    expect(action).toContain('default: https://sizeof.ai')
     expect(action).toContain('total:')
     expect(action).toContain('status:')
     expect(action).toContain('cli/sizeof.mjs')
@@ -103,15 +103,15 @@ describe('sizeof CLI', () => {
     expect(action).not.toMatch(/token|secret/i)
   })
 
-  it('registers local executables without making the private package publishable and documents every testnet surface', async () => {
+  it('registers local executables without making the private package publishable and documents every public surface', async () => {
     const packageJson = JSON.parse(await readFile(`${process.cwd()}/package.json`, 'utf8'))
     const readme = await readFile(`${process.cwd()}/README.md`, 'utf8')
     expect(packageJson.private).toBe(true)
     expect(packageJson.bin).toEqual({ sizeof: './cli/sizeof.mjs', 'sizeof-mcp': './mcp/server.mjs' })
-    for (const heading of ['Testnet preview', 'Public API', 'CLI', 'GitHub Action', 'Badge and embed', 'MCP']) {
+    for (const heading of ['Public interfaces', 'Public API', 'CLI', 'GitHub Action', 'Badge and embed', 'MCP']) {
       expect(readme).toContain(heading)
     }
-    expect(readme).toContain('https://testnet.sizeof.ai')
+    expect(readme).toContain('https://sizeof.ai')
     expect(readme).toContain('preview')
     expect(readme).not.toContain('testnet is production-stable')
   })

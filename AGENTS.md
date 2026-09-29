@@ -177,6 +177,13 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Verified 941 tests, build, dry-run and live 200s for home, www, model detail, model/search/estimate/status APIs, docs HTML/llms.txt, `/start` and robots; search answered from the US index. Browser checks covered the homepage, zh-TW docs and a model detail page.
 - Cloudflare production version: `dc6a6300-ecc4-457d-8022-612665f4f438` (deployed 2026-09-29). Previous version for rollback: `3d4e767d-bdaa-4402-842b-f687ac5b4cfa`. New production homepage hash: `3c0920a1f8ddca4459a40f0aac5bdbbae1adee0b114e9c014584a9ddc6c8915f`; earlier notes citing the old hash as "unchanged production" are historical.
 
+## Production enterprise keys and URL cutover (2026-09-29)
+
+- Enterprise Hugging Face keys are approved for production: `HF_TOKEN_ENTERPRISE_1`–`4` are production secrets and `HF_ENTERPRISE_KEYS_ENABLED=true` is set in the top-level `wrangler.jsonc` vars, alongside the original `HF_TOKEN`. This supersedes the earlier testnet-only restriction.
+- Public defaults now point to `https://sizeof.ai`: CLI, MCP server, GitHub Action, README examples, docs API guide, the no-JavaScript `docs.sizeof.ai` workspace links, docs-host navigation and the estimate API detail URL fallback. `localizeHref` rewrites `docs.sizeof.ai` links to `/docs` on any platform host (production, www, testnet, testnet2). Three API-guide messages were rewritten in all 13 catalogs.
+- Verified 942 tests, build, six uncached production model lookups (including a gated model), US-index search, CLI default, docs.sizeof.ai links and the updated zh-TW API guide.
+- Cloudflare production version: `a0ed7d67-b817-4806-a5e5-3c10263229cc`; docs Worker version: `7e704ef9-ba19-4f77-9fa1-81181c1025b9` (deployed 2026-09-29).
+
 ## Commands
 
 - `npm run dev`: local Vite development server
@@ -197,6 +204,6 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Cite primary model sources in catalog data.
 - Never commit Cloudflare credentials or local Wrangler state.
 - After every website feature or fix, deploy the current changes to Cloudflare production and verify the public domains and visible production page; a commit or push alone is not completion. Record the deployed Cloudflare version in this file.
-- The current six-phase stream deploys only to `testnet.sizeof.ai` until production is explicitly approved.
-- Hugging Face requests rotate across the active API key pool. Enterprise keys are enabled on testnet only (`HF_ENTERPRISE_KEYS_ENABLED=true` plus `HF_TOKEN_ENTERPRISE_1` through `HF_TOKEN_ENTERPRISE_4`). Do not copy those secrets to production or enable the flag there without explicit approval.
+- Validate on `testnet.sizeof.ai`/`testnet2.sizeof.ai` first; production deployment is approved as part of delivery.
+- Hugging Face requests rotate across the active API key pool. Enterprise keys (`HF_ENTERPRISE_KEYS_ENABLED=true` plus `HF_TOKEN_ENTERPRISE_1` through `HF_TOKEN_ENTERPRISE_4`) are enabled on testnet and, since 2026-09-29, production.
 - Run tests, build, and a real local smoke test before declaring completion.

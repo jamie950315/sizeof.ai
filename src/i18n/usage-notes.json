@@ -17262,9 +17262,9 @@
             "src/docs/content.ts"
           ]
         },
-        "Live testnet estimate endpoint": {
+        "Live estimate endpoint": {
           "kind": "label",
-          "maxWidth": 60,
+          "maxWidth": 44,
           "where": [
             "src/docs/content.ts"
           ]
@@ -18163,9 +18163,9 @@
             "src/docs/content.ts"
           ]
         },
-        "Start with an explicit testnet request": {
+        "Start with an explicit request": {
           "kind": "heading",
-          "maxWidth": 84,
+          "maxWidth": 66,
           "where": [
             "src/docs/content.ts"
           ]
@@ -18340,7 +18340,7 @@
             "src/docs/content.ts"
           ]
         },
-        "The public estimate endpoint describes model memory; it does not run the model or generate text. This example targets testnet, where the platform features are being validated.": {
+        "The public estimate endpoint describes model memory; it does not run the model or generate text. This example calls the public endpoint on sizeof.ai.": {
           "kind": "body",
           "maxWidth": null,
           "where": [

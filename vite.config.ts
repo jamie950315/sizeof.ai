@@ -20,7 +20,7 @@ export default defineConfig({
   }, react()],
   server: {
     // Local UI work reads live public data from the testnet Worker API.
-    proxy: { '/api': { target: 'https://testnet.sizeof.ai', changeOrigin: true } },
+    proxy: { '/api': { target: 'https://sizeof.ai', changeOrigin: true } },
   },
   test: {
     environment: 'jsdom',

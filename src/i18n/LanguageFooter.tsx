@@ -56,7 +56,7 @@ export default function LanguageFooter() {
   async function select(next: Locale) {
     if (await change(next)) { persistLocale(next); setSaved(true) }
   }
-  const toolsBase = window.location.hostname === 'docs.sizeof.ai' ? 'https://testnet.sizeof.ai' : ''
+  const toolsBase = window.location.hostname === 'docs.sizeof.ai' ? 'https://sizeof.ai' : ''
   return <footer className="language-footer" role="contentinfo">
     <div className="language-footer-inner">
       <div className="language-footer-copy">

@@ -20,7 +20,7 @@ describe('independent documentation site', () => {
     expect(embedded).not.toContain('https://testnet.sizeof.ai/start')
     expect(embedded).toContain('href="/docs/?lang=en"')
     const standalone = await (await handleDocsRequest(new Request('https://docs.sizeof.ai/getting-started?lang=ja'), env)).text()
-    expect(standalone).toContain('href="https://testnet.sizeof.ai/start?lang=ja"')
+    expect(standalone).toContain('href="https://sizeof.ai/start?lang=ja"')
   })
   it('styles the no-JavaScript fallback with self-contained light and dark themes', async () => {
     const html = await (await handleDocsRequest(new Request('https://docs.sizeof.ai/kv-cache'), env)).text()

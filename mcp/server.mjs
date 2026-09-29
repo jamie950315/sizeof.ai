@@ -6,7 +6,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/server/stdio'
 import { sanitizeRemoteError } from '../cli/sizeof.mjs'
 import { validateResponse } from '../cli/action-result.mjs'
 
-const DEFAULT_BASE_URL = 'https://testnet.sizeof.ai'
+const DEFAULT_BASE_URL = 'https://sizeof.ai'
 const MODEL_PATTERN = '^[A-Za-z0-9][A-Za-z0-9._-]{0,95}/[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'
 const MODEL_REGEX = new RegExp(MODEL_PATTERN)
 const QUANTIZATIONS = ['fp16', 'q8_0', 'q6_k', 'q5_k_m', 'q4_k_m', 'q3_k_m', 'q2_k', 'q1']
@@ -175,7 +175,7 @@ export async function callTool(name, args, dependencies = {}) {
 }
 
 export function createMcpServer(dependencies = {}) {
-  const server = new McpServer({ name: 'sizeof-ai-testnet', version: '0.1.0' })
+  const server = new McpServer({ name: 'sizeof-ai', version: '0.1.0' })
   for (const definition of TOOL_DEFINITIONS) {
     const name = definition.name
     server.registerTool(name, {

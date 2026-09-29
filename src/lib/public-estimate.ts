@@ -278,7 +278,7 @@ export function buildPublicEstimate(
       throw new Error(`Serving scenario inputs are invalid: ${error instanceof Error ? error.message : 'unsupported inputs'}`)
     }
   }
-  const base = (options.publicBaseUrl ?? 'https://testnet.sizeof.ai').replace(/\/$/, '')
+  const base = (options.publicBaseUrl ?? 'https://sizeof.ai').replace(/\/$/, '')
   const detailPath = `/${encodeURIComponent(model.owner)}/${encodeURIComponent(model.name)}`
   const generatedAt = options.generatedAt ?? new Date().toISOString()
   const evidence = model.spec

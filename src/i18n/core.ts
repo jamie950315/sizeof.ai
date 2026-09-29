@@ -71,18 +71,21 @@ export function routingSearch(search: string): string {
   return query ? `?${query}` : ''
 }
 
+/** Platform deployments that serve documentation under /docs on their own origin. */
+const platformHosts = ['sizeof.ai', 'www.sizeof.ai', 'testnet.sizeof.ai', 'testnet2.sizeof.ai']
+
 export function localizeHref(href: string, locale: Locale = activeLocale, origin?: string): string {
   if (!href || href.startsWith('#') || /^(?:mailto:|tel:|data:|blob:|javascript:)/i.test(href)) return href
   const browser = (globalThis as unknown as { window?: { location: { origin: string; search?: string } } }).window
-  const base = origin ?? browser?.location.origin ?? 'https://testnet.sizeof.ai'
+  const base = origin ?? browser?.location.origin ?? 'https://sizeof.ai'
   try {
     const url = new URL(href, base)
     const baseUrl = new URL(base)
-    if (url.hostname === 'docs.sizeof.ai' && baseUrl.hostname === 'testnet.sizeof.ai') {
+    if (url.hostname === 'docs.sizeof.ai' && platformHosts.includes(baseUrl.hostname)) {
       url.hostname = baseUrl.hostname
       url.pathname = `/docs${url.pathname === '/' ? '' : url.pathname}`
     }
-    if (url.origin !== baseUrl.origin && !['docs.sizeof.ai', 'testnet.sizeof.ai'].includes(url.hostname)) return href
+    if (url.origin !== baseUrl.origin && !['docs.sizeof.ai', ...platformHosts].includes(url.hostname)) return href
     if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/assets/')) return href
     if (locale !== 'en' || url.searchParams.has('lang') || browser?.location.search && new URLSearchParams(browser.location.search).has('lang')) url.searchParams.set('lang', locale)
     return href.startsWith('/') && url.origin === baseUrl.origin ? `${url.pathname}${url.search}${url.hash}` : url.href

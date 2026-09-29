@@ -15,7 +15,7 @@ function currentSection(path: string) {
 
 export function Wordmark() {
   return (
-    <a className="wordmark" href={docsHost() ? 'https://testnet.sizeof.ai/' : '/'} aria-label="sizeof.ai home">
+    <a className="wordmark" href={docsHost() ? 'https://sizeof.ai/' : '/'} aria-label="sizeof.ai home">
       <span>sizeof</span><span className="paren">(</span><span className="arg">ai</span><span className="paren">)</span>
     </a>
   )
@@ -26,7 +26,7 @@ export default function PlatformNav() {
   const panelId = useId()
   const toggle = useRef<HTMLButtonElement>(null)
   const onDocs = docsHost()
-  const base = onDocs ? 'https://testnet.sizeof.ai' : ''
+  const base = onDocs ? 'https://sizeof.ai' : ''
   const path = onDocs ? '/docs' : currentSection(window.location.pathname)
   const production = /^(?:www\.)?sizeof\.ai$/.test(window.location.hostname)
   const isModelPage = path !== '/' && !path.startsWith('/docs') && path.split('/').length === 3

@@ -33,8 +33,8 @@ export async function handleDocsRequest(request: Request, env: DocsBindings, opt
   const prefix = options.pathPrefix ?? ''
   const origin = options.publicOrigin ?? host
   const docsHost = `${origin}${prefix}`
-  // Docs served inside the platform link back to that same deployment; the standalone docs host uses testnet.
-  const workspaceOrigin = prefix && options.publicOrigin ? options.publicOrigin : 'https://testnet.sizeof.ai'
+  // Docs served inside the platform link back to that same deployment; the standalone docs host uses production.
+  const workspaceOrigin = prefix && options.publicOrigin ? options.publicOrigin : 'https://sizeof.ai'
   let cookieLocale: Locale | undefined
   try { cookieLocale = resolveLocale(decodeURIComponent(request.headers.get('Cookie')?.match(/(?:^|;\s*)sizeof-language=([^;]*)/)?.[1] ?? '')) } catch { /* Malformed cookies never block documentation. */ }
   const queryLocale = resolveLocale(url.searchParams.get('lang') ?? '')

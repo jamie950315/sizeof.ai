@@ -1,5 +1,5 @@
-name: sizeof.ai testnet estimate
-description: Request a conservative model-memory estimate from the sizeof.ai testnet preview.
+name: sizeof.ai estimate
+description: Request a conservative model-memory estimate from sizeof.ai.
 inputs:
   model:
     description: Hugging Face owner/repository.
@@ -31,7 +31,7 @@ inputs:
   base-url:
     description: Preview API base URL.
     required: false
-    default: https://testnet.sizeof.ai
+    default: https://sizeof.ai
 outputs:
   total:
     description: Estimated total GiB when available.
