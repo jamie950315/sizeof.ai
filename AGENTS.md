@@ -184,6 +184,13 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Verified 942 tests, build, six uncached production model lookups (including a gated model), US-index search, CLI default, docs.sizeof.ai links and the updated zh-TW API guide.
 - Cloudflare production version: `a0ed7d67-b817-4806-a5e5-3c10263229cc`; docs Worker version: `7e704ef9-ba19-4f77-9fa1-81181c1025b9` (deployed 2026-09-29).
 
+## Dependency update release (2026-09-29)
+
+- Merged Dependabot PRs #8–#13 into `claude/testnet2-redesign`: actions/checkout and setup-node v7, React 19.3 and the minor/patch group, Vitest 5, jsdom 30 and Babel 8. The Node baseline is now 24.15.0 (`.nvmrc`, `engines`) because jsdom 30 requires `^24.15.0`; use `nvm use` before `npm ci`.
+- Babel 8 adaptations: `vite.config.ts` passes the Babel source map to Vite as JSON, and `@babel/parser`/`@babel/traverse` are declared directly because `scripts/i18n-usage.mjs` imports them (mixing parser 7 with traverse 8 changed `usage-notes.json`).
+- Verified with Node 24.15.0: clean `npm ci`, typecheck, 941 tests, build, dry-run, local Worker smoke, branch CI and live production routes, with the live asset build matching the local build.
+- Cloudflare production version: `2b199f5d-3b22-42ed-987f-011c11745bc1` (deployed 2026-09-29).
+
 ## Commands
 
 - `npm run dev`: local Vite development server
