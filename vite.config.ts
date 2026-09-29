@@ -15,11 +15,12 @@ export default defineConfig({
         filename: id, configFile: false, babelrc: false, sourceMaps: true,
         parserOpts: { plugins: ['typescript', 'jsx'] }, plugins: [jsxLocalization],
       })
-      return result?.code ? { code: result.code, map: result.map } : undefined
+      // Babel 8 types its source map as readonly; Vite accepts the serialized JSON form.
+      return result?.code ? { code: result.code, map: result.map ? JSON.stringify(result.map) : null } : undefined
     },
   }, react()],
   server: {
-    // Local UI work reads live public data from the testnet Worker API.
+    // Local UI work reads live public data from the production Worker API.
     proxy: { '/api': { target: 'https://sizeof.ai', changeOrigin: true } },
   },
   test: {
