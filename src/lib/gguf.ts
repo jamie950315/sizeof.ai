@@ -157,7 +157,8 @@ export function deriveGgufModelFacts(
       ? embeddingLength / attentionHeads
       : null)
   const maxContext = positiveInteger(metadata[`${architecture}.context_length`])
-  if (layers === null || layers <= 0 || attentionHeads === null || kvHeads === null
+  // Bound allocations from repository-controlled metadata, not just the downloaded bytes.
+  if (layers === null || layers <= 0 || layers > 4096 || attentionHeads === null || kvHeads === null
     || headDim === null || maxContext === null) return null
 
   const fullAttentionInterval = positiveInteger(metadata[`${architecture}.full_attention_interval`]) ?? 1

@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { getContextStep, stepContext } from './context-stepper'
 
 describe('context-stepper', () => {
+  it('never steps beyond the shareable safe context limit', () => {
+    expect(stepContext(16_777_216, 'up')).toBe(16_777_216)
+    expect(stepContext(Number.MAX_VALUE, 'up')).toBe(16_777_216)
+    expect(Number.isFinite(stepContext(Infinity, 'up'))).toBe(true)
+  })
   it('moves halfway toward the neighboring preset', () => {
     expect(getContextStep(4096, 'down')).toBe(1024)
     expect(stepContext(4096, 'down')).toBe(3072)

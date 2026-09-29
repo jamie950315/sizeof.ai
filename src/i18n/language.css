@@ -1,0 +1,21 @@
+.language-footer { margin-top: auto; border-top: 1px solid var(--ink); background: var(--paper); color: var(--ink-2); font-size: 13.5px; }
+.language-footer-inner {
+  max-width: var(--wrap); margin: 0 auto; padding: 26px var(--gutter) 30px;
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 24px 40px; flex-wrap: wrap;
+}
+.language-footer-copy { display: grid; gap: 8px; flex: 1 1 360px; min-width: 0; }
+.language-brand { font-family: var(--font-mono); font-weight: 600; font-size: 15px; color: var(--ink); letter-spacing: -.02em; }
+.language-brand span { color: var(--ink-3); font-weight: 400; }
+.language-footer p { max-width: 62ch; line-height: 1.55; }
+.language-footer nav { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.language-footer nav a { color: var(--ink); font-weight: 560; }
+.language-control { display: grid; grid-template-columns: auto minmax(180px, 240px); align-items: center; gap: 6px 12px; flex: 0 1 auto; }
+.language-control label { font-weight: 600; color: var(--ink); }
+.language-feedback { grid-column: 1 / -1; min-height: 1.5em; font-size: 12.5px; color: var(--ink-3); max-width: 340px; }
+html[lang^=zh], html[lang=ja], html[lang=ko], html[lang=hi], html[lang=ar] { line-break: auto; }
+html[dir=rtl] pre, html[dir=rtl] code, html[dir=rtl] .memory-bar, html[dir=rtl] .gauge, html[dir=rtl] .ruler-track, html[dir=rtl] .hero-call { direction: ltr; unicode-bidi: isolate; }
+html:not([lang=en]) .page-head h1, html:not([lang=en]) .compare-builder h1 { line-height: 1.15; letter-spacing: -.01em; }
+html[lang^=zh] body, html[lang=ja] body, html[lang=ko] body { letter-spacing: .01em; }
+@media (max-width: 700px) {
+  .language-control { grid-template-columns: auto minmax(0, 1fr); width: 100%; }
+}

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import { resetHfTokenRotationForTests } from './hf-token-pool'
 import { applyAssetCachePolicy, handleModelApi, handleWorkerRequest, readGguf, selectCommunityRepositories, selectCommunityRepository } from './index'
+import { normalizeHuggingFaceModel } from '../src/lib/huggingface'
 
 class MemoryModelCache {
   readonly values = new Map<string, string>()
@@ -33,7 +35,7 @@ function modelCacheContext() {
 function mockSuccessfulModelFetch() {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const url = String(input)
-    if (url.includes('/api/models/Qwen/Qwen3.8-27B?')) {
+    if (url.includes('/api/models/Qwen/Qwen3.8-27B?') && !url.includes('/tree/')) {
       return Response.json({
         id: 'Qwen/Qwen3.8-27B',
         sha: 'abc123',
@@ -53,11 +55,276 @@ function mockSuccessfulModelFetch() {
     }
     if (url.includes('/Qwen/Qwen3.8-27B/tree/abc123')) return Response.json([])
     if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
+    if (url.includes('/tree/')) return Response.json([])
+    if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
     throw new Error(`Unexpected cached-model fetch: ${url}`)
   })
 }
 
+function primePublicModel(cache: MemoryModelCache) {
+  const model = normalizeHuggingFaceModel({
+    id: 'Qwen/Qwen3.8-27B', sha: 'a'.repeat(40), author: 'Qwen',
+    lastModified: '2026-08-30T00:00:00.000Z',
+    safetensors: { parameters: { BF16: 27_000_000_000 } }, tags: ['text-generation'],
+  }, {
+    architectures: ['Qwen3_5ForCausalLM'], model_type: 'qwen3_5', num_hidden_layers: 64,
+    num_key_value_heads: 4, head_dim: 256, max_position_embeddings: 262_144,
+  })
+  cache.values.set('model-response-v5:Qwen/Qwen3.8-27B', JSON.stringify({
+    version: 5, fetchedAt: Date.now(), body: JSON.stringify(model),
+  }))
+  return model
+}
+
+describe('public estimate API, badge, and embed', () => {
+  it('serves a finite provenance-rich v1 response from the shared model cache with explicit CORS', async () => {
+    const cache = new MemoryModelCache()
+    primePublicModel(cache)
+    const { ctx } = modelCacheContext()
+    const response = await handleWorkerRequest(
+      new Request('https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FQwen3.8-27B&quant=q4_k_m&context=8192&kv=q8_0&vram=32'),
+      { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache, ENVIRONMENT: 'testnet', HF_TOKEN: 'hf_secret_should_never_escape' },
+      ctx,
+    )
+    const text = await response.text()
+    const body = JSON.parse(text)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET, OPTIONS')
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(response.headers.get('Cache-Control')).toBe('public, max-age=300')
+    expect(body).toMatchObject({
+      schema: 'sizeof-estimate/v1', model: { id: 'Qwen/Qwen3.8-27B' },
+      result: { state: 'estimate' }, provenance: { modelSource: 'https://huggingface.co/Qwen/Qwen3.8-27B' },
+    })
+    expect(text).not.toMatch(/NaN|Infinity|hf_secret|HF_TOKEN/)
+  })
+
+  it('handles OPTIONS and refuses invalid methods, long URLs, unknown, duplicate, and malformed inputs before lookup', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch')
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache }
+    try {
+      const options = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/api/v1/estimate', { method: 'OPTIONS' }), env, ctx)
+      expect(options.status).toBe(204)
+      expect(options.headers.get('Access-Control-Allow-Origin')).toBe('*')
+      expect(options.headers.get('Access-Control-Max-Age')).toBe('86400')
+      expect(options.headers.get('Content-Type')).toContain('application/json')
+
+      const requests = [
+        new Request('https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FModel', { method: 'POST' }),
+        new Request(`https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FModel&unused=${'x'.repeat(5000)}`),
+        new Request('https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FModel&destination=https%3A%2F%2Fevil.example'),
+        new Request('https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FModel&model=Other%2FModel'),
+        new Request('https://testnet.sizeof.ai/api/v1/estimate?model=Qwen%2FModel&context=NaN'),
+      ]
+      for (const request of requests) {
+        const response = await handleWorkerRequest(request, env, ctx)
+        expect([400, 405, 414]).toContain(response.status)
+        expect(response.headers.get('Cache-Control')).toBe('no-store')
+        expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+        if (request.method === 'POST') expect(response.headers.get('Allow')).toBe('GET, OPTIONS')
+      }
+      expect(fetcher).not.toHaveBeenCalled()
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('retains private/not-found normalization and does not leak upstream metadata', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ private: true, secret: 'hidden' }), { status: 401 }))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://testnet.sizeof.ai/api/v1/estimate?model=Private%2FModel'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache, HF_TOKEN: 'hf_secret' }, ctx,
+      )
+      expect(response.status).toBe(404)
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+      await expect(response.json()).resolves.toEqual({ error: 'Model not found or private' })
+
+      const badge = await handleWorkerRequest(
+        new Request('https://testnet.sizeof.ai/badge/v1/estimate.svg?model=Private%2FModel'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache, HF_TOKEN: 'hf_secret' }, ctx,
+      )
+      expect(await badge.text()).toContain('Private/Model')
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('renders bounded script-free badge and accessible embed from the same result', async () => {
+    const cache = new MemoryModelCache()
+    primePublicModel(cache)
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache, ENVIRONMENT: 'testnet' }
+    const query = 'model=Qwen%2FQwen3.8-27B&vram=32'
+    const badge = await handleWorkerRequest(new Request(`https://testnet.sizeof.ai/badge/v1/estimate.svg?${query}`), env, ctx)
+    const svg = await badge.text()
+    expect(badge.headers.get('Content-Type')).toContain('image/svg+xml')
+    expect(svg).toContain('Qwen/Qwen3.8-27B')
+    expect(svg).toContain('ESTIMATE')
+    expect(svg).toContain('32 GiB')
+    expect(svg).not.toMatch(/<script|href=["']https?:/i)
+
+    const embed = await handleWorkerRequest(new Request(`https://testnet.sizeof.ai/embed/v1/estimate?${query}`), env, ctx)
+    const html = await embed.text()
+    expect(embed.headers.get('Content-Security-Policy')).toContain("default-src 'none'")
+    expect(embed.headers.get('Referrer-Policy')).toBe('no-referrer')
+    expect(html).toContain('<main')
+    expect(html).toContain('Estimate only.')
+    expect(html).toContain('https://testnet.sizeof.ai/Qwen/Qwen3.8-27B?')
+    expect(html).not.toContain('<script')
+  })
+
+  it('renders normalized badge and card errors without stack traces', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache }
+    const badge = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/badge/v1/estimate.svg?model=invalid'), env, ctx)
+    const embed = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/embed/v1/estimate?model=invalid'), env, ctx)
+    expect(badge.status).toBe(400)
+    expect(await badge.text()).toContain('UNAVAILABLE')
+    expect(embed.status).toBe(400)
+    expect(await embed.text()).toContain('Unable to create this estimate safely')
+  })
+
+  it('keeps strict embed security headers on early method and URL-length refusals', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache }
+    const responses = [
+      await handleWorkerRequest(new Request('https://testnet.sizeof.ai/embed/v1/estimate?model=Org%2FModel', { method: 'POST' }), env, ctx),
+      await handleWorkerRequest(new Request(`https://testnet.sizeof.ai/embed/v1/estimate?model=Org%2FModel&unused=${'x'.repeat(5000)}`), env, ctx),
+    ]
+    expect(responses.map((response) => response.status)).toEqual([405, 414])
+    for (const response of responses) {
+      expect(response.headers.get('Content-Security-Policy')).toBe("default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors *")
+      expect(response.headers.get('Referrer-Policy')).toBe('no-referrer')
+      expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+    }
+  })
+})
+
 describe('Hugging Face model API', () => {
+  it('renders safe testnet model metadata without an upstream Hugging Face request', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch')
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const assets = { fetch: vi.fn().mockResolvedValue(new Response('<!doctype html><html><head><title>sizeof.ai</title></head><body><div id="root"></div></body></html>', { headers: { 'Content-Type': 'text/html' } })) }
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://testnet.sizeof.ai/Qwen/Model'),
+        { ASSETS: assets, MODEL_CACHE: cache, ENVIRONMENT: 'testnet' },
+        ctx,
+      )
+      const html = await response.text()
+
+      expect(html).toContain('<title>Qwen/Model VRAM estimate | sizeof.ai</title>')
+      expect(html).toContain('https://testnet.sizeof.ai/Qwen/Model')
+      expect(html).toContain('application/ld+json')
+      expect(response.headers.get('Cache-Control')).toBe('no-cache')
+      expect(fetcher).not.toHaveBeenCalled()
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('keeps homepage metadata unchanged and gives compare its own escaped metadata', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const assets = { fetch: vi.fn(() => Promise.resolve(new Response('<html><head><title>sizeof.ai — LLM memory, measured</title></head><body></body></html>', { headers: { 'Content-Type': 'text/html' } }))) }
+
+    const home = await handleWorkerRequest(new Request('https://sizeof.ai/'), { ASSETS: assets, MODEL_CACHE: cache }, ctx)
+    const compare = await handleWorkerRequest(new Request('https://sizeof.ai/compare'), { ASSETS: assets, MODEL_CACHE: cache }, ctx)
+
+    expect(await home.text()).toContain('<title>sizeof.ai — LLM memory, measured</title>')
+    expect(await compare.text()).toContain('<title>Compare model memory estimates | sizeof.ai</title>')
+  })
+
+  it('rewrites only the testnet homepage static canonical to the testnet host', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const html = '<html><head><link rel="canonical" href="https://sizeof.ai/" /></head><body></body></html>'
+    const assets = { fetch: vi.fn(() => Promise.resolve(new Response(html, { headers: { 'Content-Type': 'text/html' } }))) }
+
+    const production = await handleWorkerRequest(new Request('https://sizeof.ai/'), { ASSETS: assets, MODEL_CACHE: cache }, ctx)
+    const testnet = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/'), { ASSETS: assets, MODEL_CACHE: cache, ENVIRONMENT: 'testnet' }, ctx)
+
+    expect(await production.text()).toContain('<link rel="canonical" href="https://sizeof.ai/" />')
+    expect(await testnet.text()).toContain('<link rel="canonical" href="https://testnet.sizeof.ai/" />')
+  })
+
+  it('serves a bounded script-free SVG share card with conservative headers', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const response = await handleWorkerRequest(
+      new Request('https://sizeof.ai/share/card.svg?model=Qwen%2F%3Cscript%3E&config=4bit&capacity=32&total=18.5&lowerBound=1&date=2026-08-30'),
+      { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+      ctx,
+    )
+
+    expect(response.headers.get('Content-Type')).toContain('image/svg+xml')
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(response.headers.get('Cache-Control')).toContain('max-age=300')
+    await expect(response.text()).resolves.toContain('LOWER BOUND')
+  })
+
+  it('rejects incomplete or non-finite share-card parameters without rendering a zero fallback', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache }
+    const missing = await handleWorkerRequest(new Request('https://sizeof.ai/share/card.svg?model=Qwen%2FExample&capacity=32'), env, ctx)
+    const partial = await handleWorkerRequest(new Request(`https://sizeof.ai/share/card.svg?summary=${encodeURIComponent(JSON.stringify({ models: [{ id: 'Qwen/Example', capacityGiB: 32 }] }))}`), env, ctx)
+
+    expect(missing.status).toBe(400)
+    expect(partial.status).toBe(400)
+    expect(missing.headers.get('Cache-Control')).toBe('no-store')
+    await expect(missing.text()).resolves.not.toContain('<svg')
+  })
+
+  it('rejects blank or control-only required share-card text after sanitizing simple and summary inputs', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache }
+    const invalidUrls = [
+      'model=%20%20&config=4bit&capacity=32&total=18.5&date=2026-08-30',
+      'model=Qwen%2FExample&config=%00%20&capacity=32&total=18.5&date=2026-08-30',
+      'model=Qwen%2FExample&config=4bit&capacity=32&total=18.5&date=%07%20',
+      `summary=${encodeURIComponent(JSON.stringify({ models: [{ id: 'Qwen/Example', configuration: '\u0000 ', capacityGiB: 32, totalGiB: 18.5 }], generatedAt: '\u0007 ' }))}`,
+      `summary=${encodeURIComponent(JSON.stringify({ models: [{ id: 'Qwen/Example', configuration: '4bit', capacityGiB: 32, totalGiB: 18.5 }], generatedAt: '\u0007 ' }))}`,
+    ]
+
+    for (const query of invalidUrls) {
+      const response = await handleWorkerRequest(new Request(`https://sizeof.ai/share/card.svg?${query}`), env, ctx)
+      expect(response.status).toBe(400)
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+      await expect(response.text()).resolves.not.toContain('<svg')
+    }
+  })
+
+  it('serves bounded robots and curated sitemap routes without dynamic discovery', async () => {
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache, ENVIRONMENT: 'testnet' }
+    const robots = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/robots.txt'), env, ctx)
+    const sitemap = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/sitemap.xml'), env, ctx)
+    const xml = await sitemap.text()
+
+    expect(robots.headers.get('Content-Type')).toContain('text/plain')
+    expect(await robots.text()).toContain('Sitemap: https://testnet.sizeof.ai/sitemap.xml')
+    expect(sitemap.headers.get('Content-Type')).toContain('application/xml')
+    expect(sitemap.headers.get('Cache-Control')).toContain('max-age=3600')
+    expect(xml).toContain('https://testnet.sizeof.ai/compare')
+    expect(xml).toContain('https://testnet.sizeof.ai/Qwen/Qwen3.8-27B')
+    expect(xml).not.toContain('huggingface.co')
+  })
+
   it('returns a compact trending model list for a submitted search', async () => {
     const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([
       {
@@ -97,7 +364,7 @@ describe('Hugging Face model API', () => {
       })
       expect(fetcher).toHaveBeenCalledWith(
         'https://huggingface.co/api/models?search=QWEN&sort=trendingScore&direction=-1&limit=12',
-        { headers: { Accept: 'application/json', Authorization: 'Bearer hf_test_token' } },
+        { headers: { Accept: 'application/json', Authorization: 'Bearer hf_test_token' }, signal: expect.any(AbortSignal), redirect: 'manual' },
       )
       expect(response.headers.get('Cache-Control')).toBe('public, max-age=60')
       expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe(
@@ -105,6 +372,67 @@ describe('Hugging Face model API', () => {
       )
     } finally {
       fetcher.mockRestore()
+    }
+  })
+
+  it('does not send stored enterprise Hugging Face keys until they are explicitly enabled', async () => {
+    resetHfTokenRotationForTests()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([]))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+      HF_TOKEN: 'hf_test_token',
+      HF_ENTERPRISE_KEYS_ENABLED: 'false',
+      HF_TOKEN_ENTERPRISE_1: 'hf_ent_1',
+      HF_TOKEN_ENTERPRISE_2: 'hf_ent_2',
+      HF_TOKEN_ENTERPRISE_3: 'hf_ent_3',
+      HF_TOKEN_ENTERPRISE_4: 'hf_ent_4',
+    }
+
+    try {
+      await handleWorkerRequest(new Request('https://sizeof.ai/api/search/models?q=QWEN'), env, ctx)
+      await handleWorkerRequest(new Request('https://sizeof.ai/api/search/models?q=Qwen'), env, ctx)
+      const tokens = fetcher.mock.calls.map(([, init]) => new Headers(init?.headers).get('Authorization'))
+      expect(tokens).toEqual(['Bearer hf_test_token', 'Bearer hf_test_token'])
+    } finally {
+      fetcher.mockRestore()
+      resetHfTokenRotationForTests()
+    }
+  })
+
+  it('rotates Hugging Face keys on every lookup after enterprise keys are enabled', async () => {
+    resetHfTokenRotationForTests()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([]))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+    const env = {
+      ASSETS: { fetch: vi.fn() },
+      MODEL_CACHE: cache,
+      HF_TOKEN: 'hf_test_token',
+      HF_ENTERPRISE_KEYS_ENABLED: 'true',
+      HF_TOKEN_ENTERPRISE_1: 'hf_ent_1',
+      HF_TOKEN_ENTERPRISE_2: 'hf_ent_2',
+      HF_TOKEN_ENTERPRISE_3: 'hf_ent_3',
+      HF_TOKEN_ENTERPRISE_4: 'hf_ent_4',
+    }
+
+    try {
+      for (const query of ['QWEN', 'Qwen', 'qwen', 'Orni', 'Muse']) {
+        await handleWorkerRequest(new Request(`https://sizeof.ai/api/search/models?q=${query}`), env, ctx)
+      }
+      const tokens = fetcher.mock.calls.map(([, init]) => new Headers(init?.headers).get('Authorization'))
+      expect(tokens).toEqual([
+        'Bearer hf_test_token',
+        'Bearer hf_ent_1',
+        'Bearer hf_ent_2',
+        'Bearer hf_ent_3',
+        'Bearer hf_ent_4',
+      ])
+    } finally {
+      fetcher.mockRestore()
+      resetHfTokenRotationForTests()
     }
   })
 
@@ -137,6 +465,30 @@ describe('Hugging Face model API', () => {
     }
   })
 
+  it('does not promote two-character exact names over popular prefix matches', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([
+      { id: 'trungzpham/qw', downloads: 1, trendingScore: 1, private: false },
+      { id: 'Qwen/Qwen3-0.6B', downloads: 2_000_000, trendingScore: 2_200, private: false },
+    ]))
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/search/models?q=Qw'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        ctx,
+      )
+      const body = await response.json() as { models: Array<{ id: string }> }
+      expect(body.models.map((model) => model.id)).toEqual([
+        'Qwen/Qwen3-0.6B',
+        'trungzpham/qw',
+      ])
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
   it('forwards author and model type filters and returns the next cursor', async () => {
     const nextCursor = 'eyIkb3IiOlt7InRyZW5kaW5nU2NvcmUiOjE3fV19='
     const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('[]', {
@@ -158,7 +510,7 @@ describe('Hugging Face model API', () => {
       await expect(response.json()).resolves.toMatchObject({ nextCursor })
       expect(fetcher).toHaveBeenCalledWith(
         'https://huggingface.co/api/models?search=QWEN&sort=trendingScore&direction=-1&limit=12&author=Qwen&filter=text-generation',
-        { headers: { Accept: 'application/json' } },
+        { headers: { Accept: 'application/json' }, signal: expect.any(AbortSignal), redirect: 'manual' },
       )
     } finally {
       fetcher.mockRestore()
@@ -207,7 +559,7 @@ describe('Hugging Face model API', () => {
 
       expect(fetcher).toHaveBeenCalledWith(
         `https://huggingface.co/api/models?search=QWEN&sort=trendingScore&direction=-1&limit=12&cursor=${encodeURIComponent(cursor)}`,
-        { headers: { Accept: 'application/json' } },
+        { headers: { Accept: 'application/json' }, signal: expect.any(AbortSignal), redirect: 'manual' },
       )
     } finally {
       fetcher.mockRestore()
@@ -237,8 +589,31 @@ describe('Hugging Face model API', () => {
     }
   })
 
-  it('rejects a search shorter than two characters without contacting Hugging Face', async () => {
+  it('rejects a blank search without contacting Hugging Face', async () => {
     const fetcher = vi.spyOn(globalThis, 'fetch')
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://sizeof.ai/api/search/models?q=%20'),
+        { ASSETS: { fetch: vi.fn() }, MODEL_CACHE: cache },
+        ctx,
+      )
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Search query must contain between 1 and 80 characters',
+      })
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+      expect(fetcher).not.toHaveBeenCalled()
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('accepts a single-character search', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([]))
     const cache = new MemoryModelCache()
     const { ctx } = modelCacheContext()
 
@@ -249,12 +624,11 @@ describe('Hugging Face model API', () => {
         ctx,
       )
 
-      expect(response.status).toBe(400)
-      await expect(response.json()).resolves.toEqual({
-        error: 'Search query must contain between 2 and 80 characters',
-      })
-      expect(response.headers.get('Cache-Control')).toBe('no-store')
-      expect(fetcher).not.toHaveBeenCalled()
+      expect(response.status).toBe(200)
+      expect(fetcher).toHaveBeenCalledWith(
+        'https://huggingface.co/api/models?search=Q&sort=trendingScore&direction=-1&limit=12',
+        { headers: { Accept: 'application/json' }, signal: expect.any(AbortSignal), redirect: 'manual' },
+      )
     } finally {
       fetcher.mockRestore()
     }
@@ -313,6 +687,127 @@ describe('Hugging Face model API', () => {
     }
   })
 
+  it('returns prefix-index results without contacting Hugging Face', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('jp.example/search?q=Q')) {
+        return Response.json({
+          query: 'Q',
+          models: [{ id: 'Qwen/Qwen3-0.6B', owner: 'Qwen', name: 'Qwen3-0.6B', downloads: 0,
+            likes: 0, trendingScore: 0, task: 'text-generation', gated: false }],
+          nextCursor: null,
+          source: 'jp',
+          indexSize: 3_040_000,
+        })
+      }
+      if (url.includes('us.example')) return new Response('nope', { status: 502 })
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
+      throw new Error(`Unexpected search fetch: ${url}`)
+    })
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://testnet.sizeof.ai/api/search/models?q=Q'),
+        {
+          ASSETS: { fetch: vi.fn() },
+          MODEL_CACHE: cache,
+          SIZEOF_SEARCH_JP_URL: 'https://jp.example',
+          SIZEOF_SEARCH_US_URL: 'https://us.example',
+          SIZEOF_SEARCH_TOKEN: 'secret',
+          HF_TOKEN: 'hf_test_token',
+        },
+        ctx,
+      )
+      const body = await response.json() as { models: Array<{ id: string }> }
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('X-Sizeof-Search-Source')).toBe('jp')
+      expect(response.headers.get('Cache-Control')).toBe('public, max-age=30')
+      expect(body.models.map((model) => model.id)).toEqual(['Qwen/Qwen3-0.6B'])
+      expect(fetcher.mock.calls.map(([input]) => String(input)).some((url) => url.includes('huggingface.co'))).toBe(false)
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('reports configured index outages without silently switching to Hugging Face', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('jp.example') || url.includes('us.example')) {
+        return new Response('nope', { status: 502 })
+      }
+      if (url.startsWith('https://huggingface.co/api/models?')) {
+        return Response.json([{ id: 'Qwen/Qwen3.8-27B', private: false, trendingScore: 10 }])
+      }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
+      throw new Error(`Unexpected search fetch: ${url}`)
+    })
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://testnet.sizeof.ai/api/search/models?q=Qwen'),
+        {
+          ASSETS: { fetch: vi.fn() },
+          MODEL_CACHE: cache,
+          SIZEOF_SEARCH_JP_URL: 'https://jp.example',
+          SIZEOF_SEARCH_US_URL: 'https://us.example',
+          SIZEOF_SEARCH_TOKEN: 'secret',
+          HF_TOKEN: 'hf_test_token',
+        },
+        ctx,
+      )
+      expect(response.status).toBe(503)
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+      expect(fetcher.mock.calls.map(([input]) => String(input)).some((url) => (
+        url.startsWith('https://huggingface.co/api/models?search=Qwen')
+      ))).toBe(false)
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it('does not fall back to Hugging Face for a real empty index page', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('jp.example/search?')) {
+        return Response.json({ query: 'zzzznope', models: [], nextCursor: null, source: 'jp', indexSize: 3_040_000 })
+      }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
+      throw new Error(`Unexpected search fetch: ${url}`)
+    })
+    const cache = new MemoryModelCache()
+    const { ctx } = modelCacheContext()
+
+    try {
+      const response = await handleWorkerRequest(
+        new Request('https://testnet.sizeof.ai/api/search/models?q=zzzznope'),
+        {
+          ASSETS: { fetch: vi.fn() },
+          MODEL_CACHE: cache,
+          SIZEOF_SEARCH_JP_URL: 'https://jp.example',
+          SIZEOF_SEARCH_TOKEN: 'secret',
+          HF_TOKEN: 'hf_test_token',
+        },
+        ctx,
+      )
+      const body = await response.json() as { models: unknown[] }
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('X-Sizeof-Search-Source')).toBe('jp')
+      expect(body.models).toEqual([])
+      expect(fetcher.mock.calls.map(([input]) => String(input)).some((url) => url.includes('huggingface.co'))).toBe(false)
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
   it('requires HTML shells to revalidate while leaving hashed assets cacheable', () => {
     const html = applyAssetCachePolicy(new Response('<!doctype html>', {
       headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=3600' },
@@ -360,8 +855,8 @@ describe('Hugging Face model API', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
     const cache = new MemoryModelCache()
-    cache.values.set('model-response-v1:Qwen/Qwen3.8-27B', JSON.stringify({
-      version: 1,
+    cache.values.set('model-response-v5:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 5,
       fetchedAt: Date.now() - 23 * 60 * 60 * 1_000,
       body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'kv' }),
     }))
@@ -386,7 +881,7 @@ describe('Hugging Face model API', () => {
         'public, max-age=3600, stale-while-revalidate=604800, stale-if-error=604800',
       )
       expect(cache.reads).toEqual([{
-        key: 'model-response-v1:Qwen/Qwen3.8-27B',
+        key: 'model-response-v5:Qwen/Qwen3.8-27B',
         options: { type: 'json', cacheTtl: 60 },
       }])
       expect(fetcher).not.toHaveBeenCalled()
@@ -417,6 +912,7 @@ describe('Hugging Face model API', () => {
       expect(response.status).toBe(200)
       expect(response.headers.get('X-Sizeof-Model-Source')).toBe('huggingface')
       expect(fetcher.mock.calls[0]?.[1]).toEqual({
+        signal: expect.any(AbortSignal), redirect: 'manual',
         headers: {
           Accept: 'application/json',
           Authorization: 'Bearer hf_test_token',
@@ -429,9 +925,9 @@ describe('Hugging Face model API', () => {
       }
       await flush()
 
-      const key = 'model-response-v1:Qwen/Qwen3.8-27B'
+      const key = 'model-response-v5:Qwen/Qwen3.8-27B'
       expect(JSON.parse(cache.values.get(key)!)).toMatchObject({
-        version: 1,
+        version: 5,
         fetchedAt: Date.parse('2026-08-22T12:00:00Z'),
       })
       expect(cache.options.get(key)).toEqual({ expirationTtl: 2_592_000 })
@@ -445,8 +941,8 @@ describe('Hugging Face model API', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
     const cache = new MemoryModelCache()
-    cache.values.set('model-response-v1:Qwen/Qwen3.8-27B', JSON.stringify({
-      version: 1,
+    cache.values.set('model-response-v5:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 5,
       fetchedAt: Date.now() - 2 * 24 * 60 * 60 * 1_000,
       body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'stale-kv' }),
     }))
@@ -470,7 +966,7 @@ describe('Hugging Face model API', () => {
       await expect(response.json()).resolves.toEqual({ id: 'Qwen/Qwen3.8-27B', source: 'stale-kv' })
       expect(response.headers.get('X-Sizeof-Model-Source')).toBe('kv-stale')
       expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe(
-        'public, max-age=0, stale-while-revalidate=60, stale-if-error=518400',
+        'no-store',
       )
     } finally {
       fetcher.mockRestore()
@@ -480,8 +976,8 @@ describe('Hugging Face model API', () => {
 
   it('does not serve stale KV data when a model is private or missing', async () => {
     const cache = new MemoryModelCache()
-    cache.values.set('model-response-v1:Qwen/Qwen3.8-27B', JSON.stringify({
-      version: 1,
+    cache.values.set('model-response-v5:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 5,
       fetchedAt: Date.now() - 2 * 24 * 60 * 60 * 1_000,
       body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'stale-kv' }),
     }))
@@ -514,8 +1010,8 @@ describe('Hugging Face model API', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
     const cache = new MemoryModelCache()
-    cache.values.set('model-response-v1:Qwen/Qwen3.8-27B', JSON.stringify({
-      version: 1,
+    cache.values.set('model-response-v5:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 5,
       fetchedAt: Date.now() - 8 * 24 * 60 * 60 * 1_000,
       body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'expired-kv' }),
     }))
@@ -545,10 +1041,10 @@ describe('Hugging Face model API', () => {
   it('refreshes stale KV data after a successful Hugging Face lookup', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-22T12:00:00Z'))
-    const key = 'model-response-v1:Qwen/Qwen3.8-27B'
+    const key = 'model-response-v5:Qwen/Qwen3.8-27B'
     const cache = new MemoryModelCache()
     cache.values.set(key, JSON.stringify({
-      version: 1,
+      version: 5,
       fetchedAt: Date.now() - 2 * 24 * 60 * 60 * 1_000,
       body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'stale-kv' }),
     }))
@@ -628,8 +1124,8 @@ describe('Hugging Face model API', () => {
 
   it('uses the same model key for different API query strings', async () => {
     const cache = new MemoryModelCache()
-    cache.values.set('model-response-v1:Qwen/Qwen3.8-27B', JSON.stringify({
-      version: 1,
+    cache.values.set('model-response-v5:Qwen/Qwen3.8-27B', JSON.stringify({
+      version: 5,
       fetchedAt: Date.now(),
       body: JSON.stringify({ id: 'Qwen/Qwen3.8-27B', source: 'kv' }),
     }))
@@ -655,8 +1151,8 @@ describe('Hugging Face model API', () => {
       expect(first.status).toBe(200)
       expect(second.status).toBe(200)
       expect(cache.reads.map((read) => read.key)).toEqual([
-        'model-response-v1:Qwen/Qwen3.8-27B',
-        'model-response-v1:Qwen/Qwen3.8-27B',
+        'model-response-v5:Qwen/Qwen3.8-27B',
+        'model-response-v5:Qwen/Qwen3.8-27B',
       ])
       expect(fetcher).not.toHaveBeenCalled()
     } finally {
@@ -741,7 +1237,7 @@ describe('Hugging Face model API', () => {
   it('returns actual files from the highest-priority verified community quantization', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Qwen/Qwen3.8-27B?')) {
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B?') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Qwen/Qwen3.8-27B', author: 'Qwen', sha: 'official123',
           safetensors: { total: 27_781_427_952 }, tags: ['safetensors'],
@@ -766,6 +1262,8 @@ describe('Hugging Face model API', () => {
           { type: 'file', path: 'MTP/mtp-Qwen3.8-27B-Q4_0.gguf', size: 1_300_000_000 },
         ])
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected community fetch: ${url}`)
     })
 
@@ -806,6 +1304,7 @@ describe('Hugging Face model API', () => {
   it('fetches metadata and config from fixed Hugging Face endpoints', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
+      if (url.includes('/tree/') || url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       if (url.includes('/api/models/')) {
         return Response.json({
           id: 'Qwen/Qwen3.8-27B',
@@ -856,11 +1355,11 @@ describe('Hugging Face model API', () => {
     )
   })
 
-  it('keeps model lookup available when optional tree data is malformed', async () => {
+  it('reports malformed tree data instead of publishing an incomplete model', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/tree/abc123')) return new Response('{malformed', { status: 200 })
-      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Qwen/Qwen3.8-27B',
           sha: 'abc123',
@@ -877,6 +1376,8 @@ describe('Hugging Face model API', () => {
           max_position_embeddings: 262_144,
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected malformed-tree fetch: ${url}`)
     })
 
@@ -884,17 +1385,14 @@ describe('Hugging Face model API', () => {
       new Request('https://sizeof.ai/api/models/Qwen/Qwen3.8-27B'),
       fetcher,
     )
-    const body = await response.json() as { spec: unknown; variants: unknown[] }
-
-    expect(response.status).toBe(200)
-    expect(body.spec).not.toBeNull()
-    expect(body.variants).toEqual([])
+    expect(response.status).toBe(502)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
   })
 
   it('returns the verified Tiny VAE preview-decoder weight profile', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Kijai/MiniMax-H3-TAE')) {
+      if (url.includes('/api/models/Kijai/MiniMax-H3-TAE') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Kijai/MiniMax-H3-TAE',
           sha: 'a213ac8bf2f148b4f32372279a7f207846978900',
@@ -905,6 +1403,8 @@ describe('Hugging Face model API', () => {
       }
       if (url.includes('/Kijai/MiniMax-H3-TAE/resolve/')) return new Response(null, { status: 404 })
       if (url.includes('/Kijai/MiniMax-H3-TAE/tree/')) return Response.json([])
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected Tiny VAE fetch: ${url}`)
     })
 
@@ -936,7 +1436,7 @@ describe('Hugging Face model API', () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/kijai/MiniMax-H3-TAE/tree/')) return Response.json([])
-      if (url.includes('/api/models/kijai/MiniMax-H3-TAE')) {
+      if (url.includes('/api/models/kijai/MiniMax-H3-TAE') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Kijai/MiniMax-H3-TAE',
           sha: 'a213ac8bf2f148b4f32372279a7f207846978900',
@@ -944,6 +1444,8 @@ describe('Hugging Face model API', () => {
         })
       }
       if (url.includes('/kijai/MiniMax-H3-TAE/resolve/')) return new Response(null, { status: 404 })
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected canonical-id fetch: ${url}`)
     })
 
@@ -961,7 +1463,7 @@ describe('Hugging Face model API', () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/Example/Workflow/tree/workflow123')) return Response.json([])
-      if (url.includes('/api/models/Example/Workflow')) {
+      if (url.includes('/api/models/Example/Workflow') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Example/Workflow',
           sha: 'workflow123',
@@ -973,6 +1475,8 @@ describe('Hugging Face model API', () => {
       if (url.includes('/Example/Workflow/resolve/workflow123/config.json')) {
         return new Response(null, { status: 404 })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected workflow fetch: ${url}`)
     })
 
@@ -999,7 +1503,7 @@ describe('Hugging Face model API', () => {
   it('adds a declared base model to a VAE static-weight estimate without KV cache', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Example/Video-VAE')) {
+      if (url.includes('/api/models/Example/Video-VAE') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Example/Video-VAE',
           sha: 'derived123',
@@ -1012,13 +1516,15 @@ describe('Hugging Face model API', () => {
         return Response.json({ architectures: ['AutoencoderKL'], model_type: 'autoencoder_kl' })
       }
       if (url.includes('/Example/Video-VAE/tree/derived123')) return Response.json([])
-      if (url.includes('/api/models/Example/Base')) {
+      if (url.includes('/api/models/Example/Base') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Example/Base',
           sha: 'base456',
           safetensors: { parameters: { BF16: 8_000_000 } },
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected declared-VAE-base fetch: ${url}`)
     })
 
@@ -1050,7 +1556,7 @@ describe('Hugging Face model API', () => {
   it('does not include a private declared base in a public VAE estimate', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Example/Private-Base-VAE')) return Response.json({
+      if (url.includes('/api/models/Example/Private-Base-VAE') && !url.includes('/tree/')) return Response.json({
         id: 'Example/Private-Base-VAE', sha: 'derived123', pipeline_tag: 'image-to-image',
         tags: ['vae', 'base_model:Example/Private-Base'],
         safetensors: { parameters: { F16: 1_000 } },
@@ -1059,10 +1565,12 @@ describe('Hugging Face model API', () => {
         return Response.json({ architectures: ['AutoencoderKL'], model_type: 'autoencoder_kl' })
       }
       if (url.includes('/Example/Private-Base-VAE/tree/derived123')) return Response.json([])
-      if (url.includes('/api/models/Example/Private-Base')) return Response.json({
+      if (url.includes('/api/models/Example/Private-Base') && !url.includes('/tree/')) return Response.json({
         id: 'Example/Private-Base', sha: 'base456', private: true,
         safetensors: { parameters: { BF16: 8_000_000 } },
       })
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected private VAE base fetch: ${url}`)
     })
 
@@ -1087,7 +1595,7 @@ describe('Hugging Face model API', () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/Example/Case-VAE/tree/derivedcase')) return Response.json([])
-      if (url.includes('/api/models/Example/Case-VAE')) {
+      if (url.includes('/api/models/Example/Case-VAE') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Example/Case-VAE',
           sha: 'derivedcase',
@@ -1099,13 +1607,15 @@ describe('Hugging Face model API', () => {
       if (url.includes('/Example/Case-VAE/resolve/derivedcase/config.json')) {
         return Response.json({ architectures: ['AutoencoderKL'], model_type: 'autoencoder_kl' })
       }
-      if (url.includes('/api/models/example/Base')) {
+      if (url.includes('/api/models/example/Base') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Example/Base',
           sha: 'basecase',
           safetensors: { parameters: { BF16: 8_000_000 } },
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected canonical-VAE-base fetch: ${url}`)
     })
 
@@ -1130,7 +1640,7 @@ describe('Hugging Face model API', () => {
       if (url.includes('/Example/File-VAE/tree/filevae123')) {
         return Response.json([{ type: 'file', path: 'vae/model.safetensors', size: 2_400 }])
       }
-      if (url.includes('/api/models/Example/File-VAE')) {
+      if (url.includes('/api/models/Example/File-VAE') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Example/File-VAE',
           sha: 'filevae123',
@@ -1141,6 +1651,8 @@ describe('Hugging Face model API', () => {
       if (url.includes('/Example/File-VAE/resolve/filevae123/config.json')) {
         return Response.json({ architectures: ['AutoencoderKL'], model_type: 'autoencoder_kl' })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected VAE-artifact fetch: ${url}`)
     })
 
@@ -1169,7 +1681,7 @@ describe('Hugging Face model API', () => {
   it('inherits a revision-locked base config for a full GGUF model repository', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/unsloth/Qwen3.8-27B-GGUF')) {
+      if (url.includes('/api/models/unsloth/Qwen3.8-27B-GGUF') && !url.includes('/tree/')) {
         return Response.json({
           id: 'unsloth/Qwen3.8-27B-GGUF',
           author: 'unsloth',
@@ -1181,7 +1693,7 @@ describe('Hugging Face model API', () => {
       if (url.includes('/unsloth/Qwen3.8-27B-GGUF/resolve/derived123/config.json')) {
         return Response.json({})
       }
-      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Qwen/Qwen3.8-27B',
           sha: 'base456',
@@ -1198,6 +1710,8 @@ describe('Hugging Face model API', () => {
           max_position_embeddings: 262144,
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected fetch: ${url}`)
     })
 
@@ -1222,13 +1736,13 @@ describe('Hugging Face model API', () => {
   it('does not inherit architecture facts from a private base model', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Example/Public-GGUF')) return Response.json({
+      if (url.includes('/api/models/Example/Public-GGUF') && !url.includes('/tree/')) return Response.json({
         id: 'Example/Public-GGUF', sha: 'derived123',
         tags: ['gguf', 'base_model:Example/Private-Base', 'base_model:quantized:Example/Private-Base'],
         gguf: { total: 7_000_000_000, context_length: 131072 },
       })
       if (url.includes('/Example/Public-GGUF/resolve/derived123/config.json')) return Response.json({})
-      if (url.includes('/api/models/Example/Private-Base')) return Response.json({
+      if (url.includes('/api/models/Example/Private-Base') && !url.includes('/tree/')) return Response.json({
         id: 'Example/Private-Base', sha: 'base456', private: true,
         safetensors: { total: 14_000_000_000 },
       })
@@ -1237,6 +1751,8 @@ describe('Hugging Face model API', () => {
         num_key_value_heads: 8, num_attention_heads: 32, head_dim: 128,
         max_position_embeddings: 131072,
       })
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected private quantized base fetch: ${url}`)
     })
 
@@ -1264,7 +1780,7 @@ describe('Hugging Face model API', () => {
           { type: 'file', path: 'mtp-head.gguf', size: 503_316_480 },
         ])
       }
-      if (url.includes('/api/models/Lab/Qwen-MTP-GGUF')) {
+      if (url.includes('/api/models/Lab/Qwen-MTP-GGUF') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Lab/Qwen-MTP-GGUF',
           author: 'Lab',
@@ -1287,7 +1803,7 @@ describe('Hugging Face model API', () => {
           max_position_embeddings: 262144,
         })
       }
-      if (url.includes('/api/models/unsloth/Qwen3.8-27B-NVFP4')) {
+      if (url.includes('/api/models/unsloth/Qwen3.8-27B-NVFP4') && !url.includes('/tree/')) {
         return Response.json({
           id: 'unsloth/Qwen3.8-27B-NVFP4',
           sha: 'base456',
@@ -1305,7 +1821,7 @@ describe('Hugging Face model API', () => {
           max_position_embeddings: 262144,
         })
       }
-      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Qwen/Qwen3.8-27B',
           sha: 'base789',
@@ -1322,6 +1838,8 @@ describe('Hugging Face model API', () => {
           max_position_embeddings: 262144,
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected fetch: ${url}`)
     })
 
@@ -1354,7 +1872,7 @@ describe('Hugging Face model API', () => {
       if (url.includes('/z-lab/Qwen3.6-35B-A3B-DFlash/tree/draft123')) {
         return Response.json([{ type: 'file', path: 'model.safetensors', size: 771_812_352 }])
       }
-      if (url.includes('/api/models/z-lab/Qwen3.6-35B-A3B-DFlash')) {
+      if (url.includes('/api/models/z-lab/Qwen3.6-35B-A3B-DFlash') && !url.includes('/tree/')) {
         return Response.json({
           id: 'z-lab/Qwen3.6-35B-A3B-DFlash', author: 'z-lab', sha: 'draft123',
           pipeline_tag: 'text-generation',
@@ -1375,12 +1893,14 @@ describe('Hugging Face model API', () => {
           layer_types: ['sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'sliding_attention', 'full_attention'],
         })
       }
-      if (url.includes('/api/models/Qwen/Qwen3.6-35B-A3B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.6-35B-A3B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Qwen/Qwen3.6-35B-A3B', sha: 'target456',
           safetensors: { total: 35_951_822_704, parameters: { BF16: 35_951_822_704 } },
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected DFlash fetch: ${url}`)
     })
 
@@ -1419,7 +1939,7 @@ describe('Hugging Face model API', () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/z-lab/Draft/tree/draft123')) return Response.json([])
-      if (url.includes('/api/models/z-lab/Draft')) return Response.json({
+      if (url.includes('/api/models/z-lab/Draft') && !url.includes('/tree/')) return Response.json({
         id: 'z-lab/Draft', sha: 'draft123', pipeline_tag: 'text-generation',
         tags: ['dflash', 'draft-model', 'base_model:qwen/qwen-target'],
         safetensors: { parameters: { BF16: 100_000_000 }, total: 100_000_000 },
@@ -1431,6 +1951,8 @@ describe('Hugging Face model API', () => {
         id: 'Qwen/Qwen-Target', sha: 'target456',
         safetensors: { parameters: { BF16: 7_000_000_000 }, total: 7_000_000_000 },
       })
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected fetch: ${url}`)
     })
 
@@ -1445,11 +1967,11 @@ describe('Hugging Face model API', () => {
     expect(body.resourceEstimate?.baseModelId).toBe('Qwen/Qwen-Target')
   })
 
-  it('falls back to draft-only weights when the optional target lookup fails', async () => {
+  it('reports target lookup outages instead of caching a draft-only partial response', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/z-lab/Draft/tree/draft123')) return Response.json([])
-      if (url.includes('/api/models/z-lab/Draft')) return Response.json({
+      if (url.includes('/api/models/z-lab/Draft') && !url.includes('/tree/')) return Response.json({
         id: 'z-lab/Draft', sha: 'draft123', pipeline_tag: 'text-generation',
         tags: ['dflash', 'draft-model', 'base_model:Qwen/Qwen-Target'],
         safetensors: { parameters: { BF16: 100_000_000 }, total: 100_000_000 },
@@ -1457,29 +1979,22 @@ describe('Hugging Face model API', () => {
       if (url.includes('/z-lab/Draft/resolve/draft123/config.json')) return Response.json({
         architectures: ['DFlashDraftModel'], dflash_config: { block_size: 8 },
       })
-      if (url.includes('/api/models/Qwen/Qwen-Target')) throw new Error('target unavailable')
+      if (url.includes('/api/models/Qwen/Qwen-Target') && !url.includes('/tree/')) throw new Error('target unavailable')
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected fetch: ${url}`)
     })
 
     const response = await handleModelApi(new Request('https://sizeof.ai/api/models/z-lab/Draft'), fetcher)
-    const body = await response.json() as {
-      modelKind: string
-      resourceEstimate: { kind: string; options: Array<{ components: Array<{ id: string }> }> } | null
-    }
-
-    expect(response.status).toBe(200)
-    expect(body.modelKind).toBe('speculative-draft')
-    expect(body.resourceEstimate).toMatchObject({
-      kind: 'speculative-draft',
-      options: [{ components: [{ id: 'draft-weights' }] }],
-    })
+    expect(response.status).toBe(502)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
   })
 
   it('does not include private target weights in a public speculative profile', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/z-lab/Private-Target-Draft/tree/draft123')) return Response.json([])
-      if (url.includes('/api/models/z-lab/Private-Target-Draft')) return Response.json({
+      if (url.includes('/api/models/z-lab/Private-Target-Draft') && !url.includes('/tree/')) return Response.json({
         id: 'z-lab/Private-Target-Draft', sha: 'draft123', pipeline_tag: 'text-generation',
         tags: ['dflash', 'draft-model', 'base_model:Example/Private-Target'],
         safetensors: { parameters: { BF16: 100_000_000 }, total: 100_000_000 },
@@ -1487,10 +2002,12 @@ describe('Hugging Face model API', () => {
       if (url.includes('/z-lab/Private-Target-Draft/resolve/draft123/config.json')) {
         return Response.json({ architectures: ['DFlashDraftModel'], dflash_config: { block_size: 8 } })
       }
-      if (url.includes('/api/models/Example/Private-Target')) return Response.json({
+      if (url.includes('/api/models/Example/Private-Target') && !url.includes('/tree/')) return Response.json({
         id: 'Example/Private-Target', sha: 'target456', private: true,
         safetensors: { parameters: { BF16: 7_000_000_000 }, total: 7_000_000_000 },
       })
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected private speculative target fetch: ${url}`)
     })
 
@@ -1514,7 +2031,7 @@ describe('Hugging Face model API', () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/z-lab/Draft/tree/draft123')) return Response.json([])
-      if (url.includes('/api/models/z-lab/Draft')) return Response.json({
+      if (url.includes('/api/models/z-lab/Draft') && !url.includes('/tree/')) return Response.json({
         id: 'z-lab/Draft', sha: 'draft123', pipeline_tag: 'text-generation',
         tags: ['dflash', 'draft-model', 'base_model:Qwen/Qwen-Target'],
         safetensors: { parameters: { BF16: 100_000_000 }, total: 100_000_000 },
@@ -1527,10 +2044,12 @@ describe('Hugging Face model API', () => {
         { type: 'file', path: 'model-00002-of-00002.safetensors', size: 3_500_000_000 },
         { type: 'file', path: 'model.safetensors.index.json', size: 10_000 },
       ])
-      if (url.includes('/api/models/Qwen/Qwen-Target')) return Response.json({
+      if (url.includes('/api/models/Qwen/Qwen-Target') && !url.includes('/tree/')) return Response.json({
         id: 'Qwen/Qwen-Target', sha: 'target456', tags: ['safetensors'],
         safetensors: { total: 7_000_000_000 },
       })
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected fetch: ${url}`)
     })
 
@@ -1555,7 +2074,7 @@ describe('Hugging Face model API', () => {
           { type: 'file', path: 'mmproj-F32.gguf', size: 1_842_940_128 },
         ])
       }
-      if (url.includes('/api/models/Lab/Composite-GGUF')) {
+      if (url.includes('/api/models/Lab/Composite-GGUF') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Lab/Composite-GGUF',
           sha: 'composite123',
@@ -1566,6 +2085,8 @@ describe('Hugging Face model API', () => {
       if (url.includes('/Lab/Composite-GGUF/resolve/composite123/config.json')) {
         return Response.json({})
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected composite fetch: ${url}`)
     })
     const ggufReader = vi.fn(async () => ({
@@ -1606,7 +2127,7 @@ describe('Hugging Face model API', () => {
   it('does not trust metadata returned for a different base model id', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Lab/Model-GGUF')) {
+      if (url.includes('/api/models/Lab/Model-GGUF') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Lab/Model-GGUF',
           sha: 'derived123',
@@ -1617,13 +2138,15 @@ describe('Hugging Face model API', () => {
       if (url.includes('/Lab/Model-GGUF/resolve/derived123/config.json')) {
         return Response.json({})
       }
-      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Wrong/Model',
           sha: 'wrong456',
           safetensors: { total: 27_781_427_952 },
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected fetch for mismatched base: ${url}`)
     })
 
@@ -1641,7 +2164,7 @@ describe('Hugging Face model API', () => {
   it('does not treat a GGUF LoRA adapter as a full base model', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Lab/Adapter-GGUF')) {
+      if (url.includes('/api/models/Lab/Adapter-GGUF') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Lab/Adapter-GGUF',
           sha: 'adapter123',
@@ -1659,6 +2182,8 @@ describe('Hugging Face model API', () => {
           max_position_embeddings: 262144,
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected base-model fetch for adapter: ${url}`)
     })
 
@@ -1676,7 +2201,7 @@ describe('Hugging Face model API', () => {
   it('uses logical base parameters for a complete packed quantized model', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/RadixArk/Qwen3.8-27B-NVFP4')) {
+      if (url.includes('/api/models/RadixArk/Qwen3.8-27B-NVFP4') && !url.includes('/tree/')) {
         return Response.json({
           id: 'RadixArk/Qwen3.8-27B-NVFP4',
           sha: 'packed123',
@@ -1703,13 +2228,15 @@ describe('Hugging Face model API', () => {
           quantization_config: { quant_method: 'modelopt', bits: 4 },
         })
       }
-      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Qwen/Qwen3.8-27B',
           sha: 'base456',
           safetensors: { total: 27_781_427_952, parameters: { BF16: 27_781_427_952 } },
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected packed-model fetch: ${url}`)
     })
 
@@ -1732,7 +2259,7 @@ describe('Hugging Face model API', () => {
   it('uses logical base parameters for U32-packed MLX weights', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Youssofal/Qwen3.8-27B-MTPLX-Optimized-Quality')) {
+      if (url.includes('/api/models/Youssofal/Qwen3.8-27B-MTPLX-Optimized-Quality') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Youssofal/Qwen3.8-27B-MTPLX-Optimized-Quality',
           sha: 'mlx123',
@@ -1760,13 +2287,15 @@ describe('Hugging Face model API', () => {
           quantization_config: { bits: 8, mode: 'affine' },
         })
       }
-      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Qwen/Qwen3.8-27B',
           sha: 'base456',
           safetensors: { total: 27_781_427_952, parameters: { BF16: 27_781_427_952 } },
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected MLX-model fetch: ${url}`)
     })
 
@@ -1822,7 +2351,7 @@ describe('Hugging Face model API', () => {
           baseModel: 'Qwen/Qwen3.5-9B',
         } })
       }
-      if (url.includes('/api/models/PocketAiHub/Qwen3.8-9B-Abliterated-MLX')) {
+      if (url.includes('/api/models/PocketAiHub/Qwen3.8-9B-Abliterated-MLX') && !url.includes('/tree/')) {
         return Response.json({
           id: 'PocketAiHub/Qwen3.8-9B-Abliterated-MLX',
           sha: 'pocket123',
@@ -1834,7 +2363,7 @@ describe('Hugging Face model API', () => {
       if (url.includes('/PocketAiHub/Qwen3.8-9B-Abliterated-MLX/resolve/pocket123/config.json')) {
         return new Response('missing', { status: 404 })
       }
-      if (url.includes('/api/models/Qwen/Qwen3.5-9B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.5-9B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Qwen/Qwen3.5-9B', sha: 'base456',
           safetensors: { total: 9_653_104_368, parameters: { BF16: 9_653_104_368 } },
@@ -1846,6 +2375,8 @@ describe('Hugging Face model API', () => {
           num_attention_heads: 16, head_dim: 256, max_position_embeddings: 262144,
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected MLX variant fetch: ${url}`)
     })
 
@@ -1877,7 +2408,7 @@ describe('Hugging Face model API', () => {
       if (url.includes('/turboderp/Qwen3.8-27B-exl3/tree/main123')) {
         return Response.json([{ type: 'file', path: 'README.md', size: 1_214 }])
       }
-      if (url.includes('/api/models/turboderp/Qwen3.8-27B-exl3/refs')) {
+      if (url.includes('/api/models/turboderp/Qwen3.8-27B-exl3/refs') && !url.includes('/tree/')) {
         return Response.json({ branches: [
           { name: 'main', targetCommit: 'main123' },
           { name: '2.00bpw', targetCommit: '2000000000000000000000000000000000000000' },
@@ -1897,7 +2428,7 @@ describe('Hugging Face model API', () => {
           { type: 'file', path: 'output.safetensors', size: 16_884_000_000 },
         ])
       }
-      if (url.includes('/api/models/turboderp/Qwen3.8-27B-exl3')) {
+      if (url.includes('/api/models/turboderp/Qwen3.8-27B-exl3') && !url.includes('/tree/')) {
         return Response.json({
           id: 'turboderp/Qwen3.8-27B-exl3', sha: 'main123',
           tags: [
@@ -1909,7 +2440,7 @@ describe('Hugging Face model API', () => {
       if (url.includes('/turboderp/Qwen3.8-27B-exl3/resolve/main123/config.json')) {
         return new Response('missing', { status: 404 })
       }
-      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Qwen/Qwen3.8-27B', sha: 'base456',
           safetensors: { total: 27_781_427_952, parameters: { BF16: 27_781_427_952 } },
@@ -1922,6 +2453,8 @@ describe('Hugging Face model API', () => {
           head_dim: 256, max_position_embeddings: 262144,
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected EXL variant fetch: ${url}`)
     })
 
@@ -1965,7 +2498,7 @@ describe('Hugging Face model API', () => {
           weights_id: 'groupwise-int',
         })
       }
-      if (url.includes('/api/models/neroued/Qwen3.8-27B-NInfer')) {
+      if (url.includes('/api/models/neroued/Qwen3.8-27B-NInfer') && !url.includes('/tree/')) {
         return Response.json({
           id: 'neroued/Qwen3.8-27B-NInfer', sha: 'ninfer123',
           library_name: 'ninfer', tags: ['ninfer', 'quantized'],
@@ -1975,7 +2508,7 @@ describe('Hugging Face model API', () => {
       if (url.includes('/neroued/Qwen3.8-27B-NInfer/resolve/ninfer123/config.json')) {
         return new Response('missing', { status: 404 })
       }
-      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B') && !url.includes('/tree/')) {
         expect(url).toContain(`revision=${baseSha}`)
         return Response.json({
           id: 'Qwen/Qwen3.8-27B', sha: baseSha,
@@ -1989,6 +2522,8 @@ describe('Hugging Face model API', () => {
           head_dim: 256, max_position_embeddings: 262144,
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected NInfer fetch: ${url}`)
     })
 
@@ -2013,7 +2548,8 @@ describe('Hugging Face model API', () => {
   it('treats packed quantized weights without a declared base as their own model', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Lab/Qwen3.8-27B-AutoRound')) {
+      if (url.includes('/tree/') || url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
+      if (url.includes('/api/models/Lab/Qwen3.8-27B-AutoRound') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Lab/Qwen3.8-27B-AutoRound',
           sha: 'packed123',
@@ -2057,7 +2593,7 @@ describe('Hugging Face model API', () => {
   it('follows a bounded revision-locked quantized base chain for missing GGUF config', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Lab/Layer-Two-GGUF')) {
+      if (url.includes('/api/models/Lab/Layer-Two-GGUF') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Lab/Layer-Two-GGUF',
           sha: 'derived123',
@@ -2068,7 +2604,7 @@ describe('Hugging Face model API', () => {
       if (url.includes('/Lab/Layer-Two-GGUF/resolve/derived123/config.json')) {
         return new Response('missing', { status: 404 })
       }
-      if (url.includes('/api/models/Lab/Layer-One-GGUF')) {
+      if (url.includes('/api/models/Lab/Layer-One-GGUF') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Lab/Layer-One-GGUF',
           sha: 'middle456',
@@ -2079,7 +2615,7 @@ describe('Hugging Face model API', () => {
       if (url.includes('/Lab/Layer-One-GGUF/resolve/middle456/config.json')) {
         return new Response('missing', { status: 404 })
       }
-      if (url.includes('/api/models/Qwen/Qwen3.6-35B-A3B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.6-35B-A3B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Qwen/Qwen3.6-35B-A3B',
           sha: 'base789',
@@ -2098,6 +2634,8 @@ describe('Hugging Face model API', () => {
           layer_types: Array.from({ length: 40 }, (_, index) => index % 4 === 3 ? 'full_attention' : 'linear_attention'),
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected base-chain fetch: ${url}`)
     })
 
@@ -2120,7 +2658,7 @@ describe('Hugging Face model API', () => {
   it('honors declared metadata lineage when the repository name suggests another version', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Lab/Qwen3.8-27B-GGUF')) {
+      if (url.includes('/api/models/Lab/Qwen3.8-27B-GGUF') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Lab/Qwen3.8-27B-GGUF',
           sha: 'derived123',
@@ -2131,7 +2669,7 @@ describe('Hugging Face model API', () => {
       if (url.includes('/Lab/Qwen3.8-27B-GGUF/resolve/derived123/config.json')) {
         return new Response('missing', { status: 404 })
       }
-      if (url.includes('/api/models/Qwen/Qwen3.6-27B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.6-27B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Qwen/Qwen3.6-27B',
           sha: 'base456',
@@ -2149,6 +2687,8 @@ describe('Hugging Face model API', () => {
           max_position_embeddings: 262144,
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected metadata-lineage fetch: ${url}`)
     })
 
@@ -2171,7 +2711,7 @@ describe('Hugging Face model API', () => {
   it('allows a merged full checkpoint even when its history includes LoRA tags', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Lab/Merged-Lora-Model')) {
+      if (url.includes('/api/models/Lab/Merged-Lora-Model') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Lab/Merged-Lora-Model',
           sha: 'merged123',
@@ -2190,13 +2730,15 @@ describe('Hugging Face model API', () => {
           max_position_embeddings: 65536,
         })
       }
-      if (url.includes('/api/models/Base/Model-3B')) {
+      if (url.includes('/api/models/Base/Model-3B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Base/Model-3B',
           sha: 'base456',
           safetensors: { total: 3_100_000_000, parameters: { BF16: 3_100_000_000 } },
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected merged-model fetch: ${url}`)
     })
 
@@ -2215,7 +2757,7 @@ describe('Hugging Face model API', () => {
   it('does not use a mutable main revision when base metadata omits sha', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Lab/Model-GGUF')) {
+      if (url.includes('/api/models/Lab/Model-GGUF') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Lab/Model-GGUF',
           sha: 'derived123',
@@ -2226,9 +2768,11 @@ describe('Hugging Face model API', () => {
       if (url.includes('/Lab/Model-GGUF/resolve/derived123/config.json')) {
         return new Response('missing', { status: 404 })
       }
-      if (url.includes('/api/models/Qwen/Qwen3.8-27B')) {
+      if (url.includes('/api/models/Qwen/Qwen3.8-27B') && !url.includes('/tree/')) {
         return Response.json({ id: 'Qwen/Qwen3.8-27B' })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected mutable base config fetch: ${url}`)
     })
 
@@ -2246,7 +2790,7 @@ describe('Hugging Face model API', () => {
   it('rejects base parameters without a revision sha even when derived config is complete', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Lab/Packed-Model')) {
+      if (url.includes('/api/models/Lab/Packed-Model') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Lab/Packed-Model',
           sha: 'derived123',
@@ -2264,12 +2808,13 @@ describe('Hugging Face model API', () => {
           max_position_embeddings: 32768,
         })
       }
-      if (url.includes('/api/models/Base/Model-27B')) {
+      if (url.includes('/api/models/Base/Model-27B') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Base/Model-27B',
           safetensors: { total: 27_000_000_000, parameters: { BF16: 27_000_000_000 } },
         })
       }
+      if (url.includes('/Lab/Packed-Model/tree/derived123')) return Response.json([])
       throw new Error(`A mutable base revision must not be used: ${url}`)
     })
 
@@ -2288,7 +2833,7 @@ describe('Hugging Face model API', () => {
     const ids = ['Base/One', 'Base/Two', 'Base/Three', 'Base/Four']
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/Lab/Too-Deep-GGUF')) {
+      if (url.includes('/api/models/Lab/Too-Deep-GGUF') && !url.includes('/tree/')) {
         return Response.json({
           id: 'Lab/Too-Deep-GGUF',
           sha: 'derived123',
@@ -2316,6 +2861,8 @@ describe('Hugging Face model API', () => {
           safetensors: { total: 27_000_000_000, parameters: { BF16: 27_000_000_000 } },
         })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected deep-chain fetch: ${url}`)
     })
 
@@ -2333,7 +2880,7 @@ describe('Hugging Face model API', () => {
   it('uses versioned curated architecture facts for a gated official model', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/api/models/meta-llama/Llama-3.1-8B-Instruct')) {
+      if (url.includes('/api/models/meta-llama/Llama-3.1-8B-Instruct') && !url.includes('/tree/')) {
         return Response.json({
           id: 'meta-llama/Llama-3.1-8B-Instruct',
           sha: 'official123',
@@ -2345,6 +2892,8 @@ describe('Hugging Face model API', () => {
       if (url.includes('/meta-llama/Llama-3.1-8B-Instruct/resolve/official123/config.json')) {
         return new Response('gated', { status: 401 })
       }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
       throw new Error(`Unexpected gated-model fetch: ${url}`)
     })
 
@@ -2360,6 +2909,35 @@ describe('Hugging Face model API', () => {
     expect(response.status).toBe(200)
     expect(body.configSourceId).toBe('sizeof.ai curated / meta-llama/Llama-3.1-8B-Instruct')
     expect(body.spec).toMatchObject({ layers: 32, kvHeads: 8, headDim: 128, maxContext: 131072 })
+  })
+
+  it('does not disguise a temporary Muse configuration outage with curated facts', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/models/meta-models/Muse-Glimmer-30B') && !url.includes('/tree/')) {
+        return Response.json({
+          id: 'meta-models/Muse-Glimmer-30B',
+          sha: 'a4e59da52a7bc87ae7251dd5545c0dd437c44b68',
+          author: 'meta-models',
+          pipeline_tag: 'image-text-to-text',
+          tags: ['image-text-to-text'],
+          safetensors: { total: 59_553_253_376, parameters: { BF16: 29_776_626_688 } },
+        })
+      }
+      if (url.includes('/meta-models/Muse-Glimmer-30B/resolve/a4e59da52a7bc87ae7251dd5545c0dd437c44b68/config.json')) {
+        return new Response('temporarily unavailable', { status: 503 })
+      }
+      if (url.includes('/tree/')) return Response.json([])
+      if (url.startsWith('https://huggingface.co/api/models?')) return Response.json([])
+      throw new Error(`Unexpected Muse fetch: ${url}`)
+    })
+
+    const response = await handleModelApi(
+      new Request('https://sizeof.ai/api/models/meta-models/Muse-Glimmer-30B'),
+      fetcher,
+    )
+    expect(response.status).toBe(502)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
   })
 
   it('rejects paths that could escape the fixed Hugging Face origin', async () => {

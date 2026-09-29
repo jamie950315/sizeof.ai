@@ -1,0 +1,101 @@
+/* Hardware lab: tab strip, then a form | readout instrument panel. */
+
+.hardware-tabs {
+  display: flex; gap: 4px; border-bottom: 1px solid var(--ink); margin-bottom: 0;
+  overflow-x: auto; scrollbar-width: none;
+}
+.hardware-tabs::-webkit-scrollbar { display: none; }
+.hardware-tabs button {
+  flex: none; min-height: 44px; padding: 0 14px; margin-bottom: -1px;
+  border: 1px solid transparent; border-bottom: 0; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent; font-size: 15px; font-weight: 540; color: var(--ink-2); white-space: nowrap;
+}
+.hardware-tabs button:hover { color: var(--ink); }
+.hardware-tabs button[aria-pressed='true'] {
+  color: var(--ink); font-weight: 650; background: var(--sheet);
+  border-color: var(--ink); box-shadow: inset 0 3px 0 var(--tape);
+}
+
+.hardware-grid {
+  display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  border: 1px solid var(--ink); border-top: 0; border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--sheet); overflow: hidden;
+}
+.hardware-controls { padding: clamp(18px, 2.4vw, 30px); display: grid; gap: 18px; align-content: start; min-width: 0; }
+.hardware-controls h2 { font-size: clamp(20px, 2vw, 24px); }
+.hardware-intro { color: var(--ink-2); font-size: 14.5px; line-height: 1.55; max-width: 60ch; margin-top: -8px; }
+.hardware-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 20px; align-items: start; }
+.hardware-field input { font-family: var(--font-mono); font-stretch: 92%; font-size: 15px; }
+.hardware-field small, .hardware-presets small { font-size: 12.5px; line-height: 1.45; color: var(--ink-3); }
+.hardware-presets { display: grid; gap: 6px; }
+.hardware-presets .seg > button { min-width: 52px; }
+
+.hardware-results {
+  padding: clamp(18px, 2.4vw, 30px); display: grid; gap: 18px; align-content: start; min-width: 0;
+  border-inline-start: 1px solid var(--ink); background: var(--paper);
+}
+.hardware-readout-label { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.hardware-results .total-number span { overflow-wrap: anywhere; }
+.hardware-caution {
+  font-size: 13.5px; line-height: 1.6; color: var(--ink-2);
+  border-inline-start: 3px solid var(--rule-2); padding-inline-start: 12px;
+}
+.hardware-next { font-size: 14px; font-weight: 600; justify-self: start; }
+
+/* Memory pools: each device is one track on the capacity ruler. */
+.hardware-pools { display: grid; gap: 6px; }
+.hardware-pools.numbered .hardware-pool-scale { padding-inline-start: 30px; }
+.hardware-pool-row { display: flex; align-items: center; gap: 8px; }
+.hardware-pool-index {
+  flex: none; width: 22px; font-family: var(--font-mono); font-stretch: 87.5%; font-size: 11px; color: var(--ink-3); text-align: end;
+}
+.hardware-pool-track {
+  position: relative; flex: 1; display: flex; height: 28px; min-width: 0;
+  border: 1px solid var(--ink); border-radius: 2px; overflow: hidden; background: var(--sheet);
+}
+.hardware-pools.numbered .hardware-pool-track { height: 16px; }
+.hardware-pool-usable { display: block; height: 100%; width: var(--usable); background: var(--ink); transition: width .35s var(--ease); }
+.hardware-pool-reserve {
+  display: block; height: 100%; flex: 1; border-inline-start: 2px solid var(--tape);
+  background: repeating-linear-gradient(-45deg, var(--ink-3) 0 1.4px, var(--sheet) 1.4px 5.5px);
+}
+.hardware-pool-more { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 12px; color: var(--ink-3); padding-inline-start: 30px; }
+
+.hardware-key-usable dt::before, .hardware-key-reserve dt::before {
+  content: ''; display: inline-block; width: 20px; height: 11px; margin-inline-end: 9px; vertical-align: -1px;
+  border: 1px solid var(--ink); border-radius: 2px;
+}
+.hardware-key-usable dt::before { background: var(--ink); }
+.hardware-key-reserve dt::before { background: repeating-linear-gradient(-45deg, var(--ink-3) 0 1.4px, var(--sheet) 1.4px 5.5px); }
+
+.hardware-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
+.hardware-actions .btn-primary { margin-inline-start: auto; }
+.hardware-feedback { margin-top: 12px; font-size: 14px; color: var(--ink-2); }
+.hardware-link-error { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.hardware-link-error > * + * { margin-top: 0; }
+.hardware-link-error p { flex: 1 1 320px; }
+
+.hardware-footnote {
+  margin-top: clamp(28px, 4vw, 44px); padding-top: 16px; border-top: 1px solid var(--rule);
+  font-size: 13.5px; line-height: 1.6; color: var(--ink-2); max-width: 90ch;
+}
+.hardware-footnote strong { color: var(--ink); }
+.hardware-footnote a { color: var(--ink); font-weight: 600; }
+
+@media (max-width: 960px) {
+  .hardware-grid { grid-template-columns: 1fr; }
+  .hardware-results { border-inline-start: 0; border-top: 1px solid var(--ink); }
+}
+
+@media (max-width: 620px) {
+  .hardware-fields { grid-template-columns: 1fr; }
+  .hardware-tabs { gap: 2px; }
+  .hardware-tabs button { flex: 1 1 0; min-width: 0; min-height: 50px; padding: 4px 8px; font-size: 13.5px; line-height: 1.2; white-space: normal; text-align: center; }
+  .hardware-actions .btn { flex: 1 1 auto; }
+  .hardware-actions .btn-primary { margin-inline-start: 0; flex-basis: 100%; }
+  .hardware-presets .seg > button { min-width: 0; flex-basis: 33.33%; border-bottom: 1px solid var(--rule); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hardware-pool-usable { transition: none; }
+}

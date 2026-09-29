@@ -3,38 +3,57 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "bin": {
+    "sizeof": "./cli/sizeof.mjs",
+    "sizeof-mcp": "./mcp/server.mjs"
+  },
   "engines": {
     "node": ">=24.0.0"
   },
   "scripts": {
     "dev": "vite",
     "test": "vitest run",
+    "test:search-index": "python3 -m unittest discover -s services/search-index/src -t services/search-index -p '*_test.py'",
     "test:watch": "vitest",
+    "cli": "node ./cli/sizeof.mjs",
+    "mcp": "node ./mcp/server.mjs",
     "typecheck": "tsc -b --pretty false",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/i18n-check.mjs && tsc -b && node scripts/localize-diagrams.mjs && vite build",
+    "i18n:extract": "node scripts/i18n-catalog.mjs --extract --write",
+    "i18n:generate": "node scripts/i18n-catalog.mjs --write",
     "preview": "vite preview",
     "cf:check": "wrangler deploy --dry-run",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "cf:check:testnet": "wrangler deploy --dry-run --env testnet",
+    "deploy:testnet": "npm run build && wrangler deploy --env testnet",
+    "cf:check:testnet2": "wrangler deploy --dry-run --env testnet2",
+    "deploy:testnet2": "npm run build && wrangler deploy --env testnet2",
+    "deploy:docs": "npm run build && wrangler deploy --config wrangler.docs.jsonc",
+    "cf:check:docs": "wrangler deploy --dry-run --config wrangler.docs.jsonc"
   },
   "dependencies": {
-    "@fontsource-variable/archivo": "latest",
-    "@fontsource-variable/jetbrains-mono": "latest",
-    "lucide-react": "latest",
-    "react": "latest",
-    "react-dom": "latest"
+    "@fontsource-variable/martian-mono": "^5.3.0",
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "lucide-react": "^1.32.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "latest",
-    "@testing-library/react": "latest",
-    "@testing-library/user-event": "latest",
+    "@babel/core": "^7.29.7",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.5",
+    "@types/babel__core": "^7.20.5",
     "@types/node": "^26.2.0",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "@vitejs/plugin-react": "latest",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
     "jsdom": "29.1.1",
-    "typescript": "latest",
-    "vite": "latest",
-    "vitest": "latest",
-    "wrangler": "latest"
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.124.0"
   }
 }

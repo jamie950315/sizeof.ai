@@ -1,0 +1,62 @@
+/* Two-record comparison: a ruled field-by-field table, changed rows highlighted. */
+
+.run-comparison {
+  display: grid; gap: 14px; min-width: 0; margin: 6px 0 10px; padding: clamp(16px, 2vw, 24px);
+  border: 1px solid var(--ink); border-radius: var(--radius); background: var(--paper);
+  box-shadow: 6px 6px 0 var(--hard);
+}
+.run-diff-heading { display: flex; align-items: end; justify-content: space-between; gap: 10px 24px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--ink); }
+.run-diff-heading h2 { font-size: clamp(20px, 2.2vw, 26px); }
+.run-diff-count { display: grid; justify-items: end; gap: 2px; text-align: end; }
+.run-diff-count strong {
+  font-family: var(--font-mono); font-stretch: 100%; font-size: clamp(20px, 2.4vw, 28px); font-weight: 500; letter-spacing: -.04em;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.run-diff-count small { font-size: 12px; color: var(--ink-3); }
+.run-diff-caveats { display: grid; gap: 8px; max-width: 90ch; }
+.run-diff-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 560; justify-self: start; cursor: pointer; }
+.run-diff-none { font-size: 14px; color: var(--ink-2); padding: 12px 0; border-block: 1px solid var(--rule); }
+
+.run-diff-scroll { overflow-x: auto; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+.run-diff-scroll:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; box-shadow: 0 0 0 5px var(--tape); }
+.run-diff-scroll table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+.run-diff-scroll caption { caption-side: top; text-align: start; padding: 8px 0; font-size: 12.5px; color: var(--ink-3); }
+.run-diff-scroll th, .run-diff-scroll td {
+  padding: 9px 12px; border-bottom: 1px solid var(--rule); text-align: start; vertical-align: top;
+  overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.45;
+}
+.run-diff-scroll tbody tr:last-child > * { border-bottom: 0; }
+.run-diff-scroll thead th {
+  font-size: 12.5px; font-weight: 600; color: var(--ink-2); border-bottom: 1px solid var(--ink); background: var(--sheet);
+}
+.run-diff-scroll thead th:nth-child(2), .run-diff-scroll thead th:nth-child(3) { font-family: var(--font-mono); font-stretch: 87.5%; font-weight: 600; }
+.run-diff-scroll th:first-child { width: 24%; padding-inline-start: 10px; }
+.run-diff-scroll th:last-child { width: 13%; }
+.run-diff-scroll tbody th { font-weight: 560; color: var(--ink); }
+.run-diff-scroll tbody th small { display: block; font-size: 11px; font-weight: 500; color: var(--ink-3); margin-bottom: 2px; }
+.run-diff-scroll td { font-family: var(--font-mono); font-stretch: 92%; font-size: 12.5px; }
+.run-diff-scroll td.run-diff-state { font-family: var(--font-ui); font-size: 12.5px; color: var(--ink-3); }
+.run-diff-changed > * { background: var(--sheet); }
+.run-diff-changed > th { box-shadow: inset 4px 0 var(--tape); }
+[dir='rtl'] .run-diff-changed > th { box-shadow: inset -4px 0 var(--tape); }
+.run-diff-changed td.run-diff-state { color: var(--ink); font-weight: 650; }
+.run-diff-missing { font-family: var(--font-ui); font-style: italic; color: var(--ink-3); }
+
+.run-diff-privacy {
+  font-size: 13px; line-height: 1.55; color: var(--ink-2); max-width: 90ch;
+  padding-inline-start: 12px; border-inline-start: 3px solid var(--warn);
+}
+.run-diff-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.run-diff-feedback {
+  padding: 9px 12px; border: 1px solid var(--rule-2); border-inline-start: 4px solid var(--ok);
+  border-radius: var(--radius-sm); background: var(--sheet); font-size: 14px; color: var(--ink-2);
+}
+
+@media (max-width: 960px) {
+  .run-comparison { box-shadow: 4px 4px 0 var(--hard); }
+}
+@media (max-width: 620px) {
+  .run-diff-heading { align-items: start; flex-direction: column; }
+  .run-diff-count { justify-items: start; text-align: start; }
+  .run-diff-scroll table { min-width: 560px; }
+}

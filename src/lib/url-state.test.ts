@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { parseCalculatorState, serializeCalculatorState } from './url-state'
 
 describe('calculator URL state', () => {
+  it.each(['1', '1e100', 'Infinity', '16777217'])('rejects out-of-range contexts %s', (context) => {
+    expect(parseCalculatorState(`?ctx=${context}`).context).toBe(8192)
+  })
   it('parses a valid shareable configuration', () => {
     expect(parseCalculatorState('?model=qwen3-8b&quant=q4_k_m&ctx=32768&kv=q8_0')).toEqual({
       modelId: 'qwen3-8b',

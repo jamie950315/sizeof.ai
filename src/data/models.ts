@@ -44,8 +44,8 @@ export type ModelSpec = ModelSpecBase & (
 )
 
 // Curated from Hugging Face Base-only trending results on 2026-08-22.
-// Entries expose supported full-attention KV geometry; local/sliding and hybrid state remain
-// engine-dependent exclusions disclosed in the homepage methodology.
+// Partial-attention entries expose lower bounds only: omitted local/sliding and hybrid
+// state must not be presented as a verified safe fit by the inverse planner.
 export const models: ModelSpec[] = [
   {
     id: 'qwen3.8-27b',
@@ -55,6 +55,7 @@ export const models: ModelSpec[] = [
     parametersB: 27.781,
     layers: 64,
     attentionLayers: 16,
+    estimateConfidence: 'runtime-specific',
     kvHeads: 4,
     headDim: 256,
     maxContext: 262144,
@@ -70,6 +71,7 @@ export const models: ModelSpec[] = [
     parametersB: 35.952,
     layers: 40,
     attentionLayers: 10,
+    estimateConfidence: 'runtime-specific',
     kvHeads: 2,
     headDim: 256,
     maxContext: 262144,
@@ -85,6 +87,11 @@ export const models: ModelSpec[] = [
     parametersB: 29.777,
     layers: 52,
     attentionLayers: 13,
+    estimateConfidence: 'runtime-specific',
+    attentionProfile: {
+      fullLayers: 13, slidingLayers: 39, slidingWindow: 2048,
+      linearLayers: 0, kdaLayers: 0, recurrentLayers: 0, ssmLayers: 0, stateKind: null,
+    },
     kvHeads: 2,
     headDim: 128,
     maxContext: 131072,
@@ -100,6 +107,7 @@ export const models: ModelSpec[] = [
     parametersB: 9.41,
     layers: 32,
     attentionLayers: 8,
+    estimateConfidence: 'runtime-specific',
     kvHeads: 4,
     headDim: 256,
     maxContext: 262144,
@@ -115,6 +123,7 @@ export const models: ModelSpec[] = [
     parametersB: 35.952,
     layers: 40,
     attentionLayers: 10,
+    estimateConfidence: 'runtime-specific',
     kvHeads: 2,
     headDim: 256,
     maxContext: 262144,
@@ -130,6 +139,7 @@ export const models: ModelSpec[] = [
     parametersB: 34.661,
     layers: 40,
     attentionLayers: 10,
+    estimateConfidence: 'runtime-specific',
     kvHeads: 2,
     headDim: 256,
     maxContext: 262144,
@@ -145,6 +155,7 @@ export const models: ModelSpec[] = [
     parametersB: 27.781,
     layers: 64,
     attentionLayers: 16,
+    estimateConfidence: 'runtime-specific',
     kvHeads: 4,
     headDim: 256,
     maxContext: 262144,
@@ -160,6 +171,7 @@ export const models: ModelSpec[] = [
     parametersB: 21.512,
     layers: 24,
     attentionLayers: 12,
+    estimateConfidence: 'runtime-specific',
     kvHeads: 8,
     headDim: 64,
     maxContext: 131072,

@@ -1,5 +1,6 @@
 import type { AttentionProfile, EstimateConfidence, ModelSpec } from '../data/models'
 import type { HuggingFaceVariant } from './huggingface-variants'
+import { classifyKnownModelTask } from './model-task'
 
 export interface HuggingFaceRoute {
   owner: string
@@ -150,6 +151,10 @@ function asNumber(value: unknown): number | null {
 function positiveNumber(value: unknown): number | null {
   const number = asNumber(value)
   return number !== null && number > 0 ? number : null
+}
+
+function positiveInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null
 }
 
 function nonNegativeInteger(value: unknown): number | null {
@@ -389,30 +394,8 @@ function classifyModel(metadata: UnknownRecord, config: UnknownRecord): HuggingF
   if (isSeparateSpeculativeDraft(metadata, config)) return 'speculative-draft'
   if (contains(['base_model:adapter:', 'lora', 'peft', 'adapter'])) return 'adapter'
   if (contains(['comfyui', 'workflow', 'chat-template', 'chat_template'])) return 'workflow'
-  if (contains(['image-text-to-text', 'visual-question-answering', 'document-question-answering'])) {
-    return 'vision-language'
-  }
-  if (contains(['text-to-video', 'image-to-video', 'video-generation', 'video-classification'])) {
-    return 'video'
-  }
-  if (contains([
-    'text-to-speech', 'text-to-audio', 'automatic-speech-recognition', 'audio-to-audio',
-    'audio-classification', 'voice-cloning', 'voice-activity-detection',
-    'speaker-diarization', 'speaker-segmentation', 'music-transcription', 'audio-to-midi', 'tts',
-  ])) return 'audio'
-  if (contains([
-    'text-to-image', 'image-to-image', 'image-generation', 'unconditional-image-generation',
-    'image-classification', 'mask-generation', 'image-segmentation', 'object-detection',
-    'depth-estimation', 'diffusers',
-  ])) return 'image'
-  if (contains([
-    'visual-document-retrieval', 'sentence-similarity', 'feature-extraction',
-    'fill-mask', 'masked-lm', 'bidirectional', 'document-retrieval', 'embedding',
-  ])) return 'embedding'
-  if (contains([
-    'text-generation', 'text2text-generation', 'conversational',
-    'question-answering', 'summarization', 'translation',
-  ])) return 'language'
+  const knownTaskKind = classifyKnownModelTask(markers)
+  if (knownTaskKind) return knownTaskKind
 
   if (/(?:clip.*vision|vision.*(?:model|encoder)|image.*encoder|vit(?:model)?)/.test(architectureText)) {
     return 'image'
@@ -447,17 +430,17 @@ function createModelId(owner: string, name: string) {
 
 function countPeriodicLayers(layers: number | null, period: number | null, offset: number | null) {
   if (layers === null || period === null || offset === null || period <= 0) return 0
-  let count = 0
-  for (let index = offset; index < layers; index += period) count += 1
-  return count
+  return Math.max(0, Math.ceil((layers - offset) / period))
 }
 
 function deriveAttentionProfile(textConfig: UnknownRecord, layers: number | null): AttentionProfile {
   const declaredLayerTypes = stringArray(textConfig.layer_types).map((item) => item.toLowerCase())
   const blockTypes = stringArray(textConfig.block_types).map((item) => item.toLowerCase())
-  const layerTypes = layers !== null && declaredLayerTypes.length > 0
-    ? Array.from({ length: layers }, (_, index) => declaredLayerTypes[index % declaredLayerTypes.length] ?? '')
-    : declaredLayerTypes
+  const layerTypes = declaredLayerTypes
+  const repetitions = (index: number, length: number) => layers === null ? 1
+    : Math.max(0, Math.ceil((layers - index) / length))
+  const countTypes = (predicate: (type: string) => boolean) => layerTypes.reduce(
+    (total, type, index) => total + (predicate(type) ? repetitions(index, layerTypes.length) : 0), 0)
   const linearConfig = asRecord(textConfig.linear_attn_config)
   const rawFullIndices = Array.isArray(linearConfig.full_attn_layers)
     ? linearConfig.full_attn_layers.filter((item): item is number => typeof item === 'number' && Number.isInteger(item))
@@ -473,22 +456,23 @@ function deriveAttentionProfile(textConfig: UnknownRecord, layers: number | null
     .filter((item) => item >= 0 && (layers === null || item < layers)))
   const explicitFull = normalizeIndices(rawFullIndices).size
   const explicitKda = normalizeIndices(rawKdaIndices).size
-  let fullLayers = layerTypes.filter((item) => item === 'full_attention').length
-  let slidingLayers = layerTypes.filter((item) => /sliding|local/.test(item)).length
-  let linearLayers = layerTypes.filter((item) => item === 'linear_attention').length
-  let kdaLayers = layerTypes.filter((item) => item.includes('kda')).length
-  let recurrentLayers = layerTypes.filter((item) => item.includes('recurrent')).length
-  let ssmLayers = layerTypes.filter((item) => /mamba|ssm|state_space/.test(item)).length
+  let fullLayers = countTypes((item) => item === 'full_attention')
+  let slidingLayers = countTypes((item) => /sliding|local/.test(item))
+  let linearLayers = countTypes((item) => item === 'linear_attention')
+  let kdaLayers = countTypes((item) => item.includes('kda'))
+  let recurrentLayers = countTypes((item) => item.includes('recurrent'))
+  let ssmLayers = countTypes((item) => /mamba|ssm|state_space/.test(item))
 
   if (layerTypes.length === 0 && blockTypes.length > 0 && layers !== null) {
-    for (let index = 0; index < layers; index += 1) {
-      const role = blockTypes[index % blockTypes.length] ?? ''
-      if (role === 'linear_attention' || role.includes('linear')) linearLayers += 1
-      else if (role.includes('kda')) kdaLayers += 1
-      else if (role.includes('recurrent')) recurrentLayers += 1
-      else if (/mamba|ssm|state/.test(role)) ssmLayers += 1
-      else if (/sliding|local/.test(role)) slidingLayers += 1
-      else fullLayers += 1
+    for (let index = 0; index < blockTypes.length; index += 1) {
+      const role = blockTypes[index]
+      const count = repetitions(index, blockTypes.length)
+      if (role === 'linear_attention' || role.includes('linear')) linearLayers += count
+      else if (role.includes('kda')) kdaLayers += count
+      else if (role.includes('recurrent')) recurrentLayers += count
+      else if (/mamba|ssm|state/.test(role)) ssmLayers += count
+      else if (/sliding|local/.test(role)) slidingLayers += count
+      else fullLayers += count
     }
   }
   if (fullLayers === 0 && explicitFull > 0) fullLayers = explicitFull
@@ -498,7 +482,7 @@ function deriveAttentionProfile(textConfig: UnknownRecord, layers: number | null
   }
   if (layers !== null && fullLayers + slidingLayers + linearLayers + kdaLayers
       + recurrentLayers + ssmLayers === 0) {
-    const period = positiveNumber(textConfig.attn_layer_period)
+    const period = positiveInteger(textConfig.attn_layer_period)
     const offset = nonNegativeInteger(textConfig.attn_layer_offset)
     const periodicAttention = countPeriodicLayers(layers, period, offset)
     const hasMambaState = positiveNumber(textConfig.mamba_d_state) !== null
@@ -605,7 +589,7 @@ export function normalizeHuggingFaceModel(
   const gguf = asRecord(metadata.gguf)
   const parameters = positiveNumber(options.parameterCountOverride)
     ?? getHuggingFaceParameterCount(metadata)
-  const layers = positiveNumber(textConfig.num_hidden_layers)
+  const layers = positiveInteger(textConfig.num_hidden_layers)
   const kvHeads = positiveNumber(textConfig.num_key_value_heads)
   const attentionHeads = positiveNumber(textConfig.num_attention_heads)
   const hiddenSize = positiveNumber(textConfig.hidden_size)

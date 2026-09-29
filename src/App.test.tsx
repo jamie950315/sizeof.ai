@@ -1,7 +1,8 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { clearSearchCacheForTests } from './lib/model-search-cache'
 import stylesCss from './styles.css?inline'
 
 const testStyles = document.createElement('style')
@@ -13,24 +14,106 @@ beforeAll(() => {
 afterAll(() => testStyles.remove())
 
 describe('sizeof.ai app', () => {
-  beforeEach(() => window.history.replaceState(null, '', '/'))
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/')
+    clearSearchCacheForTests()
+  })
 
-  it('opens with the current top sub-40B Hugging Face text-output model', () => {
+  it('aborts superseded searches immediately, even before the next debounce fires', async () => {
+    let finish!: (response: Response) => void
+    const fetcher = vi.fn((_url: string, _options?: RequestInit) => new Promise<Response>((resolve) => { finish = resolve }))
+    vi.stubGlobal('fetch', fetcher)
+    const { unmount } = render(<App />)
+    const input = screen.getByRole('searchbox', { name: 'Search Hugging Face models' })
+    fireEvent.change(input, { target: { value: 'Q' } })
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+    const signal = fetcher.mock.calls[0][1]?.signal
+    fireEvent.change(input, { target: { value: 'Qw' } })
+    expect(signal?.aborted).toBe(true)
+    await act(async () => finish(Response.json({ query: 'Q', models: [{ id: 'old/result', owner: 'old', name: 'result', downloads: 1, likes: 0, task: null, trendingScore: 0, gated: false }] })))
+    expect(screen.queryByRole('link', { name: 'Open old/result' })).not.toBeInTheDocument()
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+    const latestSignal = fetcher.mock.calls[1][1]?.signal
+    unmount()
+    expect(latestSignal?.aborted).toBe(true)
+  })
+
+  it('shows invalid search responses as an error instead of no matches', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ query: 'Q', models: [{ id: 'broken' }] })))
+    render(<App />)
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), { target: { value: 'Q' } })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Model search returned invalid data')
+    expect(screen.queryByText(/No Hugging Face models matched/)).not.toBeInTheDocument()
+  })
+
+  it('shows clipboard denial instead of claiming a copied share link', async () => {
+    const user = userEvent.setup()
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } })
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Copy link' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not copy')
+    expect(screen.queryByText('Copied')).not.toBeInTheDocument()
+  })
+
+  it('shows a bounded index failure reason without misattributing it to Hugging Face', async () => {
+    const detail = 'Search index unavailable: ' + '<script>'.repeat(40)
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: detail }, { status: 503 })))
+    render(<App />)
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), { target: { value: 'Q' } })
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(`Model search is unavailable (HTTP 503). ${detail.slice(0, 200)}`)
+    expect(alert).not.toHaveTextContent('Hugging Face search is unavailable')
+    expect(alert.querySelector('script')).toBeNull()
+    expect(alert.textContent).not.toContain(detail)
+  })
+
+  it('keeps the HTTP status when the failure response is not JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Bad gateway', { status: 502 })))
+    render(<App />)
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), { target: { value: 'Q' } })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Model search is unavailable (HTTP 502)')
+  })
+
+  it('preserves loaded rows and exposes the reason when the next page fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => String(input).includes('cursor=')
+      ? Response.json({ error: 'Search index unavailable' }, { status: 503 })
+      : Response.json({ query: 'Q', nextCursor: 'page2', models: [{ id: 'Qwen/One', owner: 'Qwen', name: 'One', downloads: 1, likes: 0, task: null, trendingScore: 0, gated: false }] })))
+    const user = userEvent.setup()
+    render(<App />)
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), { target: { value: 'Q' } })
+    await user.click(await screen.findByRole('button', { name: 'Load more models' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the next page. Model search is unavailable (HTTP 503). Search index unavailable')
+    expect(screen.getByRole('link', { name: 'Open Qwen/One' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load more models' })).toBeEnabled()
+  })
+
+  it('opens directly into the model explorer without a marketing hero', () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: /know what fits/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Model search explorer' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /know what fits/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'VRAM calculator' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Model catalog' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('qwen3.8-27b')
     expect(screen.getAllByText('Qwen3.8 27B').length).toBeGreaterThan(0)
-    expect(screen.getByText('Model weights')).toBeInTheDocument()
-    expect(screen.getAllByText('KV cache').length).toBeGreaterThan(0)
-    expect(screen.getByText('Runtime buffer')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /memory usage/i })).toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Memory breakdown' })).getByText(/Model weights/)).toBeInTheDocument()
   })
 
   it('defaults the homepage calculator to 32 GiB VRAM', () => {
     render(<App />)
 
     expect(screen.getByRole('combobox', { name: 'Your VRAM' })).toHaveValue('32')
-    expect(screen.getByText('COMFORTABLE ON 32 GB')).toBeInTheDocument()
+    expect(screen.getByText('FIT NOT VERIFIED ON 32 GiB')).toBeInTheDocument()
+  })
+
+  it('offers the same workstation and multi-GPU VRAM capacities as model pages', () => {
+    render(<App />)
+
+    const vram = screen.getByRole('combobox', { name: 'Your VRAM' })
+    expect(Array.from(vram.querySelectorAll('option'), (option) => option.value)).toEqual([
+      '8', '12', '16', '24', '32', '36', '48', '64', '80', '96', '128', '192', '256', '384', '512',
+    ])
   })
 
   it('shows a current Hugging Face text-output example catalog', () => {
@@ -48,12 +131,10 @@ describe('sizeof.ai app', () => {
       'gpt-oss 20B',
       'MiniCPM5 1B',
     ]) {
-      expect(within(catalog).getByText(name)).toBeInTheDocument()
+      expect(within(catalog).getByText(name, { selector: '.catalog-name strong' })).toBeInTheDocument()
     }
     expect(within(catalog).queryByText('Llama 3.1 8B')).not.toBeInTheDocument()
-    expect(screen.getByText('09 TEXT-OUTPUT MODELS')).toBeInTheDocument()
-    expect(screen.getByText('08 QUANTIZATIONS')).toBeInTheDocument()
-    expect(screen.getByText('UPDATED 22 AUG 2026')).toBeInTheDocument()
+    expect(screen.getByText('9 text-output models · 8 quantizations · Updated 22 Aug 2026')).toBeInTheDocument()
   })
 
   it('moves context halfway toward the next preset in either direction', async () => {
@@ -102,51 +183,61 @@ describe('sizeof.ai app', () => {
   it('shows used memory against the full VRAM capacity', () => {
     render(<App />)
 
-    const chart = screen.getByRole('img', { name: /memory usage/i })
+    const calculator = screen.getByRole('region', { name: 'VRAM calculator' })
+    const chart = within(calculator).getByRole('img', { name: /memory usage/i })
     const used = chart.querySelector('.memory-bar-used') as HTMLElement
     const remaining = chart.querySelector('.memory-bar-remaining') as HTMLElement
 
+    expect(chart).toHaveAttribute('data-motion', 'memory-usage')
+    expect(calculator.querySelector('.total-number')?.nextElementSibling).toBe(chart.closest('.gauge'))
+    expect(calculator.querySelector('.gauge-scale')).toHaveTextContent('32 GiB')
     expect(used).toBeInTheDocument()
     expect(remaining).toBeInTheDocument()
     expect(used.style.width).toMatch(/%$/)
     expect(remaining.style.width).toMatch(/%$/)
   })
 
-  it('keeps model weights green before the risk overlay activates', () => {
-    const weightsRule = Array.from(testStyles.sheet?.cssRules ?? []).find((rule) =>
-      'selectorText' in rule && (rule as CSSStyleRule).selectorText === '.weights',
-    ) as CSSStyleRule | undefined
+  it('measures every curated model against the selected capacity on one ruler', async () => {
+    const user = userEvent.setup()
+    render(<App />)
 
-    expect(weightsRule?.style.background).toBe('var(--acid)')
+    const catalog = screen.getByRole('region', { name: 'Model catalog' })
+    const rows = Array.from(catalog.querySelectorAll('.catalog-row'))
+    expect(rows).toHaveLength(9)
+    for (const row of rows) {
+      expect((row.querySelector('.ruler-bar') as HTMLElement).style.width).toMatch(/%$/)
+      expect((row.querySelector('.ruler-cap') as HTMLElement).style.insetInlineStart).toMatch(/%$/)
+    }
+    const totals = rows.map((row) => Number.parseFloat(row.querySelector('.catalog-value')?.textContent?.replace('≥', '') ?? ''))
+    expect(totals).toEqual([...totals].sort((a, b) => a - b))
+    await user.click(within(catalog).getByRole('button', { name: '16' }))
+    expect(screen.getByRole('combobox', { name: 'Your VRAM' })).toHaveValue('16')
   })
 
-  it('layers the same warning and offload colors on the model weight bar and swatch', () => {
-    const rules = Array.from(testStyles.sheet?.cssRules ?? [])
-    const findRule = (selector: string) => rules.find((rule) =>
-      'selectorText' in rule && (rule as CSSStyleRule).selectorText === selector,
-    ) as CSSStyleRule | undefined
+  it('keeps the homepage disclaimer concise', () => {
+    render(<App />)
 
-    const barOffload = findRule('.memory-bar-used > .weights::after')
-    const barWarning = findRule('.memory-bar-risk')
-    const swatchOffload = findRule('.breakdown-list i.weights::before')
-    const swatchWarning = findRule('.breakdown-list i::after')
-
-    expect(swatchOffload?.style.background).toBe(barOffload?.style.background)
-    expect(swatchOffload?.style.opacity).toBe(barOffload?.style.opacity)
-    expect(swatchWarning?.style.background).toBe(barWarning?.style.background)
-    expect(swatchWarning?.style.opacity).toBe('var(--memory-risk-opacity, 0)')
-    expect(Number(swatchOffload?.style.zIndex)).toBeGreaterThan(Number(swatchWarning?.style.zIndex))
+    const calculator = screen.getByRole('region', { name: 'VRAM calculator' })
+    expect(within(calculator).getByText('Lower bound only: some runtime memory is unknown, so fitting within this capacity is not guaranteed.')).toBeInTheDocument()
+    expect(calculator).not.toHaveTextContent('10% workspace')
+    expect(calculator).not.toHaveTextContent('0.5 GiB base runtime allowance')
   })
 
-  it('uses the breakdown text size for the offload label', () => {
-    const offloadRule = Array.from(testStyles.sheet?.cssRules ?? []).find((rule) =>
-      'selectorText' in rule && (rule as CSSStyleRule).selectorText === '.memory-bar-offload',
-    ) as CSSStyleRule | undefined
-    const breakdownRule = Array.from(testStyles.sheet?.cssRules ?? []).find((rule) =>
-      'selectorText' in rule && (rule as CSSStyleRule).selectorText === '.breakdown-list > div',
-    ) as CSSStyleRule | undefined
+  it('encodes memory parts with distinct patterns instead of colour alone', () => {
+    const rules = Array.from(testStyles.sheet?.cssRules ?? []) as CSSStyleRule[]
+    const background = (selector: string) => rules.find((rule) => rule.selectorText === selector)?.style.background ?? ''
+    expect(background('.weights')).toBe('var(--ink)')
+    expect(background('.kv')).toContain('repeating-linear-gradient')
+    expect(background('.runtime')).toContain('radial-gradient')
+  })
 
-    expect(offloadRule?.style.fontSize).toBe(breakdownRule?.style.fontSize)
+  it('layers the same offload tint on the model weight bar and its swatch', () => {
+    const rules = Array.from(testStyles.sheet?.cssRules ?? []) as CSSStyleRule[]
+    const offload = rules.find((rule) => rule.selectorText?.includes('.memory-bar-used > .weights::after'))
+    expect(offload?.selectorText).toContain('.breakdown-list i.weights::after')
+    expect(offload?.style.opacity).toBe('var(--memory-weights-offload-opacity, 0)')
+    const risk = rules.find((rule) => rule.selectorText === '.memory-bar-risk')
+    expect(risk?.style.background).toBe('var(--warn)')
   })
 
   it('labels memory that must be offloaded when usage exceeds VRAM', async () => {
@@ -159,7 +250,7 @@ describe('sizeof.ai app', () => {
     expect(screen.getByRole('img', { name: /memory usage/i })).toHaveTextContent(/OFFLOAD\s+\d+\.\d+ GiB/)
   })
 
-  it('applies the bar risk tint to the matching breakdown color swatches', async () => {
+  it('applies the risk and offload tints directly to the compact memory bar', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -167,12 +258,10 @@ describe('sizeof.ai app', () => {
     await user.click(screen.getByRole('button', { name: '256K' }))
     const chart = screen.getByRole('img', { name: /memory usage/i })
     const used = chart.querySelector('.memory-bar-used') as HTMLElement
-    const breakdown = chart.closest('.result-panel')?.querySelector('.breakdown-list') as HTMLElement
+    const risk = chart.querySelector('.memory-bar-risk') as HTMLElement
 
-    expect(breakdown.style.getPropertyValue('--memory-risk-opacity')).toBe('0.9')
+    expect(risk.style.opacity).toBe('0.9')
     expect(used.style.getPropertyValue('--memory-weights-offload-opacity')).toBe('0.9')
-    expect(breakdown.style.getPropertyValue('--memory-weights-offload-opacity')).toBe('0.9')
-    expect(breakdown.querySelectorAll('i')).toHaveLength(3)
   })
 
   it('recalculates and writes a shareable URL when the selected model changes', async () => {
@@ -185,30 +274,78 @@ describe('sizeof.ai app', () => {
     expect(window.location.search).toContain('model=minicpm5-1b')
   })
 
-  it('does not search while the user is still typing', async () => {
+  it('updates the calculator when a curated model rectangle is selected', async () => {
     const user = userEvent.setup()
-    const fetcher = vi.spyOn(globalThis, 'fetch')
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Select MiniCPM5 1B' }))
+
+    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('minicpm5-1b')
+    expect(within(screen.getByRole('region', { name: 'VRAM calculator' }))
+      .getByText('MiniCPM5 1B', { selector: '.result-model strong' })).toBeInTheDocument()
+  })
+
+  it('opens SIZE IT in a new tab on the selected model page', () => {
+    render(<App />)
+
+    expect(screen.getByRole('link', { name: 'Size MiniCPM5 1B (opens in new tab)' }))
+      .toHaveAttribute('href', '/openbmb/MiniCPM5-1B')
+    expect(screen.getByRole('link', { name: 'Size MiniCPM5 1B (opens in new tab)' }))
+      .toHaveAttribute('target', '_blank')
+  })
+
+  it('reserves /compare for the comparison workspace and exposes compare entry links', () => {
+    window.history.replaceState(null, '', '/compare')
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: 'Compare models' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Model VRAM calculator' })).not.toBeInTheDocument()
+
+    window.history.replaceState(null, '', '/')
+    render(<App />)
+    const compare = screen.getByRole('link', { name: 'Compare MiniCPM5 1B' })
+    expect(compare).toHaveAttribute('href', expect.stringContaining('/compare?compare=1'))
+    expect(compare.querySelector('svg')).not.toBeNull()
+    expect(compare.querySelector('.catalog-compare-label')).toHaveTextContent('Compare')
+  })
+
+  it('searches as the query is typed without pressing Enter', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
+      query: 'QWEN',
+      nextCursor: null,
+      models: [{
+        id: 'Qwen/Qwen3.8-27B', owner: 'Qwen', name: 'Qwen3.8-27B',
+        downloads: 2_090_699, likes: 12_025, task: 'image-text-to-text',
+        trendingScore: 2_236, gated: false,
+      }],
+    }))
     render(<App />)
 
     await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN')
 
-    expect(fetcher).not.toHaveBeenCalled()
-    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B')).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Open Qwen/Qwen3.8-27B' })).toHaveAttribute(
+      'href',
+      '/Qwen/Qwen3.8-27B',
+    )
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN', { signal: expect.any(AbortSignal) })
+    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B', { selector: '.catalog-name strong' })).toBeInTheDocument()
     fetcher.mockRestore()
   })
 
-  it('places model search prominently in the hero and keeps the curated index separate', () => {
+  it('places model search at the top of the explorer and keeps the curated index separate', () => {
     render(<App />)
 
     const searchRegion = screen.getByRole('region', { name: 'Hugging Face model search' })
     expect(searchRegion).toContainElement(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }))
-    expect(searchRegion.closest('.hero')).not.toBeNull()
-    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B')).toBeInTheDocument()
+    expect(searchRegion.closest('[aria-label="Model search explorer"]')).not.toBeNull()
+    expect(searchRegion.closest('.hero')).toBeNull()
+    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B', { selector: '.catalog-name strong' })).toBeInTheDocument()
   })
 
   it('searches on Enter and links each result to its sizeof.ai model page', async () => {
     const user = userEvent.setup()
-    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
       query: 'QWEN',
       nextCursor: null,
       models: [{
@@ -221,7 +358,7 @@ describe('sizeof.ai app', () => {
 
     await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN{enter}')
 
-    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN')
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN', { signal: expect.any(AbortSignal) })
     expect(await screen.findByRole('link', { name: 'Open Qwen/Qwen3.8-27B' })).toHaveAttribute(
       'href',
       '/Qwen/Qwen3.8-27B',
@@ -229,21 +366,68 @@ describe('sizeof.ai app', () => {
     fetcher.mockRestore()
   })
 
-  it('submits model type and author filters only after Search is pressed', async () => {
+  it('labels live search rows conservatively without another model request', async () => {
     const user = userEvent.setup()
-    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
+      query: 'QWEN', nextCursor: null, models: [
+        { id: 'Qwen/Text', owner: 'Qwen', name: 'Text', downloads: 1, likes: 1, task: 'text-generation', trendingScore: 1, gated: false },
+        { id: 'Lab/Image', owner: 'Lab', name: 'Image', downloads: 1, likes: 1, task: 'text-to-image', trendingScore: 1, gated: false },
+        { id: 'Gated/Model', owner: 'Gated', name: 'Model', downloads: 1, likes: 1, task: null, trendingScore: 1, gated: true },
+      ],
+    }))
+    render(<App />)
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN{enter}')
+
+    const results = await screen.findByRole('region', { name: 'Hugging Face search results' })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    fetcher.mockRestore()
+    expect(within(results).getByText('CHECK ON OPEN')).toBeInTheDocument()
+    expect(within(results).getByText('RESOURCE PROFILE')).toBeInTheDocument()
+    expect(within(results).getAllByText('GATED')).toHaveLength(2)
+    expect(within(results).getAllByRole('link', { name: /^Compare / })).toHaveLength(3)
+  })
+
+  it('maps every detail-classified task family without extra fetches', async () => {
+    const user = userEvent.setup()
+    const checkTasks = [
+      'text-generation', 'text2text-generation', 'conversational', 'question-answering', 'summarization', 'translation',
+      'image-text-to-text', 'visual-question-answering', 'document-question-answering',
+    ]
+    const resourceTasks = [
+      'text-to-video', 'image-to-video', 'video-generation', 'video-classification',
+      'text-to-speech', 'text-to-audio', 'automatic-speech-recognition', 'audio-to-audio', 'audio-classification', 'voice-cloning', 'voice-activity-detection', 'speaker-diarization', 'speaker-segmentation', 'music-transcription', 'audio-to-midi', 'tts',
+      'text-to-image', 'image-to-image', 'image-generation', 'unconditional-image-generation', 'image-classification', 'mask-generation', 'image-segmentation', 'object-detection', 'depth-estimation', 'diffusers',
+      'visual-document-retrieval', 'sentence-similarity', 'feature-extraction', 'fill-mask', 'masked-lm', 'bidirectional', 'document-retrieval', 'embedding',
+    ]
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({ query: 'TASK', nextCursor: null, models: [
+      ...checkTasks.map((task, index) => ({ id: `Org/Check${index}`, owner: 'Org', name: `Check${index}`, downloads: 1, likes: 1, task, trendingScore: 1, gated: false })),
+      ...resourceTasks.map((task, index) => ({ id: `Org/Resource${index}`, owner: 'Org', name: `Resource${index}`, downloads: 1, likes: 1, task, trendingScore: 1, gated: false })),
+    ] }))
+    render(<App />)
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'TASK{enter}')
+    const results = await screen.findByRole('region', { name: 'Hugging Face search results' })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    fetcher.mockRestore()
+    expect(within(results).getAllByText('CHECK ON OPEN')).toHaveLength(9)
+    expect(within(results).getAllByText('RESOURCE PROFILE')).toHaveLength(34)
+  })
+
+  it('applies author and model-type filters as they change', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
       query: 'QWEN', nextCursor: null, models: [],
     }))
     render(<App />)
 
     await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN')
+    await screen.findByText('No Hugging Face models matched “QWEN”.')
     await user.type(screen.getByRole('textbox', { name: 'Filter by author' }), 'Qwen')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by model type' }), 'text-generation')
-    expect(fetcher).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'Search Hugging Face' }))
-
-    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN&author=Qwen&type=text-generation')
+    await waitFor(() => {
+      expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN&author=Qwen&type=text-generation', { signal: expect.any(AbortSignal) })
+    })
     fetcher.mockRestore()
   })
 
@@ -265,7 +449,7 @@ describe('sizeof.ai app', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN{enter}')
     await user.click(await screen.findByRole('button', { name: 'Load more models' }))
 
-    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/search/models?q=QWEN&cursor=next-page%3D%3D')
+    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/search/models?q=QWEN&cursor=next-page%3D%3D', { signal: expect.any(AbortSignal) })
     expect(await screen.findByRole('link', { name: 'Open Qwen/Qwen3.8-9B' })).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Open Qwen/Qwen3.8-27B' })).toHaveLength(1)
     fetcher.mockRestore()
@@ -298,39 +482,95 @@ describe('sizeof.ai app', () => {
     fetcher.mockRestore()
   })
 
-  it('blocks a new search while another page is loading', async () => {
+  it('keeps popular prefix matches ahead of two-character exact names', async () => {
+    const user = userEvent.setup()
+    const exact = {
+      id: 'trungzpham/qw', owner: 'trungzpham', name: 'qw',
+      downloads: 1, likes: 1, task: 'text-generation', trendingScore: 1, gated: false,
+    }
+    const popular = {
+      id: 'Qwen/Qwen3-0.6B', owner: 'Qwen', name: 'Qwen3-0.6B',
+      downloads: 2_000_000, likes: 12_000, task: 'text-generation', trendingScore: 2_200, gated: false,
+    }
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
+      query: 'Qw', nextCursor: null, models: [exact, popular],
+    }))
+    render(<App />)
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'Qw{enter}')
+
+    const resultRegion = await screen.findByRole('region', { name: 'Hugging Face search results' })
+    const openLinks = within(resultRegion).getAllByRole('link', { name: /^Open / })
+    expect(openLinks.map((link) => link.getAttribute('aria-label'))).toEqual([
+      'Open Qwen/Qwen3-0.6B',
+      'Open trungzpham/qw',
+    ])
+    fetcher.mockRestore()
+  })
+
+  it('starts a new typed query even if another page is still loading', async () => {
     const user = userEvent.setup()
     let finishPage: ((response: Response) => void) | undefined
     const pendingPage = new Promise<Response>((resolve) => { finishPage = resolve })
     const fetcher = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(Response.json({ query: 'QWEN', nextCursor: 'next-page==', models: [] }))
       .mockReturnValueOnce(pendingPage)
+      .mockResolvedValueOnce(Response.json({ query: 'LLAMA', nextCursor: null, models: [] }))
     render(<App />)
 
     const searchbox = screen.getByRole('searchbox', { name: 'Search Hugging Face models' })
     await user.type(searchbox, 'QWEN{enter}')
     await user.click(await screen.findByRole('button', { name: 'Load more models' }))
-    expect(screen.getByRole('button', { name: 'Search Hugging Face' })).toBeDisabled()
     await user.clear(searchbox)
     await user.type(searchbox, 'LLAMA{enter}')
-    expect(fetcher).toHaveBeenCalledTimes(2)
 
+    expect(await screen.findByText('No Hugging Face models matched “LLAMA”.')).toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=LLAMA', { signal: expect.any(AbortSignal) })
     finishPage?.(Response.json({ query: 'QWEN', nextCursor: null, models: [] }))
+    expect(screen.queryByText('No Hugging Face models matched “QWEN”.')).not.toBeInTheDocument()
+    fetcher.mockRestore()
+  })
+
+  it('reuses the local name cache when the same query is typed again', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
+      query: 'QWEN',
+      nextCursor: null,
+      models: [{
+        id: 'Qwen/Qwen3.8-27B', owner: 'Qwen', name: 'Qwen3.8-27B',
+        downloads: 1, likes: 1, task: 'text-generation', trendingScore: 1, gated: false,
+      }],
+    }))
+    render(<App />)
+    const searchbox = screen.getByRole('searchbox', { name: 'Search Hugging Face models' })
+
+    await user.type(searchbox, 'QWEN')
+    expect(await screen.findByRole('link', { name: 'Open Qwen/Qwen3.8-27B' })).toBeInTheDocument()
+    await user.clear(searchbox)
+    await user.type(searchbox, 'QWEN')
+
+    expect(await screen.findByRole('link', { name: 'Open Qwen/Qwen3.8-27B' })).toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledTimes(1)
     fetcher.mockRestore()
   })
 
   it('searches when the user clicks the search button', async () => {
     const user = userEvent.setup()
-    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
       query: 'QWEN',
       models: [],
     }))
     render(<App />)
 
     await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN')
+    // Explicit submit refreshes even when typeahead has already returned.
+    // Each fetch needs its own consumable response body.
+    expect(await screen.findByText('No Hugging Face models matched “QWEN”.')).toBeInTheDocument()
+    const callsBeforeSubmit = fetcher.mock.calls.length
     await user.click(screen.getByRole('button', { name: 'Search Hugging Face' }))
 
-    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN')
+    expect(fetcher).toHaveBeenCalledTimes(callsBeforeSubmit + 1)
+    expect(fetcher).toHaveBeenCalledWith('/api/search/models?q=QWEN', { signal: expect.any(AbortSignal) })
     expect(await screen.findByText('No Hugging Face models matched “QWEN”.')).toBeInTheDocument()
     fetcher.mockRestore()
   })
@@ -343,7 +583,7 @@ describe('sizeof.ai app', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Search Hugging Face models' }), 'QWEN{enter}')
 
     expect(await screen.findByRole('alert')).toHaveTextContent('curated model index is unchanged')
-    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Model catalog' })).getByText('MiniCPM5 1B', { selector: '.catalog-name strong' })).toBeInTheDocument()
     fetcher.mockRestore()
   })
 

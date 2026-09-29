@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -44,6 +44,7 @@ const apiModel = {
 describe('Hugging Face-style model detail route', () => {
   beforeEach(() => {
     window.history.replaceState(null, '', '/Qwen/Qwen3.8-27B')
+    window.localStorage.clear()
     vi.stubGlobal('fetch', vi.fn(async () => Response.json(apiModel)))
   })
 
@@ -68,7 +69,106 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(calculator).getByRole('button', { name: '4K' })).toBeInTheDocument()
     expect(within(calculator).getByRole('button', { name: '16K' })).toBeInTheDocument()
     expect(within(calculator).getByRole('button', { name: '64K' })).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=13')
+    expect(fetch).toHaveBeenCalledWith('/api/models/Qwen/Qwen3.8-27B?schema=13', { signal: expect.any(AbortSignal) })
+  })
+
+  it('progressively discloses an accessible editable serving scenario with conservative unknowns', async () => {
+    const user = userEvent.setup()
+    vi.mocked(fetch).mockImplementation(async () => Response.json({ ...apiModel, modelKind: 'language', spec: { ...apiModel.spec, estimateConfidence: 'safe' } }))
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Qwen3.8-27B' })
+    const scenario = screen.getByRole('group', { name: 'Serving scenario' })
+    expect(within(scenario).queryByLabelText('Prompt tokens per request')).not.toBeVisible()
+    await user.click(within(scenario).getByText('Serving scenario', { selector: 'summary' }))
+
+    expect(within(scenario).getByLabelText('Engine profile')).toHaveValue('vllm')
+    expect(within(scenario).getByLabelText('Prompt tokens per request')).toHaveValue(1024)
+    expect(within(scenario).getByLabelText('Maximum generated tokens')).toHaveValue(512)
+    expect(within(scenario).getByLabelText('Concurrency')).toHaveValue(1)
+    expect(within(scenario).getByText('Examples only; editable, not recommended guarantees.')).toBeInTheDocument()
+    expect(within(scenario).getByText('Decode resident lower bound')).toBeInTheDocument()
+    expect(within(scenario).getByText('Not safely derivable from public model metadata.')).toBeInTheDocument()
+    expect(within(scenario).getByRole('link', { name: /vLLM source/i })).toHaveAttribute('href', expect.stringMatching(/^https:/))
+
+    await user.selectOptions(within(scenario).getByLabelText('Workload example'), 'rag')
+    await user.clear(within(scenario).getByLabelText('Prompt tokens per request'))
+    await user.type(within(scenario).getByLabelText('Prompt tokens per request'), '2048')
+    expect(within(scenario).getByLabelText('Prompt tokens per request')).toHaveValue(2048)
+  })
+
+  it('does not expose serving controls for stateful facts even when confidence says safe', async () => {
+    vi.mocked(fetch).mockImplementation(async () => Response.json({
+      ...apiModel,
+      modelKind: 'language',
+      spec: {
+        ...apiModel.spec,
+        estimateConfidence: 'safe',
+        attentionProfile: { fullLayers: 16, slidingLayers: 0, linearLayers: 0, kdaLayers: 48, recurrentLayers: 0, ssmLayers: 0, slidingWindow: null, stateKind: 'kda' },
+      },
+    }))
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Qwen3.8-27B' })
+    expect(screen.queryByRole('group', { name: 'Serving scenario' })).not.toBeInTheDocument()
+  })
+
+  it('keeps source actions and adds a comparison entry for the loaded model', async () => {
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Qwen3.8-27B' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Compare Qwen/Qwen3.8-27B' })).toHaveAttribute('href', expect.stringContaining('/compare?compare=1'))
+    expect(screen.getByRole('link', { name: 'Hugging Face' })).toHaveAttribute('href', apiModel.sourceUrl)
+  })
+
+  it('provides accessible exports for the current model configuration', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Qwen3.8-27B' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    expect(screen.getByRole('button', { name: 'Download JSON export' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Download CSV export' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy Markdown export' })).toBeInTheDocument()
+  })
+
+  it('exports an applied hardware profile with its usable-capacity derivation without placing it in the URL', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    window.localStorage.setItem('sizeof:hardware-profile:v1', JSON.stringify({
+      version: 1,
+      profile: { kind: 'discrete-gpu', label: 'Export GPU', capacityGiB: 80, reservedGiB: 8, systemRamGiB: 128 },
+    }))
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Qwen3.8-27B' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalled())
+    expect(writeText.mock.calls[0]?.[0]).toContain('Hardware profile: Export GPU (applied, discrete-gpu)')
+    expect(writeText.mock.calls[0]?.[0]).toContain('Usable capacity: 72 GiB (80 GiB − 8 GiB reserved)')
+    expect(writeText.mock.calls[0]?.[0]).toContain('System RAM: 128 GiB')
+    expect(window.location.search).not.toMatch(/Export|reservedGiB|hardware=/)
+  })
+
+  it('organizes the model as a true three-panel tool with compact architecture rows', async () => {
+    render(<App />)
+
+    const navigation = await screen.findByRole('region', { name: 'Model navigation' })
+    expect(within(navigation).getByRole('region', { name: 'Model facts' })).toBeInTheDocument()
+    expect(within(navigation).getByRole('region', { name: 'Resource profile' })).toBeInTheDocument()
+
+    const configuration = screen.getByRole('region', { name: 'Model configuration' })
+    const architecture = within(configuration).getByRole('region', { name: 'Architecture assumptions' })
+    expect(within(architecture).getByText('Architecture')).toBeInTheDocument()
+    expect(within(architecture).getByText('Qwen3_5ForConditionalGeneration')).toBeInTheDocument()
+    expect(architecture.querySelector('dl')).toBeInTheDocument()
+    expect(architecture.querySelector('.architecture-grid')).not.toBeInTheDocument()
+
+    expect(screen.getByRole('region', { name: 'Memory summary' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Model details' })).not.toBeInTheDocument()
   })
 
   it('defaults every model calculator to 32 GiB VRAM', async () => {
@@ -76,7 +176,17 @@ describe('Hugging Face-style model detail route', () => {
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
     expect(within(calculator).getByRole('combobox', { name: 'Your VRAM' })).toHaveValue('32')
-    expect(within(calculator).getByText('COMFORTABLE ON 32 GB')).toBeInTheDocument()
+    expect(within(calculator).getByText('COMFORTABLE ON 32 GiB')).toBeInTheDocument()
+  })
+
+  it('offers workstation and multi-GPU VRAM capacities', async () => {
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    const vram = within(calculator).getByRole('combobox', { name: 'Your VRAM' })
+    expect(Array.from(vram.querySelectorAll('option'), (option) => option.value)).toEqual([
+      '8', '12', '16', '24', '32', '36', '48', '64', '80', '96', '128', '192', '256', '384', '512',
+    ])
   })
 
   it('keeps the detail context spinner aligned and charts usage against selected VRAM', async () => {
@@ -173,8 +283,8 @@ describe('Hugging Face-style model detail route', () => {
     expect(within(screen.getByRole('region', { name: 'Model facts' })).getByText('1M')).toBeInTheDocument()
     expect(screen.getByText('24 / 93')).toBeInTheDocument()
     expect(screen.getByLabelText('MLA cache layout')).toHaveValue('expanded')
-    expect(screen.getByText('REPO QUANTIZATION / MXFP4-PACK-QUANTIZED')).toBeInTheDocument()
-    expect(screen.getByText('HYPOTHETICAL BIT/WEIGHT ESTIMATE')).toBeInTheDocument()
+    expect(screen.getByText('Repo quantization / MXFP4-PACK-QUANTIZED')).toBeInTheDocument()
+    expect(screen.getByText('Hypothetical bit/weight estimate')).toBeInTheDocument()
   })
 
   it('shows MoE active routing facts without replacing resident total parameters', async () => {
@@ -193,9 +303,9 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
 
     const facts = await screen.findByRole('region', { name: 'Model facts' })
-    expect(within(facts).getByText('TOTAL PARAMETERS')).toBeInTheDocument()
+    expect(within(facts).getByText('Total parameters')).toBeInTheDocument()
     expect(within(facts).getByText('35.95B')).toBeInTheDocument()
-    expect(within(facts).getByText('ACTIVE PARAMETERS / TOKEN')).toBeInTheDocument()
+    expect(within(facts).getByText('Active parameters / token')).toBeInTheDocument()
     expect(within(facts).getByText('3.00B')).toBeInTheDocument()
     expect(screen.getByText('256 TOTAL / 8 ACTIVE')).toBeInTheDocument()
   })
@@ -226,12 +336,12 @@ describe('Hugging Face-style model detail route', () => {
 
     render(<App />)
 
-    expect(await screen.findByText('SPECULATIVE DRAFT')).toBeInTheDocument()
+    expect(await screen.findByText('Speculative draft')).toBeInTheDocument()
     const estimate = screen.getByRole('region', { name: 'Model load estimate' })
-    expect(within(estimate).getByText('TARGET + DRAFT WEIGHTS')).toBeInTheDocument()
-    expect(within(estimate).getByText('CACHE + RUNTIME EXCLUDED')).toBeInTheDocument()
+    expect(within(estimate).getByText('Target + draft weights')).toBeInTheDocument()
+    expect(within(estimate).getByText('Cache + runtime excluded')).toBeInTheDocument()
     expect(within(estimate).getByText('67.68 GiB', { selector: '.resource-total' })).toBeInTheDocument()
-    expect(screen.getByText('DECLARED TARGET / Qwen/Qwen3.6-35B-A3B')).toBeInTheDocument()
+    expect(screen.getByText('Declared target / Qwen/Qwen3.6-35B-A3B')).toBeInTheDocument()
     expect(screen.queryByText(/bidirectional encoder/i)).not.toBeInTheDocument()
   })
 
@@ -257,8 +367,9 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
-    expect(within(calculator).getByText('ESTIMATED LOWER BOUND')).toBeInTheDocument()
-    expect(within(calculator).getByText('RUNTIME-SPECIFIC')).toBeInTheDocument()
+    expect(within(calculator).getByText('Estimated lower bound')).toBeInTheDocument()
+    expect(within(calculator).getByText('TOO LARGE ON 32 GiB')).toHaveClass('too-large')
+    expect(within(calculator).queryByText('RUNTIME-SPECIFIC')).not.toBeInTheDocument()
     expect(within(calculator).getByRole('img', { name: /modeled lower bound/i })).not.toHaveTextContent('OFFLOAD')
     expect(within(calculator).queryByText(/OFFLOAD/)).not.toBeInTheDocument()
     expect(screen.getByText('KDA / 48 STATE LAYERS')).toBeInTheDocument()
@@ -276,7 +387,7 @@ describe('Hugging Face-style model detail route', () => {
 
     render(<App />)
 
-    expect(await screen.findByText(/ARCHITECTURE FROM Qwen\/Qwen3\.8-27B/)).toBeInTheDocument()
+    expect(await screen.findByText(/architecture from Qwen\/Qwen3\.8-27B/)).toBeInTheDocument()
   })
 
   it('shows a modality-aware resource profile when an LLM estimate is unsafe', async () => {
@@ -302,7 +413,7 @@ describe('Hugging Face-style model detail route', () => {
 
     expect(await screen.findByRole('heading', { name: 'FLUX.1-dev' })).toBeInTheDocument()
     const profile = screen.getByRole('region', { name: 'Resource profile' })
-    expect(within(profile).getByText('IMAGE')).toBeInTheDocument()
+    expect(within(profile).getByText('Image')).toBeInTheDocument()
     expect(within(profile).getByText('22.17 GiB')).toBeInTheDocument()
     expect(within(profile).getByText('64.50 GiB')).toBeInTheDocument()
     expect(screen.getByText(/modality-specific runtime memory/i)).toBeInTheDocument()
@@ -340,7 +451,7 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
 
     const estimate = await screen.findByRole('region', { name: 'Model load estimate' })
-    expect(within(estimate).getByRole('heading', { name: 'Encoder loaded weights.' })).toBeInTheDocument()
+    expect(within(estimate).getByRole('heading', { name: 'Encoder loaded weights' })).toBeInTheDocument()
     expect(within(estimate).getByText('0.66 GiB', { selector: '.resource-total' })).toBeInTheDocument()
     expect(within(estimate).getByText(/does not use an autoregressive KV cache/i)).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Model VRAM calculator' })).not.toBeInTheDocument()
@@ -372,12 +483,61 @@ describe('Hugging Face-style model detail route', () => {
     expect(selector).toHaveValue('base-bf16')
     expect(within(estimate).getByText('46.29 GiB', { selector: '.resource-total' })).toBeInTheDocument()
     expect(within(estimate).getByText(/wan_animate_2_bf16\.safetensors/)).toBeInTheDocument()
-    expect(within(estimate).getByText('NO KV CACHE')).toBeInTheDocument()
+    expect(within(estimate).getByText('No KV cache')).toBeInTheDocument()
 
     await user.selectOptions(selector, 'distillation-bf16')
 
     expect(within(estimate).getByText(/wan_animate_2_bf16_distillation\.safetensors/)).toBeInTheDocument()
     expect(screen.queryByLabelText('Context window')).not.toBeInTheDocument()
+  })
+
+  it('exports the currently selected resource components with their repository paths and provenance', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'Wan-AI/Wan2.2-Animate-2-14B', owner: 'Wan-AI', name: 'Wan2.2-Animate-2-14B',
+      pipelineTag: 'text-to-video', modelKind: 'video', estimateReason: 'modality-specific', spec: null,
+      sourceUrl: 'https://huggingface.co/Wan-AI/Wan2.2-Animate-2-14B',
+      resourceEstimate: curatedHuggingFaceResourceProfiles['Wan-AI/Wan2.2-Animate-2-14B']?.resourceEstimate,
+    })))
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<App />)
+
+    const estimate = await screen.findByRole('region', { name: 'Model load estimate' })
+    await user.selectOptions(within(estimate).getByLabelText('Published weight set'), 'distillation-bf16')
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalled())
+    const markdown = writeText.mock.calls[0]?.[0] as string
+    expect(markdown).toContain('Resource component: wan-transformer-distillation')
+    expect(markdown).toContain('path wan_animate_2/wan_animate_2_bf16_distillation.safetensors')
+    expect(markdown).toContain('repository Wan-AI/Wan2.2-Animate-2-14B')
+    expect(markdown).toContain('Published static resource component selected on this page.')
+  })
+
+  it('does not assign the current repository update date to external resource components', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'Inner-Reflections/MiniMax-H3-Looping-Sketch-Anime', owner: 'Inner-Reflections', name: 'MiniMax-H3-Looping-Sketch-Anime',
+      modelKind: 'adapter', estimateReason: 'adapter-only', spec: null,
+      sourceUrl: 'https://huggingface.co/Inner-Reflections/MiniMax-H3-Looping-Sketch-Anime',
+      resourceEstimate: curatedHuggingFaceResourceProfiles['Inner-Reflections/MiniMax-H3-Looping-Sketch-Anime']?.resourceEstimate,
+    })))
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<App />)
+
+    await screen.findByRole('region', { name: 'Model load estimate' })
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalled())
+    const externalLine = (writeText.mock.calls[0]?.[0] as string).split('\n').find((line) => line.includes('Resource component: minimax-r2v'))
+    expect(externalLine).toContain('repository Comfy-Org/MiniMax-H3')
+    expect(externalLine).not.toContain('updated 2026-08-14T15:00:01.000Z')
   })
 
   it('asks for an unknown workflow artifact classification instead of inventing a VRAM figure', async () => {
@@ -523,10 +683,16 @@ describe('Hugging Face-style model detail route', () => {
     ])
     expect(within(calculator).queryByRole('region', { name: 'Available community quantizations' })).not.toBeInTheDocument()
     expect(within(calculator).getByText('15.69 GiB', { selector: 'strong' })).toBeInTheDocument()
+    const estimatedPanel = calculator.querySelector('[data-motion="quantization-panel"]')
+    expect(estimatedPanel).toHaveAttribute('data-motion-source', 'estimated')
+    expect(within(calculator).getByRole('img', { name: /memory usage/i })).toHaveAttribute('data-motion', 'memory-usage')
 
     await user.click(within(sources).getByRole('tab', { name: 'Unsloth' }))
 
     const quantizations = within(calculator).getByRole('region', { name: 'Available community quantizations' })
+    expect(quantizations).toHaveAttribute('data-motion', 'quantization-panel')
+    expect(quantizations).toHaveAttribute('data-motion-source', 'unsloth')
+    expect(quantizations).not.toBe(estimatedPanel)
     expect(within(quantizations).getByText('1-bit')).toBeInTheDocument()
     expect(within(quantizations).getByText('2-bit')).toBeInTheDocument()
     expect(within(quantizations).getByText('4-bit')).toBeInTheDocument()
@@ -567,7 +733,7 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
 
     const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
-    expect(within(calculator).getByText('HYPOTHETICAL BIT/WEIGHT ESTIMATE')).toBeInTheDocument()
+    expect(within(calculator).getByText('Hypothetical bit/weight estimate')).toBeInTheDocument()
     expect(within(calculator).getByText(/No matching published quantized artifact was found/i)).toBeInTheDocument()
   })
 
@@ -589,11 +755,373 @@ describe('Hugging Face-style model detail route', () => {
     render(<App />)
 
     const variants = await screen.findByRole('region', { name: 'Detected model variants' })
-    expect(within(variants).getByText('BASE MODEL / Qwen/Qwen3.8-27B')).toBeInTheDocument()
-    expect(within(variants).queryByText('SUPPORT ARTIFACTS')).not.toBeInTheDocument()
+    expect(within(variants).getByText('Base model / Qwen/Qwen3.8-27B')).toBeInTheDocument()
+    expect(within(variants).queryByText('Support artifacts')).not.toBeInTheDocument()
 
     const calculator = screen.getByRole('region', { name: 'Model VRAM calculator' })
     const addonLabel = within(calculator).getByText('MTP addon')
     expect(addonLabel.parentElement).toHaveTextContent('0.50 GiB')
+  })
+
+  it('restores safe calculator settings from the permanent detail URL after metadata loads', async () => {
+    window.history.replaceState(null, '', '/Qwen/Qwen3.8-27B?state=1&quant=q8_0&ctx=16384&kv=q8_0&mla=latent&vram=64&source=untrusted&variant=unknown')
+
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByRole('button', { name: '8bit' })).toHaveClass('active')
+    expect(within(calculator).getByLabelText('Context window')).toHaveValue(16384)
+    expect(within(calculator).getByLabelText('KV cache precision')).toHaveValue('q8_0')
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('64')
+    expect(within(calculator).queryByRole('tab', { name: 'untrusted' })).not.toBeInTheDocument()
+  })
+
+  it('loads a valid browser-only profile and applies its usable capacity', async () => {
+    window.localStorage.setItem('sizeof:hardware-profile:v1', JSON.stringify({
+      version: 1,
+      profile: { kind: 'unified-memory', label: 'Local workstation', capacityGiB: 48, reservedGiB: 8 },
+    }))
+
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByText('Local workstation: 48 GiB total, 8 GiB reserved.')).toBeInTheDocument()
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('40')
+  })
+
+  it('ignores malformed saved profiles and clears a saved profile on request', async () => {
+    window.localStorage.setItem('sizeof:hardware-profile:v1', '{bad json')
+    const user = userEvent.setup()
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('32')
+    await user.clear(within(calculator).getByLabelText('Label'))
+    await user.type(within(calculator).getByLabelText('Label'), 'Laptop')
+    await user.clear(within(calculator).getByLabelText('Total memory (GiB)'))
+    await user.type(within(calculator).getByLabelText('Total memory (GiB)'), '24')
+    await user.clear(within(calculator).getByLabelText('Reserved memory (GiB)'))
+    await user.type(within(calculator).getByLabelText('Reserved memory (GiB)'), '4')
+    await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
+    expect(window.localStorage.getItem('sizeof:hardware-profile:v1')).toContain('Laptop')
+    await user.click(within(calculator).getByRole('button', { name: 'Clear profile' }))
+    expect(window.localStorage.getItem('sizeof:hardware-profile:v1')).toBeNull()
+  })
+
+  it('discloses evidence and applies a deterministic fit suggestion', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    const evidence = within(calculator).getByText(/Evidence: 1 verified, 2 derived, 0 unknown/i)
+    await user.click(evidence)
+    const evidenceList = within(calculator).getByRole('list', { name: 'Estimate evidence' })
+    expect(within(evidenceList).getByText(/VERIFIED \/ Published model specification/)).toBeInTheDocument()
+    expect(within(evidenceList).getAllByRole('link', { name: 'View source' })[0]).toHaveAttribute('rel', 'noreferrer')
+
+    await user.selectOptions(within(calculator).getByLabelText('Your VRAM'), '16')
+    const planner = within(calculator).getByRole('region', { name: 'Fit planner' })
+    const suggestion = await within(planner).findByRole('button', { name: /Apply: Use q3_k_m weight precision/ })
+    await user.click(suggestion)
+    expect(within(calculator).getByRole('button', { name: '3bit' })).toHaveClass('active')
+  })
+
+  it('refuses precise fit guidance for lower-bound runtime-specific models', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      estimateConfidence: 'runtime-specific',
+      spec: { ...apiModel.spec, estimateConfidence: 'runtime-specific' },
+    })))
+    render(<App />)
+
+    const planner = await screen.findByRole('region', { name: 'Fit planner' })
+    expect(within(planner).getByText('This runtime-specific model cannot guarantee a precise fit.')).toBeInTheDocument()
+  })
+
+  it('replaces the permanent URL when each visible calculator setting changes', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    await user.click(within(calculator).getByRole('button', { name: '8bit' }))
+    await user.click(within(calculator).getByRole('button', { name: '4K' }))
+    await user.selectOptions(within(calculator).getByLabelText('KV cache precision'), 'q8_0')
+    await user.selectOptions(within(calculator).getByLabelText('Your VRAM'), '64')
+
+    expect(window.location.search).toContain('quant=q8_0')
+    expect(window.location.search).toContain('ctx=4096')
+    expect(window.location.search).toContain('kv=q8_0')
+    expect(window.location.search).toContain('vram=64')
+    expect(window.location.search).toContain('source=estimated')
+    expect(window.location.search).toContain('variant=none')
+  })
+
+  it('copies only a custom usable capacity URL that wins over but retains local profile metadata in a fresh browser', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn()
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    window.localStorage.setItem('sizeof:hardware-profile:v1', JSON.stringify({
+      version: 1,
+      profile: { kind: 'unified-memory', label: 'Shared memory', capacityGiB: 48, reservedGiB: 8 },
+    }))
+    const first = render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('40')
+    await user.click(screen.getByRole('button', { name: /copy sizeof link/i }))
+    const copiedUrl = window.location.href
+    expect(writeText).toHaveBeenCalledWith(copiedUrl)
+
+    first.unmount()
+    window.localStorage.setItem('sizeof:hardware-profile:v1', JSON.stringify({
+      version: 1,
+      profile: { kind: 'discrete-gpu', label: 'Different local GPU', capacityGiB: 64, reservedGiB: 0 },
+    }))
+    window.history.replaceState(null, '', new URL(copiedUrl).pathname + new URL(copiedUrl).search)
+    render(<App />)
+
+    const freshCalculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(freshCalculator).getByLabelText('Your VRAM')).toHaveValue('40')
+    expect(within(freshCalculator).getByText(/Different local GPU: 64 GiB total, 0 GiB reserved/)).toBeInTheDocument()
+    expect(within(freshCalculator).getByText(/Saved, not applied/)).toBeInTheDocument()
+    expect(within(freshCalculator).getByRole('button', { name: 'Clear profile' })).toBeInTheDocument()
+    expect(new URL(copiedUrl).search).not.toMatch(/Shared%20memory|reservedGiB|hardware=/)
+  })
+
+  it('detaches a local hardware profile when choosing a VRAM preset and copies that preset exactly', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn()
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const first = render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    await user.clear(within(calculator).getByLabelText('Label'))
+    await user.type(within(calculator).getByLabelText('Label'), 'Private profile')
+    await user.clear(within(calculator).getByLabelText('Total memory (GiB)'))
+    await user.type(within(calculator).getByLabelText('Total memory (GiB)'), '48')
+    await user.clear(within(calculator).getByLabelText('Reserved memory (GiB)'))
+    await user.type(within(calculator).getByLabelText('Reserved memory (GiB)'), '8')
+    await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('40')
+    await user.selectOptions(within(calculator).getByLabelText('Your VRAM'), '64')
+    expect(within(calculator).getByText(/Private profile: 48 GiB total, 8 GiB reserved/)).toBeInTheDocument()
+    expect(within(calculator).getByText(/Saved, not applied/)).toBeInTheDocument()
+    expect(within(calculator).getByRole('button', { name: 'Clear profile' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /copy sizeof link/i }))
+    const copiedUrl = window.location.href
+    expect(new URL(copiedUrl).search).toContain('vram=64')
+    expect(new URL(copiedUrl).search).not.toMatch(/Private|reservedGiB|hardware=/)
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(2))
+    const manualPresetExport = writeText.mock.calls.at(-1)?.[0] as string
+    expect(manualPresetExport).not.toContain('Private profile')
+    expect(manualPresetExport).not.toContain('48 GiB − 8 GiB reserved')
+    expect(manualPresetExport).not.toContain('System RAM')
+
+    first.unmount()
+    window.history.replaceState(null, '', new URL(copiedUrl).pathname + new URL(copiedUrl).search)
+    render(<App />)
+    const freshCalculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(freshCalculator).getByLabelText('Your VRAM')).toHaveValue('64')
+    expect(within(freshCalculator).getByText(/Private profile: 48 GiB total, 8 GiB reserved/)).toBeInTheDocument()
+    await user.click(within(freshCalculator).getByRole('button', { name: 'Clear profile' }))
+    expect(within(freshCalculator).getByLabelText('Your VRAM')).toHaveValue('64')
+    expect(within(freshCalculator).queryByText(/Private profile/)).not.toBeInTheDocument()
+  })
+
+  it('refreshes a bare URL with a saved profile applied, while an explicit URL keeps its capacity until Apply', async () => {
+    window.localStorage.setItem('sizeof:hardware-profile:v1', JSON.stringify({
+      version: 1,
+      profile: { kind: 'discrete-gpu', label: 'Saved GPU', capacityGiB: 48, reservedGiB: 8 },
+    }))
+    const first = render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('40')
+    expect(within(calculator).getByText(/Applied/)).toBeInTheDocument()
+
+    first.unmount()
+    window.history.replaceState(null, '', '/Qwen/Qwen3.8-27B?state=1&quant=q4_k_m&ctx=8192&kv=fp16&mla=expanded&vram=64&source=estimated&variant=none')
+    render(<App />)
+    const explicitCalculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(explicitCalculator).getByLabelText('Your VRAM')).toHaveValue('64')
+    expect(within(explicitCalculator).getByText(/Saved GPU: 48 GiB total, 8 GiB reserved/)).toBeInTheDocument()
+    expect(within(explicitCalculator).getByText(/Saved, not applied/)).toBeInTheDocument()
+    await userEvent.setup().click(within(explicitCalculator).getByRole('button', { name: 'Apply local profile' }))
+    expect(within(explicitCalculator).getByLabelText('Your VRAM')).toHaveValue('40')
+    expect(within(explicitCalculator).getByText(/Applied/)).toBeInTheDocument()
+  })
+
+  it('atomically falls back to estimated sizing when a valid publisher has an invalid variant', async () => {
+    window.history.replaceState(null, '', '/Qwen/Qwen3.8-27B?state=1&source=unsloth&variant=missing')
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      variants: [{
+        id: 'unsloth-q4', label: 'GGUF Q4_K_M', format: 'gguf', revision: 'sha1', path: 'q4.gguf',
+        source: 'file', role: 'model', bitsPerWeight: 4, weightSizeBytes: 10 * 1024 ** 3,
+        totalSizeBytes: 10 * 1024 ** 3, provenance: 'community', publisher: 'unsloth',
+        repositoryId: 'unsloth/Qwen3.8-27B-GGUF', sourceUrl: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
+      }],
+    })))
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByRole('tab', { name: 'Estimated' })).toHaveAttribute('aria-selected', 'true')
+    expect(within(calculator).getByText('Hypothetical bit/weight estimate')).toBeInTheDocument()
+    expect(window.location.search).toContain('source=estimated')
+    expect(window.location.search).toContain('variant=none')
+  })
+
+  it('restores the default addon variant when an addon URL variant is invalid', async () => {
+    window.history.replaceState(null, '', '/Qwen/Qwen3.8-27B?state=1&source=repository&variant=missing')
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      variants: [{
+        id: 'mtp', label: 'GGUF mtp-head', format: 'gguf', revision: 'sha1', path: 'mtp-head.gguf', source: 'file', role: 'addon',
+        bitsPerWeight: null, weightSizeBytes: 512 * 1024 ** 2, totalSizeBytes: 512 * 1024 ** 2,
+      }],
+      addon: { kind: 'mtp', baseModelId: 'Qwen/Qwen3.8-27B', parametersB: 0.46, sizeBytes: 512 * 1024 ** 2 },
+    })))
+    render(<App />)
+    const variants = await screen.findByRole('region', { name: 'Detected model variants' })
+    expect(within(variants).getByLabelText('Repository variant')).toHaveValue('mtp')
+    expect(window.location.search).toContain('source=repository')
+    await waitFor(() => expect(window.location.search).toContain('variant=mtp'))
+  })
+
+  it('guards browser storage failures and rejects invalid hardware form values before applying', async () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
+    const user = userEvent.setup()
+    render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('32')
+    getItem.mockRestore()
+    await user.clear(within(calculator).getByLabelText('Label'))
+    await user.type(within(calculator).getByLabelText('Label'), 'Too large')
+    await user.clear(within(calculator).getByLabelText('Total memory (GiB)'))
+    await user.type(within(calculator).getByLabelText('Total memory (GiB)'), '5000')
+    await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
+    expect(within(calculator).getByRole('alert')).toHaveTextContent(/valid hardware profile/i)
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('32')
+  })
+
+  it('reports failed hardware persistence while retaining the explicit page configuration', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    await user.type(within(calculator).getByLabelText('Label'), 'Workstation')
+    const save = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
+    await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
+    expect(within(calculator).getByRole('alert')).toHaveTextContent('it was not saved')
+    save.mockRestore()
+    const remove = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
+    await user.click(within(calculator).getByRole('button', { name: 'Clear profile' }))
+    expect(within(calculator).getByRole('alert')).toHaveTextContent('It may return after reloading')
+    remove.mockRestore()
+  })
+
+  it('labels failed refresh data as stale rather than live-only metadata', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(apiModel, { headers: { 'X-Sizeof-Model-Source': 'kv-stale' } })))
+    render(<App />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Showing older saved model data')
+  })
+
+  it('does not mislabel a service failure as a missing model', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: 'Upstream unavailable' }, { status: 503 })))
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Unable to load model.' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Model not found.' })).not.toBeInTheDocument()
+  })
+
+  it('shows time-aware evidence kinds and a numeric lower-bound sticky summary', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      estimateConfidence: 'runtime-specific',
+      spec: { ...apiModel.spec, estimateConfidence: 'runtime-specific' },
+    })))
+    const user = userEvent.setup()
+    render(<App />)
+
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    await user.click(within(calculator).getByText(/Estimate evidence:/))
+    expect(within(calculator).getByText(/Repository updated 2026-08-14T15:00:01.000Z/)).toBeInTheDocument()
+    expect(within(calculator).queryByText(/Observed 2026-08-14T15:00:01.000Z/)).not.toBeInTheDocument()
+    expect(within(calculator).getByText(/UNKNOWN \/ Runtime-specific memory factors/).closest('li')).toHaveClass('evidence-unknown')
+    const sticky = within(calculator).getByRole('status', { name: 'Current memory result' })
+    expect(sticky).toHaveTextContent(/\d+\.\d+ GiB lower bound/i)
+    expect(sticky).toHaveTextContent(/32 GiB capacity/)
+  })
+
+  it('keeps a stable fit-planner refusal on resource-only pages without LLM controls', async () => {
+    const user = userEvent.setup()
+    const copiedMarkdown = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copiedMarkdown } })
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      id: 'Example/Encoder', owner: 'Example', name: 'Encoder', modelKind: 'embedding', spec: null,
+      estimateReason: 'encoder-model',
+      resourceEstimate: {
+        kind: 'encoder', title: 'Encoder loaded weights', description: 'Static weights only.', note: 'Runtime varies.', baseModelId: null,
+        options: [{ id: 'weights', label: 'Weights', components: [{ id: 'weights', label: 'Weights', sizeBytes: 1024 ** 3 }] }],
+      },
+    })))
+    render(<App />)
+
+    const load = await screen.findByRole('region', { name: 'Model load estimate' })
+    expect(within(load).getByRole('region', { name: 'Fit planner' })).toHaveTextContent(/resource-only model/i)
+    expect(screen.queryByLabelText('Context window')).not.toBeInTheDocument()
+    expect(screen.queryByText('Estimated VRAM')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Export sizing' }))
+    await user.click(screen.getByRole('button', { name: 'Copy Markdown export' }))
+    expect(copiedMarkdown).toHaveBeenCalledWith(expect.stringContaining('Resource profile: encoder / Weights'))
+  })
+
+  it('keeps storage errors session-local and preserves the selected capacity when cleared', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
+    const user = userEvent.setup()
+    render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    await user.clear(within(calculator).getByLabelText('Label'))
+    await user.type(within(calculator).getByLabelText('Label'), 'Session GPU')
+    await user.clear(within(calculator).getByLabelText('Total memory (GiB)'))
+    await user.type(within(calculator).getByLabelText('Total memory (GiB)'), '24')
+    await user.click(within(calculator).getByRole('button', { name: 'Apply local profile' }))
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('24')
+    await user.click(within(calculator).getByRole('button', { name: 'Clear profile' }))
+    expect(within(calculator).getByLabelText('Your VRAM')).toHaveValue('24')
+    setItem.mockRestore()
+    removeItem.mockRestore()
+  })
+
+  it('serializes MLA mode and validated source/variant changes while retaining one semantic sticky result', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      ...apiModel,
+      spec: {
+        ...apiModel.spec,
+        kvHeads: undefined, headDim: undefined,
+        kvCache: { kind: 'mla', heads: 8, keyHeadDim: 64, valueHeadDim: 64, latentDim: 128, ropeDim: 32 },
+      },
+      variants: [{
+        id: 'unsloth-q4', label: 'GGUF Q4_K_M', format: 'gguf', revision: 'sha1', path: 'q4.gguf', source: 'file', role: 'model',
+        bitsPerWeight: 4, weightSizeBytes: 10 * 1024 ** 3, totalSizeBytes: 10 * 1024 ** 3, provenance: 'community', publisher: 'unsloth',
+        repositoryId: 'unsloth/Qwen3.8-27B-GGUF', sourceUrl: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF',
+      }],
+    })))
+    const user = userEvent.setup()
+    render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    await user.selectOptions(within(calculator).getByLabelText('MLA cache layout'), 'latent')
+    await user.click(within(calculator).getByRole('tab', { name: 'Unsloth' }))
+    expect(window.location.search).toContain('mla=latent')
+    expect(window.location.search).toContain('source=unsloth')
+    expect(window.location.search).toContain('variant=unsloth-q4')
+    expect(within(calculator).getAllByRole('status', { name: 'Current memory result' })).toHaveLength(1)
+  })
+
+  it('keeps the one normal-order sticky summary guarded for narrow, short, and reduced-motion viewports', async () => {
+    render(<App />)
+    const calculator = await screen.findByRole('region', { name: 'Model VRAM calculator' })
+    const result = within(calculator).getByRole('region', { name: 'Memory summary' })
+    const sticky = within(calculator).getByRole('status', { name: 'Current memory result' })
+    expect(result.compareDocumentPosition(sticky) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })

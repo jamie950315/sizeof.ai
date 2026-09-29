@@ -4,6 +4,19 @@ import {
   parseHuggingFaceModelPath,
 } from './huggingface'
 import type { HuggingFaceVariant } from './huggingface-variants'
+import { curatedHuggingFaceConfigs } from '../data/huggingface-configs'
+
+it('counts repeated layer patterns without allocating an array per declared layer', () => {
+  const value = normalizeHuggingFaceModel({ id: 'test/model' }, {
+    num_hidden_layers: 1_000_000_000,
+    layer_types: ['full_attention', 'linear_attention'],
+  })
+  expect(value.attentionProfile.fullLayers).toBe(500_000_000)
+  expect(value.attentionProfile.linearLayers).toBe(500_000_000)
+  expect(normalizeHuggingFaceModel({ id: 'test/model' }, {
+    num_hidden_layers: 3.5,
+  }).layers).toBeNull()
+})
 
 const metadata = {
   id: 'Qwen/Qwen3.8-27B',
@@ -51,6 +64,25 @@ describe('parseHuggingFaceModelPath', () => {
 })
 
 describe('normalizeHuggingFaceModel', () => {
+  it('uses the verified Muse Glimmer nested text config as a runtime-specific lower bound', () => {
+    const model = normalizeHuggingFaceModel({
+      ...metadata,
+      id: 'meta-models/Muse-Glimmer-30B',
+      pipeline_tag: 'image-text-to-text',
+      safetensors: { total: 29_776_626_688 },
+    }, curatedHuggingFaceConfigs['meta-models/Muse-Glimmer-30B'])
+
+    expect(model.spec).toMatchObject({
+      layers: 52,
+      attentionLayers: 13,
+      kvHeads: 2,
+      headDim: 128,
+      maxContext: 131072,
+      estimateConfidence: 'runtime-specific',
+    })
+    expect(model.attentionProfile).toMatchObject({ fullLayers: 13, slidingLayers: 39, slidingWindow: 2048 })
+    expect(model.estimateReason).toBeNull()
+  })
   it('normalizes nested text config and counts only full-attention KV layers', () => {
     const model = normalizeHuggingFaceModel(metadata, hybridConfig)
 

@@ -1,0 +1,196 @@
+/* Deployment workbench: stepped settings form | printed runbook listing. */
+
+.deploy-head { position: relative; }
+.deploy-local {
+  display: inline-flex; align-items: center; gap: 8px; justify-self: start;
+  font-size: 13px; color: var(--ink-2);
+  padding: 4px 10px; border: 1px dashed var(--ink-3); border-radius: var(--radius-sm);
+}
+.deploy-local > span { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--ink); background: var(--paper); }
+
+.deploy-alert { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
+.deploy-alert p { flex: 1 1 280px; }
+
+.deploy-grid {
+  display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: clamp(24px, 4vw, 56px); align-items: start;
+}
+
+.deploy-column-title {
+  font-size: clamp(20px, 2vw, 24px); padding-bottom: 12px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--ink);
+}
+
+/* Stepped form: visual rhythm comes from the rail and its markers, not from numbers. */
+.deploy-form { min-width: 0; }
+.deploy-steps { list-style: none; margin: 0; padding: 0; }
+.deploy-step {
+  position: relative; display: grid; gap: 14px; min-width: 0;
+  padding: 22px 0 26px; padding-inline-start: 34px;
+  border-bottom: 1px solid var(--rule);
+}
+.deploy-step::before {
+  content: ''; position: absolute; inset-inline-start: 0; top: 26px;
+  width: 13px; height: 13px; border: 1.5px solid var(--ink); border-radius: 50%; background: var(--paper);
+  transition: background .15s var(--ease);
+}
+.deploy-step::after {
+  content: ''; position: absolute; inset-inline-start: 6px; top: 42px; bottom: -26px; width: 1px; background: var(--rule-2);
+}
+.deploy-step:last-child { border-bottom: 0; }
+.deploy-step:last-child::after { display: none; }
+.deploy-step:focus-within::before { background: var(--tape); }
+.deploy-step > h3 { font-size: 17px; font-weight: 650; }
+
+.deploy-mono-input { font-family: var(--font-mono); font-stretch: 92%; font-size: 14px !important; }
+.deploy-hint { font-size: 13px; line-height: 1.55; color: var(--ink-3); }
+.deploy-hint code, .deploy-pin code, .deploy-evidence code {
+  font-size: 12px; padding: 1px 5px; border: 1px solid var(--rule); border-radius: 3px; background: var(--sheet);
+  overflow-wrap: anywhere; word-break: break-all;
+}
+.field > small.deploy-hint { display: block; }
+.deploy-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.deploy-unpin { justify-self: start; text-decoration: underline; text-underline-offset: 3px; }
+
+.deploy-evidence {
+  display: grid; gap: 6px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5;
+  border: 1px solid var(--ink); border-inline-start-width: 4px; border-radius: var(--radius-sm); background: var(--sheet);
+  overflow-wrap: anywhere; min-width: 0;
+}
+.deploy-evidence > p { color: var(--ink-2); }
+.deploy-evidence-path { font-family: var(--font-mono); font-stretch: 92%; font-size: 13px; color: var(--ink) !important; }
+.deploy-evidence a { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; justify-self: start; }
+
+.deploy-manifest { border-top: 1px solid var(--rule); padding-top: 8px; font-size: 13.5px; }
+.deploy-manifest > summary { font-size: 14px; }
+.deploy-manifest ol { margin: 8px 0; padding-inline-start: 22px; font-size: 12.5px; }
+.deploy-manifest li { padding: 3px 0; border-bottom: 1px dotted var(--rule); overflow-wrap: anywhere; }
+.deploy-manifest li::marker { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.deploy-manifest p { color: var(--ink-2); line-height: 1.55; }
+
+.deploy-links { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 14px; }
+.deploy-form > .deploy-links { border-top: 1px solid var(--ink); padding-top: 14px; }
+.deploy-links a { font-weight: 580; }
+.deploy-links a:hover { text-decoration-color: var(--tape); text-decoration-thickness: 3px; }
+
+/* Runbook: the primary result sheet. */
+.deploy-runbook {
+  position: relative; min-width: 0; display: grid; gap: 20px; align-content: start;
+  padding: clamp(18px, 2.4vw, 28px);
+  border: 1px solid var(--ink); border-radius: var(--radius); background: var(--paper);
+  box-shadow: 6px 6px 0 var(--hard);
+}
+.deploy-runbook-head { display: grid; gap: 8px; padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
+.deploy-runbook-head h2 { font-size: clamp(20px, 2vw, 24px); }
+.deploy-meta {
+  display: flex; flex-wrap: wrap; gap: 4px 0;
+  font-family: var(--font-mono); font-stretch: 87.5%; font-size: 11.5px; color: var(--ink-2);
+}
+.deploy-meta span + span::before { content: '·'; margin-inline: 8px; color: var(--ink-3); }
+
+.deploy-empty {
+  display: grid; gap: 10px; justify-items: start; padding: clamp(22px, 4vw, 40px);
+  border: 1px dashed var(--ink-3); border-radius: var(--radius-sm);
+  background: repeating-linear-gradient(var(--sheet) 0 28px, var(--sheet-2) 28px 56px);
+}
+.deploy-empty h3 { font-size: 19px; }
+.deploy-empty p { color: var(--ink-2); max-width: 58ch; line-height: 1.6; }
+.deploy-empty a { font-weight: 600; font-size: 14px; }
+
+.deploy-pin {
+  font-size: 13.5px; line-height: 1.6; color: var(--ink-2); overflow-wrap: anywhere;
+  padding: 10px 12px; border: 1px solid var(--warn); border-radius: var(--radius-sm); background: var(--warn-soft);
+}
+.deploy-pin-fixed { border-color: var(--ok); background: var(--ok-soft); color: var(--ink); }
+
+.deploy-checklist { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 8px 0; }
+.deploy-checklist ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.deploy-checklist li { border-top: 1px dotted var(--rule); }
+.deploy-checklist label { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; font-size: 14px; line-height: 1.55; color: var(--ink-2); cursor: pointer; }
+.deploy-checklist input { margin-top: 3px; flex: none; }
+.deploy-checklist label:has(input:checked) span { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--rule-2); }
+
+/* Commands: printed terminal listings. Command text stays inside <pre><code>. */
+.deploy-listings { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; counter-reset: listing; }
+.deploy-listing { counter-increment: listing; min-width: 0; border: 1px solid var(--ink); border-radius: var(--radius-sm); background: var(--sheet); overflow: hidden; }
+.deploy-listing-head {
+  display: flex; align-items: stretch; justify-content: space-between; gap: 12px;
+  padding-block: 6px; padding-inline: 0 6px;
+  border-bottom: 1px solid var(--ink); background: var(--sheet-2);
+}
+.deploy-listing-head h3 { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 620; min-width: 0; }
+.deploy-listing-head h3::before {
+  content: counter(listing); display: grid; place-items: center; flex: none;
+  width: 34px; align-self: stretch; margin-block: -6px;
+  border-inline-end: 1px solid var(--ink); background: var(--ink); color: var(--paper);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+}
+.deploy-listing-head .icon-btn { flex: none; align-self: center; height: 30px; }
+.deploy-listing pre {
+  margin: 0; padding: 12px 14px; max-width: 100%;
+  font-size: 12.5px; line-height: 24px; color: var(--ink);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  background: repeating-linear-gradient(var(--sheet) 0 24px, var(--sheet-2) 24px 48px);
+  background-origin: content-box; background-clip: padding-box;
+  tab-size: 2;
+}
+.deploy-listing pre code { font-size: inherit; }
+
+.deploy-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.deploy-limits { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--ink); }
+.deploy-limits h3 { font-size: 16px; }
+.deploy-limits > ul:not(.deploy-links) { margin: 0; padding-inline-start: 18px; display: grid; gap: 6px; }
+.deploy-limits > ul:not(.deploy-links) li { font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+.deploy-limits > ul:not(.deploy-links) li::marker { color: var(--warn); }
+.deploy-record-hint { border-top: 1px solid var(--rule); padding-top: 14px; }
+
+.deploy-feedback {
+  position: sticky; bottom: 12px; z-index: 5; justify-self: start;
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%;
+  padding: 8px 12px; border: 1px solid var(--ok); border-radius: var(--radius-sm);
+  background: var(--ok-soft); color: var(--ink); font-size: 13.5px; line-height: 1.45;
+}
+.deploy-feedback svg { flex: none; color: var(--ok); }
+.deploy-feedback-error { border-color: var(--over); background: var(--over-soft); }
+
+/* Official sources. */
+.deploy-resources {
+  display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(24px, 4vw, 56px);
+  margin-top: clamp(40px, 6vw, 72px); padding-top: 24px; border-top: 1px solid var(--ink);
+}
+.deploy-resources > div { display: grid; gap: 10px; align-content: start; }
+.deploy-resources h2 { font-size: clamp(20px, 2vw, 24px); }
+.deploy-resources p { color: var(--ink-2); font-size: 14.5px; line-height: 1.6; max-width: 48ch; }
+.deploy-resources > div > a { font-weight: 600; font-size: 14px; justify-self: start; }
+.deploy-resources ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--ink); }
+.deploy-resources li { border-bottom: 1px solid var(--rule); }
+.deploy-resources li a {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 11px 0;
+  text-decoration: none; font-size: 14.5px; font-weight: 560;
+}
+.deploy-resources li a:hover > span:first-child { text-decoration: underline; text-decoration-color: var(--tape); text-decoration-thickness: 3px; text-underline-offset: 4px; }
+.deploy-host {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  font-family: var(--font-mono); font-stretch: 87.5%; font-size: 11.5px; font-weight: 500; color: var(--ink-3);
+}
+
+@media (max-width: 960px) {
+  .deploy-grid, .deploy-resources { grid-template-columns: minmax(0, 1fr); }
+  .deploy-runbook { box-shadow: 4px 4px 0 var(--hard); }
+}
+
+@media (max-width: 620px) {
+  .deploy-pair { grid-template-columns: minmax(0, 1fr); }
+  .deploy-step { padding-inline-start: 26px; }
+  .deploy-runbook { box-shadow: none; padding: 14px; }
+  .deploy-listing-head .icon-btn { padding: 0 8px; }
+  .deploy-listing pre { font-size: 12px; padding: 10px 12px; }
+  .deploy-resources li a { flex-direction: column; gap: 2px; }
+  .deploy-actions .btn { flex: 1 1 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deploy-step::before { transition: none; }
+}
+.deploy-mono-input::placeholder { font-family: var(--font-ui); font-size: 14px; }

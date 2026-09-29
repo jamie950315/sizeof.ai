@@ -1,21 +1,20 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
-  ArrowDownRight,
+  ArrowDown,
+  ArrowRight,
   ArrowUpRight,
   Check,
   ChevronDown,
   ChevronUp,
-  Code2,
-  Copy,
-  Cpu,
-  Database,
-  Gauge,
+  Columns2,
   Info,
-  MemoryStick,
-  Search,
+  Link2,
 } from 'lucide-react'
 import { models } from './data/models'
+import { useCopy } from './lib/use-copy'
 import ModelDetailPage from './ModelDetailPage'
+import ComparePage from './ComparePage'
+import PlatformNav from './platform/PlatformNav'
 import {
   kvPrecisions,
   quantizations,
@@ -23,33 +22,31 @@ import {
   type QuantizationId,
 } from './data/quantizations'
 import { estimateVram, rankModelsForVram, type Fit } from './lib/estimator'
-import { contextLevels, stepContext } from './lib/context-stepper'
-import { getMemoryBarPartPercents, getMemoryBarUsage } from './lib/memory-bar'
+import { contextLevels, maximumContext, normalizedContext, stepContext } from './lib/context-stepper'
+import { getMemoryBarUsage } from './lib/memory-bar'
+import MemoryGauge, { offloadText } from './components/MemoryGauge'
+import { vramPresets } from './lib/vram-presets'
+import { searchSizingStatusForTask } from './lib/model-task'
 import {
   defaultCalculatorState,
   parseCalculatorState,
   serializeCalculatorState,
 } from './lib/url-state'
 import { parseHuggingFaceModelPath } from './lib/huggingface'
+import { serializeCompareState } from './lib/compare-state'
+import {
+  createSearchCacheKey,
+  readSearchCache,
+  writeSearchCache,
+  isSearchResponse,
+  type HuggingFaceSearchModel,
+} from './lib/model-search-cache'
+import { formatMessage, translate } from './i18n/core'
 
 const contextPresets = contextLevels
-const vramPresets = [8, 12, 16, 24, 32, 48, 64, 80]
 
-interface HuggingFaceSearchModel {
-  id: string
-  owner: string
-  name: string
-  downloads: number
-  likes: number
-  task: string | null
-  trendingScore: number
-  gated: boolean
-}
-
-interface HuggingFaceSearchResponse {
-  query: string
-  models: HuggingFaceSearchModel[]
-  nextCursor?: string | null
+function searchSizingStatus(model: HuggingFaceSearchModel) {
+  return searchSizingStatusForTask(model.task, model.gated)
 }
 
 const modelTypeOptions = [
@@ -70,8 +67,9 @@ function searchModelRank(model: HuggingFaceSearchModel, query: string) {
   const name = model.name.toLocaleLowerCase('en')
   const id = model.id.toLocaleLowerCase('en')
   if (id === normalizedQuery) return 0
-  if (name === normalizedQuery && owner === normalizedQuery) return 1
-  if (name === normalizedQuery) return 2
+  if (normalizedQuery.includes('/')) return id.startsWith(normalizedQuery) ? 1 : 5
+  if (normalizedQuery.length >= 4 && name === normalizedQuery && owner === normalizedQuery) return 1
+  if (normalizedQuery.length >= 4 && name === normalizedQuery) return 2
   if (owner === normalizedQuery) return 3
   if (name.startsWith(normalizedQuery)) return 4
   return 5
@@ -87,10 +85,6 @@ function sortSearchModels(items: HuggingFaceSearchModel[], query: string) {
   })
 }
 
-function formatGiB(value: number, digits = 2) {
-  return `${value.toFixed(digits)} GiB`
-}
-
 function formatContext(value: number) {
   return value >= 1024 ? `${Math.round(value / 1024)}K` : String(value)
 }
@@ -99,13 +93,41 @@ function formatCompactNumber(value: number) {
   return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
 }
 
+const scaleSteps = [8, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1536, 2048]
+
+function niceScaleMax(value: number) {
+  return scaleSteps.find((step) => step >= value) ?? Math.ceil(value / 512) * 512
+}
+
+function modelDetailPath(sourceUrl: string) {
+  return new URL(sourceUrl).pathname
+}
+
+function comparePath(modelId: string) {
+  return `/compare?${serializeCompareState({
+    items: [{
+      modelId,
+      quantization: 'q4_k_m', context: 8192, kvPrecision: 'fp16', mlaCacheMode: 'expanded', vramGiB: 32,
+      source: 'estimated', variantId: null,
+    }],
+  })}`
+}
+
 const fitLabels: Record<Fit, string> = {
   comfortable: 'COMFORTABLE',
   tight: 'TIGHT FIT',
   'too-large': 'TOO LARGE',
 }
 
+const fitOnLabels: Record<Fit | 'unverified', string> = {
+  comfortable: 'COMFORTABLE ON {0} GiB',
+  tight: 'TIGHT FIT ON {0} GiB',
+  'too-large': 'TOO LARGE ON {0} GiB',
+  unverified: 'FIT NOT VERIFIED ON {0} GiB',
+}
+
 export default function App() {
+  if (window.location.pathname === '/compare') return <ComparePage />
   const modelRoute = parseHuggingFaceModelPath(window.location.pathname)
   return modelRoute ? <ModelDetailPage route={modelRoute} /> : <HomePage />
 }
@@ -130,8 +152,11 @@ function HomePage() {
   const [nextSearchCursor, setNextSearchCursor] = useState<string | null>(null)
   const [searchState, setSearchState] = useState<'idle' | 'loading' | 'loading-more' | 'error'>('idle')
   const [searchLoadMoreError, setSearchLoadMoreError] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const searchRequestId = useRef(0)
-  const [copied, setCopied] = useState(false)
+  const searchTimer = useRef(0)
+  const searchController = useRef<AbortController | null>(null)
+  const { copied, copyError, copy } = useCopy()
 
   const model = models.find((item) => item.id === modelId) ?? models[0]
   const estimate = estimateVram(model, { quantization, context, kvPrecision })
@@ -147,93 +172,150 @@ function HomePage() {
     window.history.replaceState(null, '', `${window.location.pathname}?${query}`)
   }, [modelId, quantization, context, kvPrecision])
 
-  const recommendations = useMemo(
-    () =>
-      rankModelsForVram(models, {
-        vramGiB: vramBudget,
-        context,
-        quantization,
-        kvPrecision,
-      }).filter((item) => item.fit !== 'too-large'),
+  const ranked = useMemo(
+    () => rankModelsForVram(models, { vramGiB: vramBudget, context, quantization, kvPrecision }),
     [context, kvPrecision, quantization, vramBudget],
   )
+  const recommendations = ranked.filter((item) => item.fit !== 'too-large' && !item.estimate.isLowerBound)
+  const indexRows = [...ranked].sort((a, b) => a.estimate.totalGiB - b.estimate.totalGiB)
 
-  async function copyShareLink() {
-    await navigator.clipboard.writeText(window.location.href)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1600)
+  function selectModel(id: string) {
+    setModelId(id)
+    document.querySelector('#calculator')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  async function searchHuggingFace(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const query = catalogQuery.trim()
-    const searchBusy = searchState === 'loading' || searchState === 'loading-more'
-    if (searchBusy) return
-    if (!query) {
-      searchRequestId.current += 1
-      setSubmittedCatalogQuery('')
-      setSearchResults(null)
-      setNextSearchCursor(null)
-      setSearchLoadMoreError(false)
-      setSearchState('idle')
-      return
-    }
-    if (query.length < 2 || query.length > 80) return
+  async function copyShareLink() {
+    await copy(window.location.href)
+  }
 
-    const requestId = searchRequestId.current + 1
-    searchRequestId.current = requestId
-    setSubmittedCatalogQuery(query)
-    setSubmittedSearchAuthor(searchAuthor.trim())
-    setSubmittedSearchModelType(searchModelType)
+  function clearSearchResults() {
+    searchRequestId.current += 1
+    searchController.current?.abort()
+    setSubmittedCatalogQuery('')
+    setSubmittedSearchAuthor('')
+    setSubmittedSearchModelType('')
     setSearchResults(null)
     setNextSearchCursor(null)
     setSearchLoadMoreError(false)
-    setSearchState('loading')
+    setSearchError(null)
+    setSearchState('idle')
+  }
+
+  async function executeSearch(
+    query: string,
+    author: string,
+    modelType: string,
+    options: { cursor?: string; refresh?: boolean } = {},
+  ) {
+    if (query.length < 1 || query.length > 80) return
+    const requestId = searchRequestId.current + 1
+    searchRequestId.current = requestId
+    searchController.current?.abort()
+    const cursor = options.cursor ?? ''
+    const cacheKey = createSearchCacheKey({ query, author, modelType, cursor })
+    setSubmittedCatalogQuery(query)
+    setSubmittedSearchAuthor(author)
+    setSubmittedSearchModelType(modelType)
+    setSearchLoadMoreError(false)
+    setSearchError(null)
+
+    if (!cursor && !options.refresh) {
+      const cached = readSearchCache(cacheKey)
+      if (cached) {
+        setSearchResults(sortSearchModels(cached.models, query))
+        setNextSearchCursor(typeof cached.nextCursor === 'string' ? cached.nextCursor : null)
+        setSearchState('idle')
+        return
+      }
+    }
+
+    if (cursor) setSearchState('loading-more')
+    else {
+      setSearchResults(null)
+      setNextSearchCursor(null)
+      setSearchState('loading')
+    }
+
+    const controller = new AbortController()
+    searchController.current = controller
+    let failureMessage = 'Model search is unavailable. Check your connection and try again.'
     try {
       const params = new URLSearchParams({ q: query })
-      if (searchAuthor.trim()) params.set('author', searchAuthor.trim())
-      if (searchModelType) params.set('type', searchModelType)
-      const response = await fetch(`/api/search/models?${params.toString()}`)
-      if (!response.ok) throw new Error('Search request failed')
-      const payload = await response.json() as HuggingFaceSearchResponse
+      if (author) params.set('author', author)
+      if (modelType) params.set('type', modelType)
+      if (cursor) params.set('cursor', cursor)
+      const response = await fetch(`/api/search/models?${params.toString()}`, { signal: controller.signal })
+      if (!response.ok) {
+        failureMessage = `Model search is unavailable (HTTP ${response.status}).`
+        const body: unknown = await response.json()
+        if (typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string' && body.error.trim()) {
+          failureMessage += ` ${body.error.trim().slice(0, 200)}`
+        }
+        throw new Error(failureMessage)
+      }
+      failureMessage = 'Model search returned invalid data. Try again or report this problem.'
+      const payload: unknown = await response.json()
+      if (!isSearchResponse(payload)) throw new Error('Invalid search response')
       if (searchRequestId.current !== requestId) return
-      setSearchResults(sortSearchModels(Array.isArray(payload.models) ? payload.models : [], query))
-      setNextSearchCursor(typeof payload.nextCursor === 'string' ? payload.nextCursor : null)
+      const incoming = payload.models
+      const nextCursor = typeof payload.nextCursor === 'string' ? payload.nextCursor : null
+      writeSearchCache(cacheKey, { query, models: incoming, nextCursor })
+      setSearchResults((current) => {
+        if (!cursor) return sortSearchModels(incoming, query)
+        const modelsById = new Map((current ?? []).map((model) => [model.id, model]))
+        for (const model of incoming) modelsById.set(model.id, model)
+        return sortSearchModels([...modelsById.values()], query)
+      })
+      setNextSearchCursor(nextCursor)
       setSearchState('idle')
     } catch {
-      if (searchRequestId.current !== requestId) return
+      if (controller.signal.aborted || searchRequestId.current !== requestId) return
+      setSearchError(failureMessage)
+      if (cursor) {
+        setSearchLoadMoreError(true)
+        setSearchState('idle')
+        return
+      }
       setSearchResults(null)
       setSearchState('error')
     }
   }
 
-  async function loadMoreSearchResults() {
-    if (!nextSearchCursor || searchState !== 'idle') return
-    const requestId = searchRequestId.current
-    setSearchLoadMoreError(false)
-    setSearchState('loading-more')
-    try {
-      const params = new URLSearchParams({ q: submittedCatalogQuery })
-      if (submittedSearchAuthor) params.set('author', submittedSearchAuthor)
-      if (submittedSearchModelType) params.set('type', submittedSearchModelType)
-      params.set('cursor', nextSearchCursor)
-      const response = await fetch(`/api/search/models?${params.toString()}`)
-      if (!response.ok) throw new Error('Search request failed')
-      const payload = await response.json() as HuggingFaceSearchResponse
-      if (searchRequestId.current !== requestId) return
-      const incoming = Array.isArray(payload.models) ? payload.models : []
-      setSearchResults((current) => {
-        const modelsById = new Map((current ?? []).map((model) => [model.id, model]))
-        for (const model of incoming) modelsById.set(model.id, model)
-        return sortSearchModels([...modelsById.values()], submittedCatalogQuery)
-      })
-      setNextSearchCursor(typeof payload.nextCursor === 'string' ? payload.nextCursor : null)
-      setSearchState('idle')
-    } catch {
-      if (searchRequestId.current !== requestId) return
-      setSearchLoadMoreError(true)
-      setSearchState('idle')
+  useEffect(() => {
+    const query = catalogQuery.trim()
+    window.clearTimeout(searchTimer.current)
+    searchRequestId.current += 1
+    searchController.current?.abort()
+    if (!query) {
+      clearSearchResults()
+      return
     }
+    searchTimer.current = window.setTimeout(() => {
+      void executeSearch(query, searchAuthor.trim(), searchModelType)
+    }, 80)
+    return () => {
+      window.clearTimeout(searchTimer.current)
+      searchRequestId.current += 1
+      searchController.current?.abort()
+    }
+  }, [catalogQuery, searchAuthor, searchModelType])
+
+  async function searchHuggingFace(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    window.clearTimeout(searchTimer.current)
+    const query = catalogQuery.trim()
+    if (!query) {
+      clearSearchResults()
+      return
+    }
+    await executeSearch(query, searchAuthor.trim(), searchModelType, { refresh: true })
+  }
+
+  async function loadMoreSearchResults() {
+    if (!nextSearchCursor || (searchState !== 'idle' && searchState !== 'error')) return
+    await executeSearch(submittedCatalogQuery, submittedSearchAuthor, submittedSearchModelType, {
+      cursor: nextSearchCursor,
+    })
   }
 
   const memoryParts = [
@@ -242,153 +324,114 @@ function HomePage() {
     { label: 'Runtime buffer', value: estimate.runtimeGiB, className: 'runtime' },
   ]
   const memoryBarUsage = getMemoryBarUsage(estimate.totalGiB, vramBudget)
-  const memoryBarPartPercents = getMemoryBarPartPercents(memoryParts.map((part) => part.value))
-  const offloadLabel = memoryBarUsage.offloadGiB > 0
-    ? `OFFLOAD ${formatGiB(memoryBarUsage.offloadGiB)}`
-    : null
+  const offloadLabel = memoryBarUsage.offloadGiB > 0 ? offloadText(memoryBarUsage.offloadGiB) : null
+  const localizedSearchError = searchError ? translate(searchError) : ''
+  const quantizationLabel = translate(quantizations.find((item) => item.id === quantization)?.label ?? '')
+  const scaleMax = niceScaleMax(Math.max(vramBudget, ...indexRows.map((item) => item.estimate.totalGiB)) * 1.06)
+  const topPick = recommendations[0]
 
   return (
     <div className="site-shell">
-      <header className="site-header">
-        <a className="brand" href="#top" aria-label="sizeof.ai home">
-          <span className="brand-bracket">[</span> sizeof<span>.ai</span>{' '}
-          <span className="brand-bracket">]</span>
-        </a>
-        <nav aria-label="Main navigation">
-          <a href="#calculator">Calculator</a>
-          <a href="#recommendations">VRAM fit</a>
-          <a href="#catalog">Models</a>
-        </nav>
-        <a className="source-link" href="#method" aria-label="Calculation method">
-          <Code2 size={17} />
-          <span>Method</span>
-        </a>
-      </header>
+      <PlatformNav />
 
-      <main id="top">
-        <section className="hero">
-          <div className="hero-kicker reveal">
-            <span className="pulse-dot" /> LLM MEMORY REFERENCE / V0.1
-          </div>
-          <h1 className="reveal delay-1">
-            KNOW WHAT FITS
-            <span>BEFORE YOU LOAD.</span>
-          </h1>
-          <div className="hero-bottom reveal delay-2">
-            <p>
-              Model weights are only half the story. Calculate the real memory footprint across
-              quantization, context, and KV cache precision.
-            </p>
-            <a href="#calculator" className="jump-link">
-              RUN A CALCULATION <ArrowDownRight size={20} />
-            </a>
-          </div>
-          <div className="hero-search reveal delay-2" role="region" aria-label="Hugging Face model search">
-            <div className="hero-search-heading">
-              <span>LIVE HUGGING FACE INDEX</span>
-              <p>Find any public model, then open its memory profile.</p>
-            </div>
+      <main id="top" className="home-main">
+        <section className="home-search-explorer" aria-label="Model search explorer">
+          <div className="hero-search" role="region" aria-label="Hugging Face model search">
+            <p className="hero-caption">Type any public Hugging Face model. See how much memory it needs before you download a single file.</p>
             <form onSubmit={searchHuggingFace}>
-              <div className="hero-search-main">
-                <Search size={22} />
-                <input
-                  type="search"
-                  aria-label="Search Hugging Face models"
-                  placeholder="SEARCH QWEN, LLAMA, DEEPSEEK…"
-                  value={catalogQuery}
-                  onChange={(event) => setCatalogQuery(event.target.value)}
-                  maxLength={80}
-                />
-                <button
-                  type="submit"
-                  aria-label="Search Hugging Face"
-                  disabled={searchState === 'loading' || searchState === 'loading-more'}
-                >
-                  {searchState === 'loading' ? 'SEARCHING' : 'SEARCH'} <ArrowUpRight size={17} />
+              <div className="hero-call">
+                <span className="fn" aria-hidden="true">sizeof</span>
+                <span className="paren" aria-hidden="true">(</span>
+                <div className="hero-call-field">
+                  <input
+                    type="search"
+                    aria-label="Search Hugging Face models"
+                    placeholder="Qwen/Qwen3.8-27B"
+                    value={catalogQuery}
+                    onChange={(event) => setCatalogQuery(event.target.value)}
+                    maxLength={80}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+                <span className="paren" aria-hidden="true">)</span>
+                <button type="submit" className="hero-call-submit" aria-label="Search Hugging Face">
+                  <ArrowRight aria-hidden="true" />
                 </button>
               </div>
               <div className="hero-search-filters">
                 <label>
-                  <span>MODEL TYPE</span>
+                  <span>Model type</span>
                   <select
                     aria-label="Filter by model type"
                     value={searchModelType}
                     onChange={(event) => setSearchModelType(event.target.value)}
                   >
                     {modelTypeOptions.map((option) => (
-                      <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                      <option key={option.value || 'all'} value={option.value}>{translate(option.label)}</option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  <span>AUTHOR</span>
+                  <span>Author</span>
                   <input
                     type="text"
                     aria-label="Filter by author"
-                    placeholder="ANY AUTHOR"
+                    placeholder="Any author"
                     value={searchAuthor}
                     onChange={(event) => setSearchAuthor(event.target.value)}
                     maxLength={96}
                   />
                 </label>
-                <p>Press Enter / Return or Search to submit.</p>
+                <p>Results update as you type.</p>
               </div>
             </form>
-          </div>
-          <div className="hero-rule" />
-          <div className="signal-row">
-            <span>09 TEXT-OUTPUT MODELS</span>
-            <span>08 QUANTIZATIONS</span>
-            <span>NO SIGN-UP</span>
-            <span>UPDATED 22 AUG 2026</span>
+            <p className="hero-shortcut home-url-tool" aria-label="Hugging Face URL shortcut">
+              <span>Keep the owner and model path. Replace only the Hugging Face domain with sizeof.ai.</span>
+              <code>huggingface.co/Qwen/Qwen3.8-27B</code>
+              <span aria-hidden="true">→</span>
+              <code><strong>sizeof.ai</strong>/Qwen/Qwen3.8-27B</code>
+              <a href="/Qwen/Qwen3.8-27B" aria-label="Try the model detail page">Try it</a>
+            </p>
           </div>
         </section>
 
         {(submittedCatalogQuery || searchState !== 'idle') && (
           <section id="search-results" className="search-results-section" aria-label="Hugging Face search results">
             <div className="search-results-heading">
-              <div>
-                <span>SEARCH RESULT</span>
-                <h2>“{submittedCatalogQuery}”</h2>
-              </div>
+              <h2>Results for <span className="query">{submittedCatalogQuery}</span></h2>
               <p>{searchResults
-                ? `${String(searchResults.length).padStart(2, '0')} MODELS FOUND`
-                : 'LIVE HUGGING FACE DATA'}</p>
+                ? `${searchResults.length} models found`
+                : searchState === 'loading' ? 'Searching…' : 'Live Hugging Face data'}</p>
             </div>
-            <div className="catalog-table search-results-table">
-              <div className="catalog-header">
-                <span>MODEL</span><span>DOWNLOADS</span><span>LIKES</span><span>TASK</span><span />
-              </div>
-              {searchState === 'loading' && (
+            <div className="result-list search-results-table">
+              {searchState === 'loading' && !searchResults && (
                 <div className="catalog-state" role="status"><span className="pulse-dot" /> Searching Hugging Face for “{submittedCatalogQuery}”…</div>
               )}
               {searchState === 'error' && (
-                <div className="catalog-state catalog-error" role="alert">Hugging Face search is unavailable. Your curated model index is unchanged.</div>
+                <div className="catalog-state catalog-error" role="alert">{localizedSearchError} Your curated model index is unchanged.</div>
               )}
               {searchState === 'idle' && searchResults?.length === 0 && (
                 <div className="catalog-state">No Hugging Face models matched “{submittedCatalogQuery}”.</div>
               )}
               {searchResults?.map((item) => (
-                <article key={item.id} className="catalog-row hf-search-row">
-                  <div className="catalog-name">
-                    <span>{item.owner}</span>
-                    <strong>{item.name}</strong>
-                    <div>
-                      <i>{item.owner}</i>
-                      {item.gated && <i>GATED</i>}
-                    </div>
+                <article key={item.id} className="result-row hf-search-row">
+                  <div className="result-name">
+                    <a href={`/${item.owner}/${item.name}`} aria-label={`Open ${item.id}`}>{item.name}</a>
+                    <small><span>{item.owner}</span>{item.gated && <span className="tag tag-warn">GATED</span>}</small>
                   </div>
-                  <div><small>DOWNLOADS</small><strong>{formatCompactNumber(item.downloads)}</strong></div>
-                  <div><small>LIKES</small><strong>{formatCompactNumber(item.likes)}</strong></div>
-                  <div><small>TASK</small><strong>{item.task?.replaceAll('-', ' ') ?? 'UNSPECIFIED'}</strong></div>
-                  <div className="catalog-actions">
-                    <a className="catalog-open-model" href={`/${item.owner}/${item.name}`} aria-label={`Open ${item.id}`}>OPEN</a>
-                    <a href={`https://huggingface.co/${item.id}`} target="_blank" rel="noreferrer" aria-label={`${item.id} on Hugging Face`}><ArrowUpRight size={17} /></a>
+                  <div className="result-stat downloads"><small>Downloads</small><strong>{formatCompactNumber(item.downloads)}</strong></div>
+                  <div className="result-stat likes"><small>Likes</small><strong>{formatCompactNumber(item.likes)}</strong></div>
+                  <div className="result-stat task"><small>Task</small><strong>{item.task?.replaceAll('-', ' ') ?? 'UNSPECIFIED'}</strong></div>
+                  <div className="result-stat sizing"><small>Sizing</small><strong>{searchSizingStatus(item)}</strong></div>
+                  <div className="result-actions">
+                    <a className="icon-btn catalog-compare-action" href={comparePath(item.id)} aria-label={`Compare ${item.id}`}><Columns2 aria-hidden="true" /><span className="catalog-compare-label">Compare</span></a>
+                    <a className="icon-btn" href={`https://huggingface.co/${item.id}`} target="_blank" rel="noreferrer" aria-label={`${item.id} on Hugging Face`}><ArrowUpRight aria-hidden="true" /></a>
                   </div>
                 </article>
               ))}
               {searchLoadMoreError && (
-                <div className="catalog-state catalog-error" role="alert">Could not load the next page. Try Load More again.</div>
+                <div className="catalog-state catalog-error" role="alert">Could not load the next page. {localizedSearchError} Try Load More again.</div>
               )}
             </div>
             {nextSearchCursor && searchResults && (
@@ -399,66 +442,46 @@ function HomePage() {
                 disabled={searchState !== 'idle'}
                 onClick={() => void loadMoreSearchResults()}
               >
-                {searchState === 'loading-more' ? 'LOADING' : 'LOAD MORE MODELS'} <ArrowDownRight size={18} />
+                {searchState === 'loading-more' ? 'Loading…' : 'Load more models'} <ArrowDown aria-hidden="true" />
               </button>
             )}
             <span className="visually-hidden" role="status" aria-live="polite">
-              {searchState === 'loading-more' ? 'Loading more Hugging Face models' : ''}
+              {searchState === 'loading' ? `Searching Hugging Face for ${submittedCatalogQuery}` : searchState === 'loading-more' ? 'Loading more Hugging Face models' : ''}
             </span>
           </section>
         )}
 
-        <section className="hf-shortcut" aria-label="Hugging Face URL shortcut">
-          <div className="hf-shortcut-copy">
-            <span>HF URL SHORTCUT / ANY PUBLIC MODEL</span>
-            <h2>Replace one word.<br />See what fits.</h2>
-            <p>Keep the owner and model path. Replace only the Hugging Face domain with sizeof.ai.</p>
-          </div>
-          <div className="hf-url-swap">
-            <code>huggingface.co/Qwen/Qwen3.8-27B</code>
-            <ArrowDownRight size={24} />
-            <code><strong>sizeof.ai</strong>/Qwen/Qwen3.8-27B</code>
-            <a href="/Qwen/Qwen3.8-27B" aria-label="Try the model detail page">TRY IT <ArrowUpRight size={17} /></a>
-          </div>
-        </section>
-
-        <section id="calculator" className="calculator-section" aria-label="VRAM calculator">
-          <div className="section-heading">
-            <div>
-              <span className="section-index">01</span>
-              <p>MEMORY CALCULATOR</p>
-            </div>
-            <h2>Size the model,<br />not the guess.</h2>
+        <section id="calculator" className="bench" aria-label="VRAM calculator">
+          <div className="section-title">
+            <h2>VRAM calculator</h2>
+            <p>Choose a curated model, then change the settings. The index below follows along.</p>
           </div>
 
-          <div className="calculator-grid">
+          <div className="bench-grid">
             <div className="controls-panel">
               <div className="control-block">
                 <label htmlFor="model-select">Model</label>
-                <div className="select-wrap">
-                  <select
-                    id="model-select"
-                    aria-label="Model"
-                    value={modelId}
-                    onChange={(event) => setModelId(event.target.value)}
-                  >
-                    {models.map((item) => (
-                      <option value={item.id} key={item.id}>{item.name}</option>
-                    ))}
-                  </select>
-                  <ArrowDownRight size={18} />
-                </div>
+                <select
+                  id="model-select"
+                  aria-label="Model"
+                  value={modelId}
+                  onChange={(event) => setModelId(event.target.value)}
+                >
+                  {models.map((item) => (
+                    <option value={item.id} key={item.id}>{item.name}</option>
+                  ))}
+                </select>
                 <div className="model-meta">
-                  <span>{model.maker}</span>
-                  <span>{model.parametersB}B PARAMS</span>
-                  <span>{formatContext(model.maxContext)} NATIVE</span>
+                  <span className="tag">{model.maker}</span>
+                  <span className="tag">{model.parametersB}B</span>
+                  <span className="tag">{formatContext(model.maxContext)} native</span>
                 </div>
               </div>
 
               <div className="control-block">
                 <div className="label-row">
                   <label>Weight quantization</label>
-                  <span>{quantizations.find((item) => item.id === quantization)?.note}</span>
+                  <span>{translate(quantizations.find((item) => item.id === quantization)?.note ?? '')}</span>
                 </div>
                 <div className="quant-grid">
                   {quantizations.map((item) => (
@@ -466,9 +489,10 @@ function HomePage() {
                       className={quantization === item.id ? 'active' : ''}
                       type="button"
                       key={item.id}
+                      aria-pressed={quantization === item.id}
                       onClick={() => setQuantization(item.id)}
                     >
-                      {item.label}
+                      {translate(item.label)}
                     </button>
                   ))}
                 </div>
@@ -477,16 +501,17 @@ function HomePage() {
               <div className="control-block context-block">
                 <div className="label-row">
                   <label htmlFor="context-input">Context window</label>
-                  <span>TOKENS</span>
+                  <span>tokens</span>
                 </div>
                 <div className="context-input-row">
                   <input
                     id="context-input"
                     type="number"
                     min="1024"
+                    max={maximumContext}
                     step="1"
                     value={context}
-                    onChange={(event) => setContext(Math.max(1024, Math.round(Number(event.target.value)) || 1024))}
+                    onChange={(event) => setContext(normalizedContext(Number(event.target.value)))}
                     onKeyDown={(event) => {
                       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
                         event.preventDefault()
@@ -496,10 +521,10 @@ function HomePage() {
                   />
                   <div className="context-stepper" aria-label="Adjust context window">
                     <button type="button" aria-label="Increase context window" onClick={() => setContext((current) => stepContext(current, 'up'))}>
-                      <ChevronUp size={18} />
+                      <ChevronUp aria-hidden="true" />
                     </button>
                     <button type="button" aria-label="Decrease context window" onClick={() => setContext((current) => stepContext(current, 'down'))}>
-                      <ChevronDown size={18} />
+                      <ChevronDown aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -529,7 +554,7 @@ function HomePage() {
                     onChange={(event) => setKvPrecision(event.target.value as KvPrecisionId)}
                   >
                     {kvPrecisions.map((item) => (
-                      <option value={item.id} key={item.id}>{item.label}</option>
+                      <option value={item.id} key={item.id}>{translate(item.label)}</option>
                     ))}
                   </select>
                 </div>
@@ -550,189 +575,152 @@ function HomePage() {
 
             <div className="result-panel">
               <div className="result-topline">
-                <span>ESTIMATED VRAM</span>
-                <span className={`fit-pill ${currentFit}`}>{fitLabels[currentFit]} ON {vramBudget} GB</span>
+                <span>{estimate.isLowerBound ? 'VRAM lower bound' : 'Estimated VRAM'}</span>
+                <span className={`fit-pill ${estimate.isLowerBound && currentFit !== 'too-large' ? 'unverified' : currentFit}`}>{formatMessage(fitOnLabels[estimate.isLowerBound && currentFit !== 'too-large' ? 'unverified' : currentFit], [vramBudget])}</span>
               </div>
               <div className="total-number">
                 <span>{estimate.totalGiB.toFixed(2)}</span>
                 <small>GiB</small>
               </div>
-              <div
-                className="memory-bar"
-                role="img"
-                aria-label={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vramBudget} GiB VRAM${offloadLabel ? `, ${offloadLabel}` : ''}`}
-              >
-                <div
-                  className="memory-bar-used"
-                  style={{
-                    width: `${memoryBarUsage.usedPercent}%`,
-                    '--memory-weights-offload-opacity': memoryBarUsage.weightsOffloadOpacity,
-                  } as CSSProperties}
-                >
-                  {memoryParts.map((part, index) => (
-                    <span
-                      className={part.className}
-                      key={part.label}
-                      style={{ width: `${memoryBarPartPercents[index]}%` }}
-                    />
-                  ))}
-                  <span
-                    className="memory-bar-risk"
-                    aria-hidden="true"
-                    style={{ opacity: memoryBarUsage.riskOpacity }}
-                  />
-                </div>
-                <span
-                  className="memory-bar-remaining"
-                  aria-hidden="true"
-                  style={{ width: `${memoryBarUsage.remainingPercent}%` }}
-                />
-                {offloadLabel && <span className="memory-bar-offload">{offloadLabel}</span>}
-              </div>
-              <div
-                className="breakdown-list"
-                style={{
-                  '--memory-risk-opacity': memoryBarUsage.riskOpacity,
-                  '--memory-weights-offload-opacity': memoryBarUsage.weightsOffloadOpacity,
-                } as CSSProperties}
-              >
+              <MemoryGauge
+                parts={memoryParts}
+                totalGiB={estimate.totalGiB}
+                capacityGiB={vramBudget}
+                ariaLabel={`Memory usage: ${estimate.totalGiB.toFixed(2)} GiB used of ${vramBudget} GiB VRAM${offloadLabel ? `, ${offloadLabel}` : ''}`}
+              />
+              <ul className="gauge-legend" aria-label="Memory breakdown">
                 {memoryParts.map((part) => (
-                  <div key={part.label}>
-                    <span><i className={part.className} />{part.label}</span>
-                    <strong>{formatGiB(part.value)}</strong>
-                  </div>
+                  <li key={part.label}><i className={part.className} aria-hidden="true" />{translate(part.label)} <strong>{part.value.toFixed(2)}</strong></li>
                 ))}
-              </div>
+              </ul>
               <div className="result-model">
                 <div>
-                  <span>CONFIGURATION</span>
+                  <span>Configuration</span>
                   <strong>{model.name}</strong>
-                  <p>{quantizations.find((item) => item.id === quantization)?.label} · {formatContext(context)} context · {kvPrecision.toUpperCase()} KV</p>
+                  <p>{quantizationLabel} · {formatContext(context)} context · {kvPrecision.toUpperCase()} KV</p>
                 </div>
                 <button type="button" className="copy-button" onClick={() => void copyShareLink()}>
-                  {copied ? <Check size={17} /> : <Copy size={17} />}
-                  {copied ? 'COPIED' : 'COPY LINK'}
+                  {copied ? <Check aria-hidden="true" /> : <Link2 aria-hidden="true" />}
+                  {copied ? 'Copied' : 'Copy link'}
                 </button>
               </div>
+              {copyError && <p role="alert" className="callout callout-error">{translate(copyError)}</p>}
               <p className="estimate-note">
-                <Info size={15} /> Estimate includes weights, KV cache, 10% workspace, and a 0.5 GiB base runtime allowance. Actual use varies by engine and GPU offload.
+                <Info aria-hidden="true" /> {estimate.isLowerBound ? 'Lower bound only: some runtime memory is unknown, so fitting within this capacity is not guaranteed.' : 'Includes weights, KV cache, and runtime allowance. Actual use varies by engine and GPU offload.'}
               </p>
             </div>
           </div>
         </section>
 
-        <section id="recommendations" className="recommendation-section">
-          <div className="section-heading light">
+        <section id="catalog" className="index-section" aria-label="Model catalog">
+          <div className="index-head">
             <div>
-              <span className="section-index">02</span>
-              <p>VRAM FIT</p>
+              <h2>Curated model index</h2>
+              <p>Every model at {quantizationLabel} and {formatContext(context)} context, measured against your {vramBudget} GiB.</p>
             </div>
-            <h2>Use every gigabyte<br />with intent.</h2>
+            <p className="meta">{models.length} text-output models · {quantizations.length} quantizations · Updated 22 Aug 2026</p>
           </div>
-          <div className="vram-strip" aria-label="VRAM capacity">
-            {vramPresets.map((value) => (
-              <button
-                type="button"
-                key={value}
-                className={vramBudget === value ? 'active' : ''}
-                onClick={() => setVramBudget(value)}
-              >
-                <span>{value}</span> GB
-              </button>
-            ))}
-          </div>
-
-          <div className="recommendation-intro">
-            <p>TOP PICKS FOR</p>
-            <strong>{vramBudget} GB</strong>
-            <span>{formatContext(context)} context · {quantizations.find((item) => item.id === quantization)?.label}</span>
-          </div>
-          <div className="recommendation-grid">
-            {recommendations.slice(0, 3).map((item, index) => (
-              <article className="recommendation-card" key={item.model.id}>
-                <div className="card-rank">0{index + 1}</div>
-                <div className="card-maker">{item.model.maker}</div>
-                <h3>{item.model.name}</h3>
-                <div className="card-tags">
-                  {item.model.strengths.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
-                </div>
-                <div className="card-memory">
-                  <div>
-                    <span>EST. VRAM</span>
-                    <strong>{item.estimate.totalGiB.toFixed(1)} GB</strong>
-                  </div>
-                  <div>
-                    <span>HEADROOM</span>
-                    <strong>{item.headroomGiB.toFixed(1)} GB</strong>
-                  </div>
-                </div>
-                <button type="button" onClick={() => { setModelId(item.model.id); document.querySelector('#calculator')?.scrollIntoView({ behavior: 'smooth' }) }}>
-                  CALCULATE <ArrowUpRight size={17} />
+          <div id="recommendations" className="index-controls">
+            <div className="vram-strip" role="group" aria-label="VRAM capacity">
+              {vramPresets.map((value) => (
+                <button
+                  type="button"
+                  key={value}
+                  className={vramBudget === value ? 'active' : ''}
+                  aria-pressed={vramBudget === value}
+                  onClick={() => setVramBudget(value)}
+                >
+                  {value}
                 </button>
-              </article>
-            ))}
-            {recommendations.length === 0 && (
-              <div className="empty-recommendation">No catalog model fits this setup. Try a smaller quantization or context.</div>
-            )}
-          </div>
-        </section>
-
-        <section id="catalog" className="catalog-section" aria-label="Model catalog">
-          <div className="section-heading">
-            <div>
-              <span className="section-index">03</span>
-              <p>MODEL INDEX</p>
+              ))}
             </div>
-            <h2>Specs you can<br />inspect.</h2>
+            <p className="top-pick" aria-live="polite">
+              {topPick
+                ? <>Largest verified fit on {vramBudget} GiB: <button type="button" onClick={() => selectModel(topPick.model.id)}>{topPick.model.name}</button> · {topPick.estimate.totalGiB.toFixed(1)} GiB, {topPick.headroomGiB.toFixed(1)} GiB headroom</>
+                : 'No catalog model has a verified fit for this setup. Models with incomplete runtime memory are excluded.'}
+            </p>
           </div>
-          <div className="catalog-toolbar">
-            <span>BUILT-IN REFERENCE SET</span>
-            <span>{String(models.length).padStart(2, '0')} CURATED MODELS</span>
-          </div>
-          <div className="catalog-table">
-            <div className="catalog-header">
-              <span>MODEL</span><span>PARAMETERS</span><span>MAX CONTEXT</span><span>ARCHITECTURE</span><span />
+          <div className="ruler">
+            <div className="ruler-scale" aria-hidden="true">
+              <span>Model</span>
+              <div className="gauge-scale">
+                {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
+                  <span key={ratio} style={{ left: `${ratio * 100}%` }}>{ratio === 1 ? `${scaleMax} GiB` : scaleMax * ratio}</span>
+                ))}
+              </div>
+              <span>Total</span>
+              <span />
             </div>
-            {models.map((item) => (
-              <article key={item.id} className="catalog-row">
-                <div className="catalog-name">
-                  <span>{item.maker}</span>
-                  <strong>{item.name}</strong>
-                  <div>{item.strengths.map((tag) => <i key={tag}>{tag}</i>)}</div>
-                </div>
-                <div><small>PARAMETERS</small><strong>{item.parametersB}B</strong></div>
-                <div><small>MAX CONTEXT</small><strong>{formatContext(item.maxContext)}</strong></div>
-                <div><small>ARCHITECTURE</small><strong>{item.layers}L / {item.kvHeads} KVH</strong></div>
-                <div className="catalog-actions">
-                  <button type="button" onClick={() => { setModelId(item.id); document.querySelector('#calculator')?.scrollIntoView({ behavior: 'smooth' }) }}>SIZE IT</button>
-                  <a href={item.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${item.name} source`}><ArrowUpRight size={17} /></a>
-                </div>
-              </article>
-            ))}
+            {indexRows.map((item) => {
+              const lowerBound = item.estimate.isLowerBound
+              const state = lowerBound && item.fit !== 'too-large' ? 'lower-bound' : item.fit
+              return (
+                <article key={item.model.id} className={`catalog-row${modelId === item.model.id ? ' selected' : ''}`}>
+                  <button
+                    type="button"
+                    className="catalog-row-select"
+                    aria-label={`Select ${item.model.name}`}
+                    aria-pressed={modelId === item.model.id}
+                    onClick={() => setModelId(item.model.id)}
+                  />
+                  <div className="catalog-name">
+                    <span>{item.model.maker}</span>
+                    <strong>{item.model.name}</strong>
+                    <small>{item.model.parametersB}B · {formatContext(item.model.maxContext)} · {item.model.layers}L / {item.model.kvHeads} KVH</small>
+                  </div>
+                  <div className="ruler-track" aria-hidden="true">
+                    <span className={`ruler-bar ${state}`} style={{ width: `${Math.min(100, (item.estimate.totalGiB / scaleMax) * 100)}%` }} />
+                    <span className="ruler-cap" style={{ insetInlineStart: `${(vramBudget / scaleMax) * 100}%` }} />
+                  </div>
+                  <div className={`catalog-value ${state}`}>
+                    {lowerBound ? '≥ ' : ''}{item.estimate.totalGiB.toFixed(1)} GiB
+                    <small>{translate(lowerBound && item.fit !== 'too-large' ? 'FIT NOT VERIFIED' : fitLabels[item.fit])}</small>
+                  </div>
+                  <div className="catalog-actions">
+                    <a className="icon-btn icon-btn-strong catalog-open-model" href={modelDetailPath(item.model.sourceUrl)} target="_blank" rel="noreferrer" aria-label={`Size ${item.model.name} (opens in new tab)`}>Details</a>
+                    <a className="icon-btn catalog-compare-action" href={comparePath(new URL(item.model.sourceUrl).pathname.slice(1))} aria-label={`Compare ${item.model.name}`}><Columns2 aria-hidden="true" /><span className="catalog-compare-label">Compare</span></a>
+                    <a className="icon-btn" href={item.model.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${item.model.name} source`}><ArrowUpRight aria-hidden="true" /></a>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+          <div className="ruler-legend" aria-label="Legend">
+            <span><i className="ruler-bar comfortable legend-static" />Comfortable, under 85%</span>
+            <span><i className="ruler-bar tight legend-static" />Tight, 85–100%</span>
+            <span><i className="ruler-bar too-large legend-static" />Too large, needs offload</span>
+            <span><i className="ruler-bar lower-bound legend-static" />Lower bound, fit not verified</span>
+            <span><i className="cap" />Your capacity</span>
           </div>
         </section>
 
         <section id="method" className="method-section">
-          <div className="method-title">
-            <span>HOW IT WORKS</span>
-            <h2>Transparent by default.</h2>
-            <p>No mystery score. Every estimate is built from the model architecture and a small set of visible assumptions.</p>
-          </div>
-          <div className="method-grid">
-            <div><Database /><span>01</span><h3>Weights</h3><p>Parameter count × effective bits per weight for the selected GGUF quantization.</p></div>
-            <div><MemoryStick /><span>02</span><h3>KV cache</h3><p>KV-bearing attention layers × KV heads × head dimension × context × cache precision, for batch size one. Local/sliding-window caches and hybrid state buffers vary by engine and are not separately modeled, so actual use can differ.</p></div>
-            <div><Cpu /><span>03</span><h3>Runtime</h3><p>A practical allowance for compute buffers, metadata, and inference-engine workspace.</p></div>
-            <div><Gauge /><span>04</span><h3>Fit</h3><p>Under 85% is comfortable; 85–100% is tight; over capacity requires partial CPU offload.</p></div>
+          <div className="method-inner">
+            <div className="method-title">
+              <h2>Methodology</h2>
+              <p>No mystery score. Every estimate is built from the model architecture and a small set of visible assumptions.</p>
+            </div>
+            <div className="equations">
+              <div className="equation">
+                <div><h3>Weights</h3><code>{'weights = params × bits_per_weight ÷ 8'}</code></div>
+                <p>Parameter count × effective bits per weight for the selected GGUF quantization.</p>
+              </div>
+              <div className="equation">
+                <div><h3>KV cache</h3><code>{'kv = 2 × kv_layers × kv_heads\n     × head_dim × context × bytes'}</code></div>
+                <p>KV-bearing attention layers × KV heads × head dimension × context × cache precision, for batch size one. Local/sliding-window caches and hybrid state buffers vary by engine and are not separately modeled, so actual use can differ.</p>
+              </div>
+              <div className="equation">
+                <div><h3>Runtime</h3><code>{'runtime = buffers + workspace'}</code></div>
+                <p>A practical allowance for compute buffers, metadata, and inference-engine workspace.</p>
+              </div>
+              <div className="equation">
+                <div><h3>Fit</h3><code>{'total ÷ capacity  <85% · ≤100% · >100%'}</code></div>
+                <p>Under 85% is comfortable; 85–100% is tight; over capacity requires partial CPU offload.</p>
+              </div>
+            </div>
           </div>
         </section>
       </main>
-
-      <footer>
-        <div className="brand"><span className="brand-bracket">[</span> sizeof<span>.ai</span> <span className="brand-bracket">]</span></div>
-        <p>LLM MEMORY, MEASURED.</p>
-        <div><a href="#calculator">Calculator</a><a href="#catalog">Model data</a><a href="#method">Method</a></div>
-        <span>ESTIMATES, NOT GUARANTEES · 2026</span>
-      </footer>
     </div>
   )
 }

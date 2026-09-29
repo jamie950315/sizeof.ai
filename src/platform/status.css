@@ -1,0 +1,84 @@
+/* Data status: an instrument panel of regional readouts with ok / warn / unknown signals. */
+
+.status-head > div { margin-top: 4px; }
+.status-checking { display: grid; gap: 10px; font-size: 14.5px; color: var(--ink-2); margin-bottom: 20px; }
+.status-checking::before {
+  content: ''; width: min(420px, 100%); height: 10px; border: 1px solid var(--ink);
+  background: repeating-linear-gradient(-45deg, var(--ink) 0 2px, transparent 2px 7px);
+  background-size: 200% 100%; animation: status-slide 1.2s linear infinite;
+}
+@keyframes status-slide { to { background-position: -40px 0; } }
+
+/* Signal lamp: a small square stamp before any element carrying data-state. */
+.status-summary h2::before, .status-signal::before, .status-rows > div[data-state] dd::before {
+  content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  margin-inline-end: 8px; vertical-align: .08em; background: currentColor; flex: none;
+}
+[data-state='ok'] { --signal: var(--ok); --signal-soft: var(--ok-soft); }
+[data-state='warn'] { --signal: var(--warn); --signal-soft: var(--warn-soft); }
+[data-state='unknown'] { --signal: var(--ink-3); --signal-soft: var(--sheet-2); }
+
+.status-summary {
+  display: grid; gap: 8px; padding: clamp(16px, 2.2vw, 22px); margin-bottom: 20px;
+  border: 1px solid var(--ink); border-inline-start: 4px solid var(--signal, var(--ink)); border-radius: var(--radius-sm);
+  background: var(--signal-soft, var(--sheet));
+}
+.status-summary h2 { font-size: clamp(20px, 2.2vw, 26px); }
+.status-summary h2::before { width: 12px; height: 12px; color: var(--signal); }
+.status-summary[data-state='unknown'] h2::before { background: transparent; border: 2px dashed var(--signal); }
+.status-summary p { font-size: 14.5px; color: var(--ink-2); line-height: 1.55; max-width: 80ch; }
+.status-summary small { font-family: var(--font-mono); font-stretch: 87.5%; font-size: 11.5px; color: var(--ink-3); line-height: 1.6; }
+
+.status-regions {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--ink); border-radius: var(--radius); background: var(--sheet); overflow: hidden;
+}
+.status-region { padding: clamp(18px, 2.4vw, 28px); display: grid; gap: 16px; align-content: start; min-width: 0; }
+.status-region + .status-region { border-inline-start: 1px solid var(--ink); }
+.status-region-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+.status-region-head h2 { font-size: 20px; }
+.status-signal {
+  display: inline-flex; align-items: center; padding: 3px 9px; border: 1.5px solid var(--signal); border-radius: 3px;
+  font-family: var(--font-mono); font-stretch: 87.5%; font-size: 11.5px; font-weight: 600; color: var(--signal); background: var(--sheet);
+}
+.status-signal[data-state='unknown'] { border-style: dashed; }
+.status-region-error {
+  font-size: 13.5px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere;
+  border-inline-start: 3px solid var(--warn); background: var(--warn-soft); padding: 8px 10px; border-radius: 2px;
+}
+.status-count span { font-size: clamp(38px, 5vw, 60px); overflow-wrap: anywhere; }
+.status-count small { font-family: var(--font-ui); font-size: 14px; }
+
+.status-rows > div { align-items: baseline; }
+.status-rows dd { line-height: 1.45; }
+.status-rows > div[data-state] dd { color: var(--signal); font-weight: 600; }
+.status-rows > div[data-state='unknown'] dd { color: var(--ink-3); }
+.status-rows > div[data-state='unknown'] dd::before { background: transparent; border: 1.5px dashed currentColor; width: 7px; height: 7px; }
+.status-region .disclosure { border-top: 1px solid var(--rule); padding-top: 10px; }
+.status-region .disclosure summary { font-size: 13.5px; }
+.status-region code { display: block; margin-top: 8px; font-size: 11.5px; color: var(--ink-2); overflow-wrap: anywhere; line-height: 1.6; }
+
+.status-notes {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: clamp(20px, 4vw, 48px);
+  margin-top: clamp(28px, 4vw, 44px);
+}
+.status-explanation { display: grid; gap: 10px; align-content: start; padding-top: 14px; border-top: 1px solid var(--ink); }
+.status-explanation h2 { font-size: 18px; }
+.status-explanation p, .status-explanation li { font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+.status-explanation strong { color: var(--ink); }
+.status-explanation ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 8px; }
+.status-explanation a { font-size: 14px; font-weight: 600; justify-self: start; }
+
+@media (max-width: 860px) {
+  .status-regions { grid-template-columns: 1fr; }
+  .status-region + .status-region { border-inline-start: 0; border-top: 1px solid var(--ink); }
+}
+
+@media (max-width: 480px) {
+  .status-rows > div { flex-direction: column; gap: 2px; }
+  .status-rows dd { text-align: start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-checking::before { animation: none; }
+}

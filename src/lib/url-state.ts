@@ -27,7 +27,7 @@ export function parseCalculatorState(search: string): CalculatorState {
       ? (quant as QuantizationId)
       : defaultCalculatorState.quantization,
     context:
-      Number.isInteger(context) && context > 0 ? context : defaultCalculatorState.context,
+      Number.isSafeInteger(context) && context >= 1024 && context <= 16_777_216 ? context : defaultCalculatorState.context,
     kvPrecision: kvPrecisions.some((item) => item.id === kv)
       ? (kv as KvPrecisionId)
       : defaultCalculatorState.kvPrecision,
