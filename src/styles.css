@@ -303,9 +303,6 @@ textarea { line-height: 1.5; }
 .gauge-scale span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
 .gauge-scale span:first-child { transform: none; }
 .gauge-scale span:last-child { transform: translateX(-100%); }
-[dir='rtl'] .gauge-scale span { transform: translateX(50%); }
-[dir='rtl'] .gauge-scale span:first-child { transform: none; }
-[dir='rtl'] .gauge-scale span:last-child { transform: translateX(100%); }
 
 .memory-bar {
   position: relative; display: flex; height: 34px; width: 100%;

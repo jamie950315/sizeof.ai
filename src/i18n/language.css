@@ -13,9 +13,13 @@
 .language-control label { font-weight: 600; color: var(--ink); }
 .language-feedback { grid-column: 1 / -1; min-height: 1.5em; font-size: 12.5px; color: var(--ink-3); max-width: 340px; }
 html[lang^=zh], html[lang=ja], html[lang=ko], html[lang=hi], html[lang=ar] { line-break: auto; }
-html[dir=rtl] pre, html[dir=rtl] code, html[dir=rtl] .memory-bar, html[dir=rtl] .gauge, html[dir=rtl] .ruler-track, html[dir=rtl] .hero-call { direction: ltr; unicode-bidi: isolate; }
+html[dir=rtl] pre, html[dir=rtl] code, html[dir=rtl] .memory-bar, html[dir=rtl] .gauge, html[dir=rtl] .gauge-scale, html[dir=rtl] .ruler-track, html[dir=rtl] .hero-call { direction: ltr; unicode-bidi: isolate; }
 html:not([lang=en]) .page-head h1, html:not([lang=en]) .compare-builder h1 { line-height: 1.15; letter-spacing: -.01em; }
 html[lang^=zh] body, html[lang=ja] body, html[lang=ko] body { letter-spacing: .01em; }
 @media (max-width: 700px) {
   .language-control { grid-template-columns: auto minmax(0, 1fr); width: 100%; }
 }
+html[dir=rtl] .home-url-tool > span[aria-hidden="true"], html[dir=rtl] .lucide-arrow-right:not(.hero-call *) { display: inline-block; transform: scaleX(-1); }
+/* Monospace fallbacks draw Arabic as disconnected letters; route Arabic text in mono labels to the proportional UI font. */
+html[lang=ar] { --font-mono: 'Martian Mono Variable', var(--font-ui); }
+html[lang=ar] body * { letter-spacing: normal !important; }
