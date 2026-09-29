@@ -1423,7 +1423,7 @@ export async function handleWorkerRequest(
     return env.UPSTREAM_API.fetch(request)
   }
   const host = publicHost(env.ENVIRONMENT, env.PUBLIC_ORIGIN)
-  if (env.ENVIRONMENT === 'testnet' && (url.pathname === '/docs' || url.pathname.startsWith('/docs/'))) {
+  if (url.pathname === '/docs' || url.pathname.startsWith('/docs/')) {
     return handleDocsRequest(request, env, { pathPrefix: '/docs', publicOrigin: host })
   }
   if (url.pathname === '/api/status') return handleServiceStatus(request, env)

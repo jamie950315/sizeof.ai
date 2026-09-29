@@ -170,6 +170,13 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Localization: all 2,765 messages in each of twelve non-English catalogs have completed full-message AI retranslation from the canonical English source, preserving the completed Claude work and finishing remaining chunks with GPT-6 Sol. Localized documentation SVGs are regenerated from these catalogs. Brands, model identifiers, commands, units and opaque placeholders remain protected; coverage tests explicitly preserve HTTP, MIME, CSP and cookie literals instead of requiring their translation. The footer navigation accessibility label now uses an existing translated key. This is not an independent native-speaker review of every message.
 - A subsequent full-catalog GPT-6 Sol audit produced 62 accepted corrections, all applied as explicit complete-message values. Coverage also protects the `Vary` header name. Hardware field labels and hints explicitly translate their authored catalog keys so corrected pricing guidance reaches the UI; input values remain opaque. These corrections do not establish that every translation is flawless.
 
+## Production promotion of the testnet2 redesign (2026-09-29)
+
+- The `claude/testnet2-redesign` build (same assets as testnet2, `index-DLSHdbzI.js`) is now production on `https://sizeof.ai` and `https://www.sizeof.ai` via the existing `sizeof-ai` Worker, which keeps its own `HF_TOKEN` and production `MODEL_CACHE` KV. It does not proxy through testnet.
+- Production now sets `PUBLIC_ORIGIN=https://sizeof.ai` and the JP/US search-index URLs, and holds the `SIZEOF_SEARCH_TOKEN` secret. Enterprise Hugging Face keys stay off in production. `/docs` is now rendered by the Worker on every platform deployment, not only testnet.
+- Verified 941 tests, build, dry-run and live 200s for home, www, model detail, model/search/estimate/status APIs, docs HTML/llms.txt, `/start` and robots; search answered from the US index. Browser checks covered the homepage, zh-TW docs and a model detail page.
+- Cloudflare production version: `dc6a6300-ecc4-457d-8022-612665f4f438` (deployed 2026-09-29). Previous version for rollback: `3d4e767d-bdaa-4402-842b-f687ac5b4cfa`. New production homepage hash: `3c0920a1f8ddca4459a40f0aac5bdbbae1adee0b114e9c014584a9ddc6c8915f`; earlier notes citing the old hash as "unchanged production" are historical.
+
 ## Commands
 
 - `npm run dev`: local Vite development server

@@ -21,6 +21,11 @@
     "enabled": true,
     "logs": { "head_sampling_rate": 1 }
   },
+  "vars": {
+    "PUBLIC_ORIGIN": "https://sizeof.ai",
+    "SIZEOF_SEARCH_JP_URL": "https://ccsearch.0ruka.dev/__sizeof_index",
+    "SIZEOF_SEARCH_US_URL": "https://sizeof-search-us.0ruka.dev"
+  },
   "routes": [
     { "pattern": "sizeof.ai", "custom_domain": true },
     { "pattern": "www.sizeof.ai", "custom_domain": true }

@@ -87,14 +87,16 @@ describe('independent documentation site', () => {
     expect(llms).toContain('https://testnet.sizeof.ai/docs/quantization.md?lang=ja')
     expect(llms).not.toContain('https://docs.sizeof.ai/')
   })
-  it('enables documentation rendering only on the testnet Worker', async () => {
+  it('renders documentation on both the testnet and production platform Workers', async () => {
     const ctx = { waitUntil: vi.fn() } as unknown as ExecutionContext
     const bindings = { ...env, MODEL_CACHE: { get: vi.fn(), put: vi.fn() } }
     const testnet = await handleWorkerRequest(new Request('https://testnet.sizeof.ai/docs/getting-started.md?lang=ja'), { ...bindings, ENVIRONMENT: 'testnet' }, ctx)
     expect(testnet.headers.get('Content-Type')).toContain('text/markdown')
     expect(testnet.headers.get('Content-Language')).toBe('ja')
-    const production = await handleWorkerRequest(new Request('https://sizeof.ai/docs/getting-started.md?lang=ja'), { ...bindings, ENVIRONMENT: 'production' }, ctx)
-    expect(production.headers.get('Content-Type')).toContain('text/html')
-    expect(production.headers.get('Content-Language')).toBeNull()
+    const production = await handleWorkerRequest(new Request('https://sizeof.ai/docs/getting-started.md?lang=ja'), { ...bindings, PUBLIC_ORIGIN: 'https://sizeof.ai' }, ctx)
+    expect(production.headers.get('Content-Type')).toContain('text/markdown')
+    expect(production.headers.get('Content-Language')).toBe('ja')
+    const llms = await (await handleWorkerRequest(new Request('https://sizeof.ai/docs/llms.txt'), { ...bindings, PUBLIC_ORIGIN: 'https://sizeof.ai' }, ctx)).text()
+    expect(llms).toContain('https://sizeof.ai/docs/quantization.md')
   })
 })
