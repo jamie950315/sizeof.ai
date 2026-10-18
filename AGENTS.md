@@ -233,13 +233,21 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   outbound controller WebSocket at `/_swift/controller`; `SWIFT_CONTROLLER_TOKEN`
   is an environment-specific secret. Keep Google OAuth and notebook credentials
   outside Cloudflare. No conversations or commands are persisted by the bridge.
-- The official Colab CLI controller is the Mac LaunchAgent
-  `dev.sizeof.swift-controller`; its external config is
-  `/Users/jamie/.config/swift-colab/controller.json`. This Mac must be awake,
-  signed in and online. It manages only the G4 session `swift-flash-next-web`.
-  Offline means allocation unknown, not stopped; reconnect retains the kernel.
-  Shutdown verifies saves/Drive flush and actual assignment disappearance.
-  Operation and notebook details are in the Swift project's `docs/REMOTE.md`.
+- The official Colab CLI controller runs on A1-JP as the boot-enabled systemd
+  service `swift-flash-controller.service` under `ubuntu`, with source/notebook/
+  venv in `/opt/swift-flash-next` and external 0600 config at
+  `/home/ubuntu/.config/swift-colab/controller.json`. Google OAuth was authorized
+  independently on A1-JP. The Mac LaunchAgent is disabled/unloaded, with its
+  config/plist retained for rollback; never run both production controllers.
+  Mac power and home connectivity are no longer dependencies. The controller
+  manages only G4 session `swift-flash-next-web`. Offline means allocation unknown,
+  not stopped; reconnect retains the kernel. Shutdown verifies saves/Drive flush
+  and actual assignment disappearance. Operation and notebook details are in
+  the Swift project's `docs/REMOTE.md`.
+- A1-JP handoff passed production G4 start, restored history, real chat, service
+  restart/reconnect to the same kernel, and safe shutdown with zero assignments
+  while the Mac relay was off. This host-only migration did not change Worker
+  code/assets or require redeployment.
 - Production version: `50da289d-3840-42ba-88a5-2146fa434fbf`; testnet version:
   `d89c8a7a-a527-420c-8d86-630503480e0e`. The relevant 151-test suite, typecheck,
   build and local Worker smoke passed. Live testnet acceptance covered G4 start,
