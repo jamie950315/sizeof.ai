@@ -4,6 +4,8 @@ The English message catalog covers application and Worker prose, React JSX,
 documentation, accessibility labels, errors, metadata, exported report lines,
 and documentation diagram labels. It deliberately includes some extra internal
 strings; catalog presence is not a promise that every string is rendered.
+The owner-only `/chat/` application and `worker/swift-chat.ts` retain the original
+Swift notebook's English copy and are outside the public calculator catalogs.
 Technical units, repository identities, publisher names, commands, and HTTP
 headers remain unchanged. User-entered data must never be translated remotely.
 

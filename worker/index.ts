@@ -43,6 +43,8 @@ import { handleModelChanges } from './model-changes'
 import { docsArticles } from '../src/docs/content'
 import { handleDocsRequest } from './docs'
 import { fetchWithSafeRedirects, readBoundedBody, readUpstreamJson, UpstreamError } from './upstream'
+import { handleSwiftChat, type SwiftChatBindings } from './swift-chat'
+export { SwiftChatBridge } from './swift-chat'
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 type GgufReader = (
@@ -1244,7 +1246,7 @@ export async function handleModelApi(
   }
 }
 
-interface WorkerBindings {
+interface WorkerBindings extends SwiftChatBindings {
   MODEL_CACHE: ModelCacheNamespace
   ASSETS: { fetch(request: Request): Promise<Response> }
   HF_TOKEN?: string
@@ -1419,6 +1421,8 @@ export async function handleWorkerRequest(
   ctx: ExecutionContext,
 ): Promise<Response> {
   const url = new URL(request.url)
+  const swift = await handleSwiftChat(request, env)
+  if (swift) return swift
   if (env.UPSTREAM_API && upstreamPrefixes.some((prefix) => url.pathname.startsWith(prefix))) {
     return env.UPSTREAM_API.fetch(request)
   }

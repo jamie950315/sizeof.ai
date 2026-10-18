@@ -11,6 +11,10 @@
   "kv_namespaces": [
     { "binding": "MODEL_CACHE", "id": "64daa9eb377a4098969912297dbecbef" }
   ],
+  "durable_objects": {
+    "bindings": [{ "name": "SWIFT_BRIDGE", "class_name": "SwiftChatBridge" }]
+  },
+  "migrations": [{ "tag": "swift-chat-v1", "new_sqlite_classes": ["SwiftChatBridge"] }],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -22,6 +26,9 @@
     "logs": { "head_sampling_rate": 1 }
   },
   "vars": {
+    "SWIFT_ACCESS_TEAM": "https://purple-silence-448c.cloudflareaccess.com",
+    "SWIFT_ACCESS_AUD": "b059e2b721f374f7783ef93a54411a47516c360e00ebc2751301d5b5629686ee",
+    "SWIFT_OWNER_EMAIL": "jamie950315@gmail.com",
     "PUBLIC_ORIGIN": "https://sizeof.ai",
     "HF_ENTERPRISE_KEYS_ENABLED": "true",
     "SIZEOF_SEARCH_JP_URL": "https://ccsearch.0ruka.dev/__sizeof_index",
@@ -35,6 +42,9 @@
     "testnet": {
       "name": "sizeof-ai-testnet",
       "vars": {
+        "SWIFT_ACCESS_TEAM": "https://purple-silence-448c.cloudflareaccess.com",
+        "SWIFT_ACCESS_AUD": "b059e2b721f374f7783ef93a54411a47516c360e00ebc2751301d5b5629686ee",
+        "SWIFT_OWNER_EMAIL": "jamie950315@gmail.com",
         "ENVIRONMENT": "testnet",
         "HF_ENTERPRISE_KEYS_ENABLED": "true",
         "SIZEOF_SEARCH_JP_URL": "https://ccsearch.0ruka.dev/__sizeof_index",
@@ -43,6 +53,9 @@
       "kv_namespaces": [
         { "binding": "MODEL_CACHE", "id": "0a07ede1f0744dd696857d5bea6d2441" }
       ],
+      "durable_objects": {
+        "bindings": [{ "name": "SWIFT_BRIDGE", "class_name": "SwiftChatBridge" }]
+      },
       "assets": {
         "directory": "./dist",
         "binding": "ASSETS",

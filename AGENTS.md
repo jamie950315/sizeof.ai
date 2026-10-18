@@ -214,3 +214,36 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Validate on `testnet.sizeof.ai`/`testnet2.sizeof.ai` first; production deployment is approved as part of delivery.
 - Hugging Face requests rotate across the active API key pool. Enterprise keys (`HF_ENTERPRISE_KEYS_ENABLED=true` plus `HF_TOKEN_ENTERPRISE_1` through `HF_TOKEN_ENTERPRISE_4`) are enabled on testnet and, since 2026-09-29, production.
 - Run tests, build, and a real local smoke test before declaring completion.
+
+## Private Swift chat (2026-10-18)
+
+- Owner-only standalone chat is live at `https://sizeof.ai/chat/` and
+  `https://www.sizeof.ai/chat/`. Cloudflare Access gates the page and API;
+  `worker/swift-chat.ts` independently verifies the RS256 assertion, audience,
+  issuer, owner and lifetime before serving assets or forwarding requests.
+  Keep encoded asset aliases behind the same check and private responses uncached.
+- `public/chat/index.html` is generated from the original Swift notebook UI by
+  `/Users/jamie/Google Colab/swift-flash-next/web/export.py`. Preserve its English
+  copy, bundled libraries, original palette and opaque/network-denying preview
+  sandboxes. This private app is outside the public calculator's i18n catalogs.
+- Browser routes: `GET /chat/api/instance`, `POST /chat/api/instance/start`,
+  `POST /chat/api/instance/shutdown`, and `POST /chat/api/rpc`. POST requires a
+  same-origin JSON request. Do not add arbitrary Python/command execution.
+- `SwiftChatBridge` uses a hibernatable Durable Object and an authenticated
+  outbound controller WebSocket at `/_swift/controller`; `SWIFT_CONTROLLER_TOKEN`
+  is an environment-specific secret. Keep Google OAuth and notebook credentials
+  outside Cloudflare. No conversations or commands are persisted by the bridge.
+- The official Colab CLI controller is the Mac LaunchAgent
+  `dev.sizeof.swift-controller`; its external config is
+  `/Users/jamie/.config/swift-colab/controller.json`. This Mac must be awake,
+  signed in and online. It manages only the G4 session `swift-flash-next-web`.
+  Offline means allocation unknown, not stopped; reconnect retains the kernel.
+  Shutdown verifies saves/Drive flush and actual assignment disappearance.
+  Operation and notebook details are in the Swift project's `docs/REMOTE.md`.
+- Production version: `50da289d-3840-42ba-88a5-2146fa434fbf`; testnet version:
+  `d89c8a7a-a527-420c-8d86-630503480e0e`. The relevant 151-test suite, typecheck,
+  build and local Worker smoke passed. Live testnet acceptance covered G4 start,
+  restored history, chat/math/interactive preview, Stop, relay restart/reconnect,
+  safe shutdown and zero remaining assignments. Production owner login, connected
+  controller/stopped state, public API/home and unauthenticated isolation passed.
+  Reuse this unchanged GPU evidence instead of allocating another benchmark VM.
