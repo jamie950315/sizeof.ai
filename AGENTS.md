@@ -294,6 +294,22 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   completion, never during initialization or generation. Manual web starts keep
   manual shutdown. Save/flush failures retain the VM; lease ownership survives
   controller restart. The Mac production relay remains disabled.
+- The A1-JP controller recognizes exact `PERMA-ON`/`PERMA-OFF` substrings in the
+  latest user text or current system/developer/instructions. `PERMA-ON` extends
+  the current API-owned instance's idle timeout to 1,800 seconds, retained across
+  requests/controller restarts until unassignment. `PERMA-OFF` bypasses inference
+  busy rejection, cancels active API work and safely saves/flushes/releases the
+  instance; it never starts a stopped VM. Old user turns, assistant/tool data and
+  token counters do not trigger controls. Both present means OFF wins. Native
+  JSON/SSE acknowledgements use zero model tokens; `/v1/status` exposes the
+  timeout and pending shutdown. This controller-only change keeps the existing
+  Worker version and API notebook; see the Swift project's `docs/API.md`.
+  A1-JP release `d7e0624` passed 57 focused tests and live cold generation,
+  restart/lease retention, more than five idle minutes without release, and
+  cancellation plus verified save/Drive flush/unassignment on OFF. All three
+  protocols acknowledged OFF in JSON and SSE without allocating a stopped VM.
+  Receipts are in `outputs/perma-controls-20261018/` under the Swift project;
+  the service remains enabled and its final assignment inventory is empty.
 - Protocol/usage details and per-invocation Codex/Claude launchers live in
   `/Users/jamie/Google Colab/swift-flash-next/docs/API.md` and `API_PROTOCOLS.md`.
   Credentials stay outside Git; the Mac key is in its owner-only
