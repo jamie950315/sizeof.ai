@@ -252,14 +252,27 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   Dark mode uses neutral dark/gray palette (#0d0f12, #14161a, #22252c) with progressive width and height adaptations (100dvh, flexible breakpoints <=768px drawer and <=760px/600px height compacting).
   System prompt field supports per-chat settings, default fallback, and reset.
   Standalone UI export regenerated and verified via JSDOM.
-- 2026-10-18: Unlocked pre-start chat features when Colab is stopped / not started.
-  Chat history browsing and switching directly uses Drive-backed conversations returned by runtime state, without needing localStorage caches or throwing RPC errors.
-  Model controls (context window, placement, MTP draft decoding), custom system prompt, and sampling controls (thinking toggle, max tokens, temperature) remain interactive and persistent prior to runtime start.
-  Input composer is enabled for pre-composing prompt instructions; pressing Send or Enter while stopped requests Colab start without losing drafted input.
-- Production version: `8e4d29ec-5ee1-4b79-96ac-3c41ff76f37b`; testnet version:
-  `6df26735-7e19-4544-abcf-71fbfb055633`. The relevant 151-test suite, typecheck,
-  build and local Worker smoke passed. Live testnet acceptance covered G4 start,
-  restored history, chat/math/interactive preview, Stop, relay restart/reconnect,
-  safe shutdown and zero remaining assignments. Production owner login, connected
-  controller/stopped state, public API/home and unauthenticated isolation passed.
-  Reuse this unchanged GPU evidence instead of allocating another benchmark VM.
+- Pre-start browsing reads the last saved Drive manifest through the controller's
+  read-only `history` RPC, without allocating Colab or storing conversations in
+  localStorage. Runtime status contains metadata plus active messages only;
+  replies over 8 MiB fail explicitly without disconnecting the controller.
+- System Prompt drafts are per-chat and survive polling; model preferences remain
+  pending until applied. Offline New/select is synchronized before a queued send.
+  Send starts Colab with the chosen model settings and dispatches once the model
+  and target chat are ready; its stop button cancels the queue. Failed/ambiguous
+  sends retain drafts and are never replayed automatically. Reconnect keeps the
+  existing runtime's settings, applying a queued differing selection by reload.
+  Operation errors remain visible across status polls until dismissed or retried.
+- The notebook keeps a 600px host while standalone uses the viewport. Expanded
+  model settings scroll independently so the composer remains reachable on short
+  mobile screens. Runtime/controller contract is v11.
+- Production version: `89abb74c-ef29-4335-ba3a-f08993d77783`; testnet version:
+  `b39cf966-afc0-43e4-a759-364f5403389e`. Review repair passed 62 Python tests,
+  15 UI state regressions, 10 Worker tests, Node 24 typecheck/build, local Worker
+  smoke and desktop/390x600/320px browser checks. Live testnet confirmed stopped
+  Drive history, 32K/CUDA/MTP-off startup, real replies, retained context errors,
+  relay restart on the same assignment/kernel, synchronized New chat plus exactly
+  one queued send, and verified save/flush/shutdown with zero assignments.
+  Production owner page loads Drive history while stopped; public API/home and
+  unauthenticated isolation passed. Both original private notebook IDs were
+  updated in place and read back with metadata, cell IDs and sharing retained.
