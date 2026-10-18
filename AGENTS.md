@@ -252,7 +252,11 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   Dark mode uses neutral dark/gray palette (#0d0f12, #14161a, #22252c) with progressive width and height adaptations (100dvh, flexible breakpoints <=768px drawer and <=760px/600px height compacting).
   System prompt field supports per-chat settings, default fallback, and reset.
   Standalone UI export regenerated and verified via JSDOM.
-- Production version: `228e901f-b5f2-4c02-9131-dba3cb2a03e5`; testnet version:
+- 2026-10-18: Unlocked pre-start chat features when Colab is stopped / not started.
+  Chat history browsing and switching supported offline via localStorage cache without throwing RPC errors.
+  Model controls (context window, placement, MTP draft decoding), custom system prompt, and sampling controls (thinking toggle, max tokens, temperature) remain interactive and persistent prior to runtime start.
+  Input composer is enabled for pre-composing prompt instructions; pressing Send or Enter while stopped requests Colab start without losing drafted input.
+- Production version: `f2b7bcd4-a63b-4bee-b3a7-c3aa74e8325d`; testnet version:
   `6df26735-7e19-4544-abcf-71fbfb055633`. The relevant 151-test suite, typecheck,
   build and local Worker smoke passed. Live testnet acceptance covered G4 start,
   restored history, chat/math/interactive preview, Stop, relay restart/reconnect,
