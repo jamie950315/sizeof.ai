@@ -253,10 +253,10 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   System prompt field supports per-chat settings, default fallback, and reset.
   Standalone UI export regenerated and verified via JSDOM.
 - 2026-10-18: Unlocked pre-start chat features when Colab is stopped / not started.
-  Chat history browsing and switching supported offline via localStorage cache without throwing RPC errors.
+  Chat history browsing and switching directly uses Drive-backed conversations returned by runtime state, without needing localStorage caches or throwing RPC errors.
   Model controls (context window, placement, MTP draft decoding), custom system prompt, and sampling controls (thinking toggle, max tokens, temperature) remain interactive and persistent prior to runtime start.
   Input composer is enabled for pre-composing prompt instructions; pressing Send or Enter while stopped requests Colab start without losing drafted input.
-- Production version: `f2b7bcd4-a63b-4bee-b3a7-c3aa74e8325d`; testnet version:
+- Production version: `8e4d29ec-5ee1-4b79-96ac-3c41ff76f37b`; testnet version:
   `6df26735-7e19-4544-abcf-71fbfb055633`. The relevant 151-test suite, typecheck,
   build and local Worker smoke passed. Live testnet acceptance covered G4 start,
   restored history, chat/math/interactive preview, Stop, relay restart/reconnect,
