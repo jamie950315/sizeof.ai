@@ -276,3 +276,46 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   Production owner page loads Drive history while stopped; public API/home and
   unauthenticated isolation passed. Both original private notebook IDs were
   updated in place and read back with metadata, cell IDs and sharing retained.
+
+## Private Swift inference API (2026-10-18)
+
+- Production base URL is `https://sizeof.ai/v1`, model `swift-flash-next`.
+  `worker/swift-api.ts` handles Responses, Chat Completions and Anthropic
+  Messages, plus both native token counters. `GET /v1/models` and `/v1/status`
+  do not allocate Colab. Routes require the separate `SWIFT_API_KEY` secret,
+  using Bearer authorization or `x-api-key`; browser Access credentials do not
+  authorize the API. API data is never persisted by the Worker or web history.
+- `SwiftApiRelay` keeps only bounded in-flight state and native SSE streams.
+  Startup/download/loading progress uses SSE comments, not model text; standard
+  clients may ignore those comments. Disconnect/cancel never replays inference.
+  Busy requests fail explicitly; tool execution stays in the calling client.
+- The A1-JP controller and UI-free notebook now use remote API version 2.
+  API-created runtimes safely release after 300 idle seconds following request
+  completion, never during initialization or generation. Manual web starts keep
+  manual shutdown. Save/flush failures retain the VM; lease ownership survives
+  controller restart. The Mac production relay remains disabled.
+- Protocol/usage details and per-invocation Codex/Claude launchers live in
+  `/Users/jamie/Google Colab/swift-flash-next/docs/API.md` and `API_PROTOCOLS.md`.
+  Credentials stay outside Git; the Mac key is in its owner-only
+  `~/.config/swift-colab/api-key` file.
+- Production version: `e380c1b7-9b75-40df-a4a9-a34e7c491e62`; testnet version:
+  `fd540868-3f5a-433c-a22b-951d14d4cfde`. Focused validation passed 16 Worker
+  tests, 25 protocol tests, five API lifecycle tests and 17 controller tests;
+  Node 24 typecheck/build and local Worker smoke also passed.
+- Live testnet acceptance covered cold-start/download status, all three native
+  tool-result roundtrips, namespace/custom tools, both token counters, real Codex
+  read/write and full Claude Code Read/Write, cancellation, concurrent rejection,
+  and actual 300-second idle release with zero assignments. Production passed
+  private authorization on both domains, A1-JP cold startup with real generation,
+  and full Claude Code Read/Write while the Mac test relay was off. The public
+  homepage and authenticated private chat control panel render normally; an
+  unauthenticated browser remains behind Access. Receipts are ignored under the
+  Swift project's `outputs/v1-acceptance-20261018/`.
+  Production then passed the same real 300-second idle release: Drive flush and
+  credential cleanup were observed before stopped status, with no server
+  assignments remaining and the A1-JP service still connected.
+- Cloudflare can temporarily run a previous Durable Object version after Worker
+  deployment. Before cold inference, validate the new route using a nonstream
+  Responses request with `store: true`: the expected explicit 400 stateless
+  rejection must occur without allocation. A legacy relay 504 is not an
+  inference result; wait for version propagation and reconnect the controller.

@@ -1,9 +1,11 @@
 import { readBoundedBody, UpstreamError } from './upstream'
+import { handleSwiftApi, SwiftApiRelay } from './swift-api'
 
 /** Private Swift frontend and a credential-free relay to the official Colab controller. */
 export interface SwiftChatBindings {
   SWIFT_BRIDGE?: DurableObjectNamespace
   SWIFT_CONTROLLER_TOKEN?: string
+  SWIFT_API_KEY?: string
   SWIFT_ACCESS_AUD?: string
   SWIFT_ACCESS_TEAM?: string
   SWIFT_OWNER_EMAIL?: string
@@ -74,6 +76,8 @@ function controllerAuthorized(request: Request, env: SwiftChatBindings): boolean
 
 export async function handleSwiftChat(request: Request, env: SwiftChatBindings): Promise<Response | null> {
   const url = new URL(request.url)
+  const api = await handleSwiftApi(request, env)
+  if (api) return api
   // Static Assets decodes file paths. Classify encoded aliases before the public asset handler.
   let pathname = url.pathname
   try { pathname = new URL(decodeURIComponent(pathname), url.origin).pathname } catch { /* Invalid paths cannot identify a private asset. */ }
@@ -127,6 +131,7 @@ export async function handleSwiftChat(request: Request, env: SwiftChatBindings):
 
 /** No conversations, credentials or commands are persisted in Durable Object storage. */
 export class SwiftChatBridge {
+  private api = new SwiftApiRelay()
   private pending = new Map<string, { socket: WebSocket; resolve: (value: Response) => void; timer: ReturnType<typeof setTimeout> }>()
   constructor(private ctx: DurableObjectState) {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'))
@@ -140,6 +145,9 @@ export class SwiftChatBridge {
       }
       this.ctx.acceptWebSocket(pair[1], ['controller'])
       return new Response(null, { status: 101, webSocket: pair[0] })
+    }
+    if (new URL(request.url).pathname === '/inference') {
+      return this.api.fetch(request, this.ctx.getWebSockets('controller').find(socket => socket.readyState === 1))
     }
     const command = await request.json<{ action: string; payload: unknown }>()
     const socket = this.ctx.getWebSockets('controller').find(socket => socket.readyState === 1)
@@ -165,6 +173,7 @@ export class SwiftChatBridge {
     try {
       const value = JSON.parse(message)
       if (typeof value.id !== 'string') return
+      if (this.api.receive(socket, value)) return
       const pending = this.pending.get(value.id)
       if (!pending || pending.socket !== socket) return
       clearTimeout(pending.timer)
@@ -173,6 +182,7 @@ export class SwiftChatBridge {
     } catch { this.disconnect(socket); socket.close(1007, 'Invalid response') }
   }
   private disconnect(socket: WebSocket) {
+    this.api.disconnect(socket)
     for (const [id, pending] of this.pending) if (pending.socket === socket) {
       clearTimeout(pending.timer); this.pending.delete(id)
       pending.resolve(reply({ error: 'Controller disconnected. Check status before retrying an action.',

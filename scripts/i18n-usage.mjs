@@ -114,7 +114,7 @@ function sourceFiles(dir, files = []) {
   for (const item of readdirSync(dir, { withFileTypes: true })) {
     const path = resolve(dir, item.name)
     if (item.isDirectory()) { if (!['locales', 'test'].includes(item.name)) sourceFiles(path, files); continue }
-    if (path === resolve(root, 'worker/swift-chat.ts')) continue
+    if (['worker/swift-chat.ts', 'worker/swift-api.ts'].some(file => path === resolve(root, file))) continue
     if (/\.tsx?$/.test(item.name) && !/\.(?:test|spec)\./.test(item.name) && !item.name.endsWith('.d.ts')) files.push(path)
   }
   return files
