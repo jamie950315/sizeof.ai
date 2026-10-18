@@ -249,10 +249,10 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   while the Mac relay was off. This host-only migration did not change Worker
   code/assets or require redeployment.
 - 2026-10-18: Added dark mode toggle and custom system prompt controls to `/chat/`.
-  Dark mode uses neutral dark/gray palette (#0d0f12, #14161a, #22252c) with manual toggle, OS `prefers-color-scheme`, and persistence.
+  Dark mode uses neutral dark/gray palette (#0d0f12, #14161a, #22252c) with progressive width and height adaptations (100dvh, flexible breakpoints <=768px drawer and <=760px/600px height compacting).
   System prompt field supports per-chat settings, default fallback, and reset.
   Standalone UI export regenerated and verified via JSDOM.
-- Production version: `922a25f0-2b5c-4b33-a6cf-b0e38ed5883b`; testnet version:
+- Production version: `228e901f-b5f2-4c02-9131-dba3cb2a03e5`; testnet version:
   `6df26735-7e19-4544-abcf-71fbfb055633`. The relevant 151-test suite, typecheck,
   build and local Worker smoke passed. Live testnet acceptance covered G4 start,
   restored history, chat/math/interactive preview, Stop, relay restart/reconnect,
