@@ -248,8 +248,12 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   restart/reconnect to the same kernel, and safe shutdown with zero assignments
   while the Mac relay was off. This host-only migration did not change Worker
   code/assets or require redeployment.
-- Production version: `50da289d-3840-42ba-88a5-2146fa434fbf`; testnet version:
-  `d89c8a7a-a527-420c-8d86-630503480e0e`. The relevant 151-test suite, typecheck,
+- 2026-10-18: Added dark mode toggle and custom system prompt controls to `/chat/`.
+  Dark mode supports manual toggle, OS `prefers-color-scheme`, and persistence.
+  System prompt field supports per-chat settings, default fallback, and reset.
+  Standalone UI export regenerated and verified via JSDOM.
+- Production version: `df493533-81f4-4885-951e-8ffe6957cdb2`; testnet version:
+  `6df26735-7e19-4544-abcf-71fbfb055633`. The relevant 151-test suite, typecheck,
   build and local Worker smoke passed. Live testnet acceptance covered G4 start,
   restored history, chat/math/interactive preview, Stop, relay restart/reconnect,
   safe shutdown and zero remaining assignments. Production owner login, connected
