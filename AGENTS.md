@@ -359,3 +359,11 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   Worker tests passed. The final source/export each passed 21 UI regressions;
   actual export rendering covered desktop and 390px mobile. Live integration
   receipts belong in the source project's ignored `outputs/multimodel-20261021/`.
+
+- Production G4 integration passed DeepSeek Chat SSE, Responses, Messages, both
+  token counters and a function/result roundtrip. The shared controller completed
+  a save/flush/verified-unassignment switch to original Swift before its real
+  reply, then PERMA-OFF ended with zero assignments. DeepSeek history was read
+  back after release. Native Safari input/capture was unavailable; live web chat
+  used official RPC, while actual export rendering and 21 UI state tests provide
+  frontend evidence. The native browser-button send trial remains unverified.
