@@ -2,7 +2,10 @@ import { readBoundedBody, UpstreamError } from './upstream'
 import type { SwiftChatBindings } from './swift-chat'
 
 const headers = { 'Cache-Control': 'no-store, no-transform', 'X-Content-Type-Options': 'nosniff' }
-const model = 'swift-flash-next'
+const models = [
+  { id: 'swift-flash-next', display_name: 'Swift Flash Next IQ3_S' },
+  { id: 'deepseek-v4.1-flash', display_name: 'DeepSeek V4.1 Flash UD-IQ1_M (g4-ultra896)' },
+] as const
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers })
 const errorBody = (message: string, code: string, anthropic = false) => anthropic
   ? { type: 'error', error: { type: code, message } }
@@ -24,8 +27,8 @@ export async function handleSwiftApi(request: Request, env: SwiftChatBindings): 
   if (!env.SWIFT_BRIDGE) return json(errorBody('The inference relay is not configured.', 'api_error', anthropic), 503)
   const bridge = env.SWIFT_BRIDGE.get(env.SWIFT_BRIDGE.idFromName('owner'))
   if (path === '/v1/models' && request.method === 'GET') return json({ object: 'list', data: [
-    { id: model, object: 'model', created: 1792252800, owned_by: 'owner', display_name: 'Swift Flash Next IQ3_S' },
-  ], has_more: false, first_id: model, last_id: model })
+    ...models.map(entry => ({ ...entry, object: 'model', created: 1792252800, owned_by: 'owner' })),
+  ], has_more: false, first_id: models[0].id, last_id: models.at(-1)!.id })
   if (path === '/v1/status' && request.method === 'GET') return bridge.fetch('https://bridge/command', {
     method: 'POST', body: JSON.stringify({ action: 'instance_status', payload: {} }),
   })
@@ -43,7 +46,8 @@ export async function handleSwiftApi(request: Request, env: SwiftChatBindings): 
   } catch (error) {
     return json(errorBody(error instanceof UpstreamError ? 'Request exceeds 8 MiB.' : 'Invalid JSON object.', 'invalid_request_error', anthropic), error instanceof UpstreamError ? 413 : 400)
   }
-  if (body.model !== model || (body.stream !== undefined && typeof body.stream !== 'boolean')) return json(errorBody(`Use model '${model}' and a boolean stream option.`, 'invalid_request_error', anthropic), 400)
+  if (!models.some(entry => entry.id === body.model)) return json(errorBody('The requested model is not available.', 'model_not_found', anthropic), 404)
+  if (body.stream !== undefined && typeof body.stream !== 'boolean') return json(errorBody('The stream option must be a boolean.', 'invalid_request_error', anthropic), 400)
   return bridge.fetch(new Request('https://bridge/inference', { method: 'POST', signal: request.signal,
     body: JSON.stringify({ protocol: routes[path], body }),
   }))

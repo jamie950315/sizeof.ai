@@ -240,7 +240,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   independently on A1-JP. The Mac LaunchAgent is disabled/unloaded, with its
   config/plist retained for rollback; never run both production controllers.
   Mac power and home connectivity are no longer dependencies. The controller
-  manages only G4 session `swift-flash-next-web`. Offline means allocation unknown,
+  manages G4 session `swift-flash-next-web` or `deepseek-v41-flash-web`, with
+  one serving allocation at a time. Offline means allocation unknown,
   not stopped; reconnect retains the kernel. Shutdown verifies saves/Drive flush
   and actual assignment disappearance. Operation and notebook details are in
   the Swift project's `docs/REMOTE.md`.
@@ -279,7 +280,8 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 
 ## Private Swift inference API (2026-10-18)
 
-- Production base URL is `https://sizeof.ai/v1`, model `swift-flash-next`.
+- Production base URL is `https://sizeof.ai/v1`, models `swift-flash-next`
+  (legacy default) and `deepseek-v4.1-flash`.
   `worker/swift-api.ts` handles Responses, Chat Completions and Anthropic
   Messages, plus both native token counters. `GET /v1/models` and `/v1/status`
   do not allocate Colab. Routes require the separate `SWIFT_API_KEY` secret,
@@ -335,3 +337,25 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   Responses request with `store: true`: the expected explicit 400 stateless
   rejection must occur without allocation. A legacy relay 504 is not an
   inference result; wait for version propagation and reconnect the controller.
+
+## Swift Chat multi-model serving (2026-10-21)
+
+- The standalone model selector supports `swift-flash-next` and
+  `deepseek-v4.1-flash`. Selecting only changes the viewed model/history; Start,
+  Send or Switch & load performs a save/flush/verified-release transition before
+  allocating the selected G4 notebook. Busy work blocks switching. Drafts,
+  System Prompts, hardware settings and sampling controls remain model-specific.
+- DeepSeek uses the dedicated owner-only notebook
+  https://colab.research.google.com/drive/1387jtEcmL5xUptQO6WF_U_671q6CzXTg and
+  the fixed `g4-ultra896` profile, not an experimental engine. Its default
+  temperature is 0.6 in either thinking mode; Swift keeps its original recipe.
+  DeepSeek hardware controls are fixed at 256K/CPU Engram/MTP off.
+- `worker/swift-api.ts` advertises both public IDs and forwards the selected ID
+  for all existing protocols. Discovery/status remain allocation-free; unknown
+  models fail before forwarding. The original Swift default/client entry points
+  and private Access/API-key boundaries remain unchanged.
+- Production version: `abfd83f7-d6a4-4e3d-b34e-6be24fc70b1c`; testnet version:
+  `e0b75f13-57b8-4304-9f93-27944f81e83a`. Node 24 typecheck/build and 16 affected
+  Worker tests passed. The final source/export each passed 21 UI regressions;
+  actual export rendering covered desktop and 390px mobile. Live integration
+  receipts belong in the source project's ignored `outputs/multimodel-20261021/`.
