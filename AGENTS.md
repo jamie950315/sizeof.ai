@@ -387,3 +387,14 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   unavailable Safari window/extension and Cloudflare login in the fresh browser.
   The actual export passed 27 UI state checks and desktop/390px/320px rendered
   layout checks locally; do not present those as authenticated live UI evidence.
+
+- Final integration passed six streamed tool/result roundtrips, thinking on/off
+  web RPC replies for both new models, four native token-counter calls, and exact
+  post-release Drive readback of both four-message histories. Original Swift
+  started and returned `SWIFT_READY`; safe shutdown completed in 7.16 seconds
+  with zero official assignments and the A1-JP controller active/enabled.
+- A measured SGLang 0.5.23 Responses-converter failure prompted temporary Worker
+  rollback to `abfd83f7-d6a4-4e3d-b34e-6be24fc70b1c`. The adapter now initializes
+  its required `qwen3_coder` parser; after direct RPC verification, version
+  `b5325669-9d61-41d8-bfaa-907f090aaf53` was restored to 100% and all native API
+  surfaces passed. The controller retained the same single VM during repair.
