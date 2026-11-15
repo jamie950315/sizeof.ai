@@ -35,6 +35,8 @@ export function extractMessages() {
       const path = resolve(dir, item.name)
       if (item.isDirectory()) { if (!['locales', 'test'].includes(item.name)) visitDir(path); continue }
       if (dir.endsWith('/src/i18n') && item.name !== 'LanguageFooter.tsx') continue
+      // The owner-only Swift app retains its upstream notebook's English UI and API.
+      if (['worker/swift-chat.ts', 'worker/swift-api.ts'].some(file => path === resolve(root, file))) continue
       if (!/\.tsx?$/.test(item.name) || /\.(test|spec)\./.test(item.name)) continue
       const source = snapshot.getProjects().map(project => project.program.getSourceFile(path)).find(Boolean)
       if (!source) throw new Error(`Source not in TypeScript project: ${path}`)

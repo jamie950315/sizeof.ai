@@ -214,3 +214,156 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
 - Validate on `testnet.sizeof.ai`/`testnet2.sizeof.ai` first; production deployment is approved as part of delivery.
 - Hugging Face requests rotate across the active API key pool. Enterprise keys (`HF_ENTERPRISE_KEYS_ENABLED=true` plus `HF_TOKEN_ENTERPRISE_1` through `HF_TOKEN_ENTERPRISE_4`) are enabled on testnet and, since 2026-09-29, production.
 - Run tests, build, and a real local smoke test before declaring completion.
+
+## Private Swift chat (2026-10-18)
+
+- Owner-only standalone chat is live at `https://sizeof.ai/chat/` and
+  `https://www.sizeof.ai/chat/`. Cloudflare Access gates the page and API;
+  `worker/swift-chat.ts` independently verifies the RS256 assertion, audience,
+  issuer, owner and lifetime before serving assets or forwarding requests.
+  Keep encoded asset aliases behind the same check and private responses uncached.
+- `public/chat/index.html` is generated from the original Swift notebook UI by
+  `/Users/jamie/Google Colab/swift-flash-next/web/export.py`. Preserve its English
+  copy, bundled libraries, original palette and opaque/network-denying preview
+  sandboxes. This private app is outside the public calculator's i18n catalogs.
+- Browser routes: `GET /chat/api/instance`, `POST /chat/api/instance/start`,
+  `POST /chat/api/instance/shutdown`, and `POST /chat/api/rpc`. POST requires a
+  same-origin JSON request. Do not add arbitrary Python/command execution.
+- `SwiftChatBridge` uses a hibernatable Durable Object and an authenticated
+  outbound controller WebSocket at `/_swift/controller`; `SWIFT_CONTROLLER_TOKEN`
+  is an environment-specific secret. Keep Google OAuth and notebook credentials
+  outside Cloudflare. No conversations or commands are persisted by the bridge.
+- The official Colab CLI controller runs on A1-JP as the boot-enabled systemd
+  service `swift-flash-controller.service` under `ubuntu`, with source/notebook/
+  venv in `/opt/swift-flash-next` and external 0600 config at
+  `/home/ubuntu/.config/swift-colab/controller.json`. Google OAuth was authorized
+  independently on A1-JP. The Mac LaunchAgent is disabled/unloaded, with its
+  config/plist retained for rollback; never run both production controllers.
+  Mac power and home connectivity are no longer dependencies. The controller
+  manages G4 session `swift-flash-next-web` or `deepseek-v41-flash-web`, with
+  one serving allocation at a time. Offline means allocation unknown,
+  not stopped; reconnect retains the kernel. Shutdown verifies saves/Drive flush
+  and actual assignment disappearance. Operation and notebook details are in
+  the Swift project's `docs/REMOTE.md`.
+- A1-JP handoff passed production G4 start, restored history, real chat, service
+  restart/reconnect to the same kernel, and safe shutdown with zero assignments
+  while the Mac relay was off. This host-only migration did not change Worker
+  code/assets or require redeployment.
+- 2026-10-18: Added dark mode toggle and custom system prompt controls to `/chat/`.
+  Dark mode uses neutral dark/gray palette (#0d0f12, #14161a, #22252c) with progressive width and height adaptations (100dvh, flexible breakpoints <=768px drawer and <=760px/600px height compacting).
+  System prompt field supports per-chat settings, default fallback, and reset.
+  Standalone UI export regenerated and verified via JSDOM.
+- Pre-start browsing reads the last saved Drive manifest through the controller's
+  read-only `history` RPC, without allocating Colab or storing conversations in
+  localStorage. Runtime status contains metadata plus active messages only;
+  replies over 8 MiB fail explicitly without disconnecting the controller.
+- System Prompt drafts are per-chat and survive polling; model preferences remain
+  pending until applied. Offline New/select is synchronized before a queued send.
+  Send starts Colab with the chosen model settings and dispatches once the model
+  and target chat are ready; its stop button cancels the queue. Failed/ambiguous
+  sends retain drafts and are never replayed automatically. Reconnect keeps the
+  existing runtime's settings, applying a queued differing selection by reload.
+  Operation errors remain visible across status polls until dismissed or retried.
+- The notebook keeps a 600px host while standalone uses the viewport. Expanded
+  model settings scroll independently so the composer remains reachable on short
+  mobile screens. Runtime/controller contract is v11.
+- Production version: `89abb74c-ef29-4335-ba3a-f08993d77783`; testnet version:
+  `b39cf966-afc0-43e4-a759-364f5403389e`. Review repair passed 62 Python tests,
+  15 UI state regressions, 10 Worker tests, Node 24 typecheck/build, local Worker
+  smoke and desktop/390x600/320px browser checks. Live testnet confirmed stopped
+  Drive history, 32K/CUDA/MTP-off startup, real replies, retained context errors,
+  relay restart on the same assignment/kernel, synchronized New chat plus exactly
+  one queued send, and verified save/flush/shutdown with zero assignments.
+  Production owner page loads Drive history while stopped; public API/home and
+  unauthenticated isolation passed. Both original private notebook IDs were
+  updated in place and read back with metadata, cell IDs and sharing retained.
+
+## Private Swift inference API (2026-10-18)
+
+- Production base URL is `https://sizeof.ai/v1`, models `swift-flash-next`
+  (legacy default) and `deepseek-v4.1-flash`.
+  `worker/swift-api.ts` handles Responses, Chat Completions and Anthropic
+  Messages, plus both native token counters. `GET /v1/models` and `/v1/status`
+  do not allocate Colab. Routes require the separate `SWIFT_API_KEY` secret,
+  using Bearer authorization or `x-api-key`; browser Access credentials do not
+  authorize the API. API data is never persisted by the Worker or web history.
+- `SwiftApiRelay` keeps only bounded in-flight state and native SSE streams.
+  Startup/download/loading progress uses SSE comments, not model text; standard
+  clients may ignore those comments. Disconnect/cancel never replays inference.
+  Busy requests fail explicitly; tool execution stays in the calling client.
+- The A1-JP controller and UI-free notebook now use remote API version 2.
+  API-created runtimes safely release after 300 idle seconds following request
+  completion, never during initialization or generation. Manual web starts keep
+  manual shutdown. Save/flush failures retain the VM; lease ownership survives
+  controller restart. The Mac production relay remains disabled.
+- The A1-JP controller recognizes exact `PERMA-ON`/`PERMA-OFF` substrings in the
+  latest user text or current system/developer/instructions. `PERMA-ON` extends
+  the current API-owned instance's idle timeout to 1,800 seconds, retained across
+  requests/controller restarts until unassignment. `PERMA-OFF` bypasses inference
+  busy rejection, cancels active API work and safely saves/flushes/releases the
+  instance; it never starts a stopped VM. Old user turns, assistant/tool data and
+  token counters do not trigger controls. Both present means OFF wins. Native
+  JSON/SSE acknowledgements use zero model tokens; `/v1/status` exposes the
+  timeout and pending shutdown. This controller-only change keeps the existing
+  Worker version and API notebook; see the Swift project's `docs/API.md`.
+  A1-JP release `d7e0624` passed 57 focused tests and live cold generation,
+  restart/lease retention, more than five idle minutes without release, and
+  cancellation plus verified save/Drive flush/unassignment on OFF. All three
+  protocols acknowledged OFF in JSON and SSE without allocating a stopped VM.
+  Receipts are in `outputs/perma-controls-20261018/` under the Swift project;
+  the service remains enabled and its final assignment inventory is empty.
+- Protocol/usage details and per-invocation Codex/Claude launchers live in
+  `/Users/jamie/Google Colab/swift-flash-next/docs/API.md` and `API_PROTOCOLS.md`.
+  Credentials stay outside Git; the Mac key is in its owner-only
+  `~/.config/swift-colab/api-key` file.
+- Production version: `e380c1b7-9b75-40df-a4a9-a34e7c491e62`; testnet version:
+  `fd540868-3f5a-433c-a22b-951d14d4cfde`. Focused validation passed 16 Worker
+  tests, 25 protocol tests, five API lifecycle tests and 17 controller tests;
+  Node 24 typecheck/build and local Worker smoke also passed.
+- Live testnet acceptance covered cold-start/download status, all three native
+  tool-result roundtrips, namespace/custom tools, both token counters, real Codex
+  read/write and full Claude Code Read/Write, cancellation, concurrent rejection,
+  and actual 300-second idle release with zero assignments. Production passed
+  private authorization on both domains, A1-JP cold startup with real generation,
+  and full Claude Code Read/Write while the Mac test relay was off. The public
+  homepage and authenticated private chat control panel render normally; an
+  unauthenticated browser remains behind Access. Receipts are ignored under the
+  Swift project's `outputs/v1-acceptance-20261018/`.
+  Production then passed the same real 300-second idle release: Drive flush and
+  credential cleanup were observed before stopped status, with no server
+  assignments remaining and the A1-JP service still connected.
+- Cloudflare can temporarily run a previous Durable Object version after Worker
+  deployment. Before cold inference, validate the new route using a nonstream
+  Responses request with `store: true`: the expected explicit 400 stateless
+  rejection must occur without allocation. A legacy relay 504 is not an
+  inference result; wait for version propagation and reconnect the controller.
+
+## Swift Chat multi-model serving (2026-10-21)
+
+- The standalone model selector supports `swift-flash-next` and
+  `deepseek-v4.1-flash`. Selecting only changes the viewed model/history; Start,
+  Send or Switch & load performs a save/flush/verified-release transition before
+  allocating the selected G4 notebook. Busy work blocks switching. Drafts,
+  System Prompts, hardware settings and sampling controls remain model-specific.
+- DeepSeek uses the dedicated owner-only notebook
+  https://colab.research.google.com/drive/1387jtEcmL5xUptQO6WF_U_671q6CzXTg and
+  the fixed `g4-ultra896` profile, not an experimental engine. Its default
+  temperature is 0.6 in either thinking mode; Swift keeps its original recipe.
+  DeepSeek hardware controls are fixed at 256K/CPU Engram/MTP off.
+- `worker/swift-api.ts` advertises both public IDs and forwards the selected ID
+  for all existing protocols. Discovery/status remain allocation-free; unknown
+  models fail before forwarding. The original Swift default/client entry points
+  and private Access/API-key boundaries remain unchanged.
+- Production version: `abfd83f7-d6a4-4e3d-b34e-6be24fc70b1c`; testnet version:
+  `e0b75f13-57b8-4304-9f93-27944f81e83a`. Node 24 typecheck/build and 16 affected
+  Worker tests passed. The final source/export each passed 21 UI regressions;
+  actual export rendering covered desktop and 390px mobile. Live integration
+  receipts belong in the source project's ignored `outputs/multimodel-20261021/`.
+
+- Production G4 integration passed DeepSeek Chat SSE, Responses, Messages, both
+  token counters and a function/result roundtrip. The shared controller completed
+  a save/flush/verified-unassignment switch to original Swift before its real
+  reply, then PERMA-OFF ended with zero assignments. DeepSeek history was read
+  back after release. Native Safari input/capture was unavailable; live web chat
+  used official RPC, while actual export rendering and 21 UI state tests provide
+  frontend evidence. The native browser-button send trial remains unverified.
