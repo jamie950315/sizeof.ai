@@ -367,3 +367,23 @@ sizeof.ai is a fast, public reference tool for estimating LLM memory requirement
   back after release. Native Safari input/capture was unavailable; live web chat
   used official RPC, while actual export rendering and 21 UI state tests provide
   frontend evidence. The native browser-button send trial remains unverified.
+
+## Qwen Swift Chat catalog (2026-11-15)
+
+- Private API discovery/routing now includes `qwen3.8-27b` (Qwen3.8 27B) and
+  `qwen3.8-flash-next` (Qwen3.8 Flash Next), alongside the unchanged Swift default
+  and DeepSeek entry. Both Qwen models have fixed 262144-token context and
+  hardware profiles; thinking and sampling remain adjustable.
+- The generated chat page uses the controller's dynamic model catalog. The
+  prepared startup progress, history-during-load, queued shutdown, persistent
+  errors, streaming renderer and mobile fixes are included in this release.
+- Production Worker version: `b5325669-9d61-41d8-bfaa-907f090aaf53`.
+  Node 24.15 typecheck, 71 test files / 957 tests, build and Wrangler dry-run
+  passed. Public homepage/model API and authenticated four-model discovery
+  returned 200. Runtime acceptance is recorded in the Swift source project's
+  ignored `outputs/qwen-models-20261115/`.
+- Owner Access remains required. Fresh unauthenticated navigation reaches the
+  Access login; live owner-browser interaction is currently limited by an
+  unavailable Safari window/extension and Cloudflare login in the fresh browser.
+  The actual export passed 27 UI state checks and desktop/390px/320px rendered
+  layout checks locally; do not present those as authenticated live UI evidence.

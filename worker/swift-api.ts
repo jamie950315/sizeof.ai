@@ -5,6 +5,8 @@ const headers = { 'Cache-Control': 'no-store, no-transform', 'X-Content-Type-Opt
 const models = [
   { id: 'swift-flash-next', display_name: 'Swift Flash Next IQ3_S' },
   { id: 'deepseek-v4.1-flash', display_name: 'DeepSeek V4.1 Flash UD-IQ1_M (g4-ultra896)' },
+  { id: 'qwen3.8-27b', display_name: 'Qwen3.8 27B' },
+  { id: 'qwen3.8-flash-next', display_name: 'Qwen3.8 Flash Next' },
 ] as const
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers })
 const errorBody = (message: string, code: string, anthropic = false) => anthropic

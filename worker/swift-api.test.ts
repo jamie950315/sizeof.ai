@@ -15,7 +15,7 @@ describe('Swift standard API routes', () => {
   it('requires API credentials without relying on browser Access', async () => {
     expect((await handleSwiftApi(request('/v1/models', undefined, false), env))?.status).toBe(401)
     const response = await handleSwiftApi(new Request('https://sizeof.ai/v1/models', { headers: { 'x-api-key': key } }), env)
-    expect(await response?.json()).toMatchObject({ data: [{ id: 'swift-flash-next' }, { id: 'deepseek-v4.1-flash' }] })
+    expect(await response?.json()).toMatchObject({ data: [{ id: 'swift-flash-next' }, { id: 'deepseek-v4.1-flash' }, { id: 'qwen3.8-27b' }, { id: 'qwen3.8-flash-next' }] })
   })
   it('does not wake the GPU for model discovery or invalid requests', async () => {
     forward.mockClear()
@@ -25,7 +25,7 @@ describe('Swift standard API routes', () => {
   })
   it('maps all native formats and token counters without modifying their data', async () => {
     for (const path of ['/v1/responses', '/v1/chat/completions', '/v1/messages', '/v1/messages/count_tokens', '/v1/responses/input_tokens']) {
-      for (const model of ['swift-flash-next', 'deepseek-v4.1-flash']) {
+      for (const model of ['swift-flash-next', 'deepseek-v4.1-flash', 'qwen3.8-27b', 'qwen3.8-flash-next']) {
         await handleSwiftApi(request(path, { model, stream: false }), env)
         const forwarded = (forward.mock.calls.at(-1) as unknown as [Request])[0]
         expect(forwarded.url).toBe('https://bridge/inference')
