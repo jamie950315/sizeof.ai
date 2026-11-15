@@ -8,9 +8,9 @@
 (()=>{try{const s=localStorage.getItem("swift-theme");if(s==="dark"||(!s&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.dataset.theme="dark";}catch(_){}})();
 </script>
 <style>
-:root{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#23332c;background:#f6f5f0;font-size:15px;color-scheme:light;--ink:#23332c;--muted:#798078;--green:#285c45;--line:#e2e4da;--paper:#fcfcf8;--soft:#f0f2ea;--sidebar:#edf0e7;--danger:#a84232}*{box-sizing:border-box}html,body{height:100%;margin:0;padding:0;overflow:hidden}button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.45}button,input,textarea,select,summary,a{touch-action:manipulation}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid #7fac92;outline-offset:3px}button{color:inherit}button svg{pointer-events:none}svg{width:18px;height:18px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.app{display:grid;grid-template-columns:240px minmax(0,1fr);height:600px;width:100%;max-width:none;margin:0;background:var(--paper);overflow:hidden;position:relative;border:0;border-radius:0}.sidebar{display:flex;flex-direction:column;gap:28px;padding:27px 18px 20px;background:var(--sidebar);border-right:1px solid var(--line);min-width:0}.brand{display:flex;align-items:center;gap:10px;padding:0 9px;font-size:23px;font-weight:650;letter-spacing:-.06em}.brand-mark{display:inline-grid;place-items:center;background:var(--green);color:#eff4e8;width:30px;height:30px;border-radius:10px}.brand-mark svg{width:22px;height:22px;stroke-width:1.5}.new-chat{display:flex;align-items:center;justify-content:center;gap:10px;background:transparent;border:1px solid #cbd4c3;border-radius:8px;padding:11px;font-size:13px;font-weight:550}.new-chat:hover:not(:disabled){background:#e3e9dc}.history-section{min-height:0;flex:1;overflow:auto}.section-label{font-size:10px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 10px 13px}.history{display:flex;flex-direction:column;gap:5px}.history button{border:0;background:transparent;border-radius:7px;padding:11px 10px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;color:#626c60}.history button:hover{background:#e5eadf}.history button.active{background:#e0e7d8;color:#2c4b36}.sidebar-foot{border-top:1px solid #d9dfd1;padding:17px 8px 0;font-size:11px;line-height:1.65;color:#78816f}.sidebar-foot strong{font-weight:550;color:#52634d}.main{display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;overflow:hidden;position:relative}.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 32px 19px;border-bottom:1px solid var(--line)}.model-title{font-size:15px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tag{font-family:ui-monospace,SFMono-Regular,monospace;font-size:10px;letter-spacing:.03em;padding:4px 6px;background:#edf0e7;border:1px solid #e0e5d8;border-radius:4px;font-weight:450;color:#63745c}.subline{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5}.top-actions{display:flex;align-items:center;gap:6px}.icon-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px;background:transparent;border:0;border-radius:6px;min-height:34px;min-width:34px;color:#6d7768}.icon-button:hover:not(:disabled){background:#edf0e7;color:#294e38}.icon-button .button-label{font-size:12px}.menu-toggle{display:none}.release:hover:not(:disabled){color:var(--danger);background:#fbede7}.model-panel{padding:16px 32px 0}.model-row{display:flex;gap:14px;align-items:center}.status{display:flex;align-items:center;gap:8px;font-size:12px;color:#6a7464;flex:1;min-width:0;line-height:1.5}.dot{width:7px;height:7px;background:#b4bdab;flex-shrink:0;border-radius:50%}.status.ready .dot{background:#487d56}.status.busy .dot{background:#b7985e;animation:pulse 1.3s ease-in-out infinite}.status.error{color:var(--danger)}.status.error .dot{background:#b55840}.primary{border:0;background:var(--green);color:#fbfcf5;border-radius:7px;padding:10px 16px;font-size:12px;font-weight:550;white-space:nowrap}.primary:hover:not(:disabled){background:#1c4935}.load-button{padding:9px 14px}.settings-toggle{font-size:11px;color:#77806f;cursor:pointer;width:max-content;list-style:none;padding:8px 0}.settings-toggle::-webkit-details-marker{display:none}.settings-toggle:after{content:' +';margin-left:5px}.model-settings[open] .settings-toggle:after{content:' −'}.model-settings{border-bottom:1px solid var(--line);padding-bottom:2px}.settings-grid{display:grid;grid-template-columns:1fr 1fr;align-items:end;gap:18px;padding:11px 0 18px}.field{display:flex;flex-direction:column;gap:7px;min-width:0}.field>label{font-size:11px;color:#6a7663}.field select,.field input[type=number]{font-size:12px;background:white;border:1px solid #d6ddcf;border-radius:6px;color:#40513a;padding:8px;min-width:0;width:100%}.check-field{display:flex;align-items:center;gap:7px;min-height:34px;font-size:12px;color:#55674b}.check-field input{accent-color:var(--green);width:15px;height:15px}.settings-note{grid-column:1/-1;font-size:11px;color:#848c7e;line-height:1.55;margin:-5px 0 0}.download{height:3px;background:#e8ebdf;margin-top:10px;overflow:hidden;border-radius:3px}.download div{height:100%;background:#588165;transition:width .3s}.messages{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scroll-behavior:smooth;padding:25px 34px 12px}.thread{max-width:770px;margin:0 auto}.empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px 0 45px}.hero-symbol{color:#345f43;margin-bottom:21px}.hero-symbol svg{width:55px;height:55px;stroke-width:1.1}.eyebrow{font-size:10px;font-weight:650;letter-spacing:.18em;color:#84917b;margin-bottom:12px}.empty h1{font-family:Georgia,"Times New Roman",serif;font-size:39px;line-height:1.15;font-weight:400;letter-spacing:-.045em;margin:0 0 14px;color:#294232}.empty p{font-size:13px;color:#8b9185;line-height:1.7;max-width:380px;margin:0}.suggestions{display:flex;justify-content:center;gap:9px;margin-top:28px;flex-wrap:wrap}.suggestions button{background:transparent;border:1px solid #e1e5d8;border-radius:7px;padding:10px 12px;font-size:11px;color:#6a7761}.suggestions button:hover{background:#f0f3e9;color:#2c5b3e}.message{margin-bottom:28px;overflow-wrap:anywhere}.message.user{margin-left:auto;max-width:86%;width:fit-content;background:#edf0e6;border:1px solid #e5e9da;border-radius:15px 15px 3px 15px;padding:13px 17px;color:#3a4c33}.message.user .message-body{white-space:pre-wrap;font-size:14px;line-height:1.7}.assistant-head{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#3c5b3f;margin-bottom:10px}.assistant-head svg{width:19px;height:19px}.message.assistant{padding:0 5px 0 2px}.message-body{font-size:14px;line-height:1.8;color:#3d4937}.message-body>:first-child{margin-top:0}.message-body>:last-child{margin-bottom:0}.message-body p{margin:0 0 13px}.message-body h1,.message-body h2,.message-body h3{font-weight:600;letter-spacing:-.025em;color:#2e4231;line-height:1.35;margin:24px 0 12px}.message-body h1{font-size:24px}.message-body h2{font-size:21px}.message-body h3{font-size:17px}.message-body ul,.message-body ol{padding-left:24px;margin:12px 0}.message-body li{margin:5px 0}.message-body a{color:#2b6b4b;text-underline-offset:3px}.message-body blockquote{border-left:3px solid #b8c9ab;margin:16px 0;padding:1px 18px;color:#7a826e}.message-body code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em;background:#edf0e6;border-radius:4px;padding:2px 5px}.code-block{border:1px solid #dee4d4;border-radius:9px;overflow:hidden;margin:14px 0;background:#f3f5ed}.code-head{display:flex;justify-content:space-between;align-items:center;background:#e9eee1;padding:5px 11px;font-family:ui-monospace,monospace;font-size:10px;color:#75816a}.code-head button{font:10px ui-sans-serif,sans-serif;background:transparent;border:0;padding:4px 6px;color:#5a6b4e;border-radius:4px}.code-head button:hover{background:#dbe4ce}.code-block pre{overflow:auto;margin:0;padding:16px 18px;line-height:1.7;white-space:pre}.code-block code{padding:0;background:transparent;border-radius:0;font-size:12px}.message-body table{display:block;border-collapse:collapse;max-width:100%;overflow:auto;font-size:13px;margin:15px 0}.message-body td,.message-body th{border:1px solid #dfe5d6;padding:8px 11px;text-align:left}.message-body th{background:#edf1e5;font-weight:550}.message-body img{max-width:100%;height:auto}.reasoning{margin:0 0 14px;border-left:2px solid #d4dec9;padding-left:13px;color:#838d79}.reasoning summary{list-style:none;cursor:pointer;font-size:11px;color:#7d8d70;padding:1px 0 5px}.reasoning summary::-webkit-details-marker{display:none}.reasoning summary:before{content:'›';display:inline-block;margin-right:7px;transition:transform .12s}.reasoning[open] summary:before{transform:rotate(90deg)}.reasoning .message-body{font-size:12px;line-height:1.75;color:#7d8973}.message-foot{display:flex;align-items:center;gap:10px;margin-top:11px;min-height:24px}.message-foot button{padding:4px;color:#8c9583;min-height:24px;min-width:24px}.message-foot svg{width:14px;height:14px}.metrics{color:#98a18d;font-size:10px;line-height:1.5}.stream-cursor{display:inline-block;width:6px;height:13px;background:#57845d;margin:0 0 -1px 3px;animation:pulse 1s infinite}.error-box{color:var(--danger);font-size:12px;line-height:1.6;background:#faf0e9;border:1px solid #eed6c7;border-radius:7px;padding:10px 13px;margin:0 0 12px;white-space:pre-wrap;overflow-wrap:anywhere}.error-box button{margin-left:9px;background:transparent;border:0;text-decoration:underline;color:inherit}.composer-zone{padding:7px 32px 18px;background:var(--paper)}.composer-wrap{max-width:790px;margin:auto}.composer{border:1px solid #cdd7c2;box-shadow:0 4px 16px #34432a06;border-radius:13px;background:white;padding:13px 14px 11px;transition:border-color .15s,box-shadow .15s}.composer:focus-within{border-color:#8ba17e;box-shadow:0 3px 18px #34432a08}textarea{width:100%;resize:none;min-height:53px;max-height:180px;border:0;padding:2px 4px 5px;background:transparent;color:#31452f;line-height:1.65;font-size:14px}textarea::placeholder{color:#a2aa9a}textarea:focus{outline:none}.composer-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:7px}.compose-left{display:flex;align-items:center;gap:6px}.thinking-toggle{display:flex;align-items:center;gap:5px;font-size:11px;padding:7px 10px;border:1px solid #e3e8db;background:#f2f5eb;color:#648154;border-radius:6px}.thinking-toggle[aria-pressed=false]{background:white;border-color:#e6e8e0;color:#969d90}.thinking-toggle svg{width:14px;height:14px}.send-button{border:0;background:var(--green);color:#fff;border-radius:7px;width:34px;height:34px;display:grid;place-items:center}.send-button:hover:not(:disabled){background:#1c4935}.send-button svg{width:19px;height:19px}.send-button.stop svg{width:12px;height:12px;fill:currentColor;stroke-width:0}.generation-settings{position:relative}.generation-settings>summary{list-style:none;display:grid;place-items:center;cursor:pointer;width:32px;height:32px;border-radius:5px;color:#8a9680}.generation-settings>summary::-webkit-details-marker{display:none}.generation-settings>summary:hover{background:#f1f4e9}.generation-panel{position:absolute;bottom:44px;left:-85px;padding:18px;width:260px;border:1px solid var(--line);border-radius:10px;background:var(--paper);box-shadow:0 8px 30px #2d42251c;z-index:5;display:flex;flex-direction:column;gap:16px}.generation-panel label{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:#66765b}.generation-panel output{font-variant-numeric:tabular-nums;color:#405f35}.generation-panel input[type=range]{width:100%;accent-color:#4e7945;margin:10px 0 0}.attachments{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}.attachments:empty{display:none}.attachment{display:flex;align-items:center;gap:7px;border:1px solid #e0e7d5;background:#f5f7ef;padding:6px 7px 6px 10px;border-radius:6px;font-size:11px;color:#6b7e5c;max-width:100%}.attachment span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.attachment button{border:0;background:transparent;padding:1px;color:#7f9170;display:flex}.attachment svg{width:13px;height:13px}.composer-foot{display:flex;justify-content:space-between;gap:10px;padding:10px 5px 0;font-size:10px;color:#a2a897;line-height:1.5}.composer-foot .model-note{color:#8e9982}.runtime-sheet{border:1px solid var(--line);border-radius:15px;padding:29px;max-width:420px;background:var(--paper);color:var(--ink);box-shadow:0 15px 70px #1b321a35}.runtime-sheet::backdrop{background:#172c1b5c;backdrop-filter:blur(3px)}.runtime-sheet h2{font:400 27px Georgia,serif;letter-spacing:-.03em;margin:0 0 13px}.runtime-sheet p{font-size:13px;line-height:1.8;color:#7d8573;margin:0 0 22px}.dialog-actions{display:flex;justify-content:flex-end;gap:9px}.secondary{border:1px solid #d6dfcb;background:transparent;border-radius:7px;padding:9px 14px;font-size:12px}.danger-button{background:#944b38}.danger-button:hover:not(:disabled){background:#7f3d2d}.toast{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);background:#2c4632;color:#f5f7ef;border-radius:8px;padding:10px 16px;font-size:12px;box-shadow:0 4px 18px #28472c20;z-index:10;max-width:calc(100% - 32px);text-align:center}.toast[hidden]{display:none}.app{position:relative;color:var(--ink)}[hidden]{display:none!important}.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}.mobile-scrim{display:none}@keyframes pulse{50%{opacity:.35}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}@media(max-width:900px){.app{grid-template-columns:190px minmax(0,1fr)}.sidebar{padding:25px 13px 18px}.topbar{padding:21px 24px 18px}.model-panel{padding:15px 24px 0}.messages{padding:25px 24px 10px}.composer-zone{padding:7px 24px 16px}.top-actions .button-label{display:none}.settings-grid{gap:12px}.empty h1{font-size:34px}}@media(max-width:768px){.app{display:block;border:0;border-radius:0;height:600px;min-height:0;width:100%}.main{height:100%}.sidebar{position:absolute;left:0;top:0;bottom:0;width:250px;z-index:22;transform:translateX(-100%);transition:transform .2s}.sidebar{visibility:hidden}.app.sidebar-open .sidebar{transform:translateX(0);visibility:visible}.mobile-scrim{position:absolute;inset:0;background:#20331c66;z-index:21;border:0;border-radius:0;width:100%;height:100%}.app.sidebar-open .mobile-scrim{display:block}.topbar{padding:17px 16px 14px;gap:9px}.menu-toggle{display:inline-flex;margin-left:-5px}.title-group{flex:1}.model-title{font-size:13px;gap:5px}.tag{font-size:9px}.subline{font-size:10px}.top-actions{gap:0}.icon-button{padding:6px;min-width:30px}.model-panel{padding:12px 18px 0}.model-row{gap:9px}.status{font-size:11px}.load-button{padding:8px 11px;font-size:11px}.settings-grid{grid-template-columns:1fr 1fr;gap:12px}.settings-grid .check-field{grid-column:1/-1;grid-row:2}.settings-note{margin-top:0}.messages{padding:23px 18px 7px}.empty{padding:10px 0 25px}.empty h1{font-size:33px}.empty p{font-size:12px;max-width:280px}.hero-symbol{margin-bottom:16px}.hero-symbol svg{width:46px;height:46px}.suggestions{max-width:300px;gap:7px;margin-top:22px}.suggestions button{font-size:10px;padding:9px 10px}.composer-zone{padding:7px 12px 14px}.composer{padding:11px}.composer-foot{font-size:9px;padding:9px 4px 0}.composer-foot .keyboard-hint{display:none}.composer-foot .model-note{margin-left:auto}.message.user{max-width:92%;padding:11px 14px}.message-body,.message.user .message-body{font-size:13px}.generation-panel{left:-110px}.runtime-sheet{margin:auto 18px}.metrics{font-size:9px}.model-settings summary{font-size:10px}.brand{font-size:25px}.history button{font-size:13px}}
+:root{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#23332c;background:#f6f5f0;font-size:15px;color-scheme:light;--ink:#23332c;--muted:#798078;--green:#285c45;--line:#e2e4da;--paper:#fcfcf8;--soft:#f0f2ea;--sidebar:#edf0e7;--danger:#a84232}*{box-sizing:border-box}html,body{height:100%;margin:0;padding:0;overflow:hidden}button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.45}button,input,textarea,select,summary,a{touch-action:manipulation}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid #7fac92;outline-offset:3px}button{color:inherit}button svg{pointer-events:none}svg{width:18px;height:18px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.app{display:grid;grid-template-columns:240px minmax(0,1fr);height:600px;width:100%;max-width:none;margin:0;background:var(--paper);overflow:hidden;position:relative;border:0;border-radius:0}.sidebar{display:flex;flex-direction:column;gap:28px;padding:27px 18px 20px;background:var(--sidebar);border-right:1px solid var(--line);min-width:0}.brand{display:flex;align-items:center;gap:10px;padding:0 9px;font-size:23px;font-weight:650;letter-spacing:-.06em}.brand-mark{display:inline-grid;place-items:center;background:var(--green);color:#eff4e8;width:30px;height:30px;border-radius:10px}.brand-mark svg{width:22px;height:22px;stroke-width:1.5}.new-chat{display:flex;align-items:center;justify-content:center;gap:10px;background:transparent;border:1px solid #cbd4c3;border-radius:8px;padding:11px;font-size:13px;font-weight:550}.new-chat:hover:not(:disabled){background:#e3e9dc}.history-section{min-height:0;flex:1;overflow:auto}.section-label{font-size:10px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 10px 13px}.history{display:flex;flex-direction:column;gap:5px}.history button{border:0;background:transparent;border-radius:7px;padding:11px 10px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;color:#626c60}.history button:hover{background:#e5eadf}.history button.active{background:#e0e7d8;color:#2c4b36}.sidebar-foot{border-top:1px solid #d9dfd1;padding:17px 8px 0;font-size:11px;line-height:1.65;color:#78816f}.sidebar-foot strong{font-weight:550;color:#52634d}.main{display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;overflow:hidden;position:relative}.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 32px 19px;border-bottom:1px solid var(--line)}.model-title{font-size:15px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tag{font-family:ui-monospace,SFMono-Regular,monospace;font-size:10px;letter-spacing:.03em;padding:4px 6px;background:#edf0e7;border:1px solid #e0e5d8;border-radius:4px;font-weight:450;color:#63745c}.subline{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5}.top-actions{display:flex;align-items:center;gap:6px}.icon-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px;background:transparent;border:0;border-radius:6px;min-height:34px;min-width:34px;color:#6d7768}.icon-button:hover:not(:disabled){background:#edf0e7;color:#294e38}.icon-button .button-label{font-size:12px}.menu-toggle{display:none}.release:hover:not(:disabled){color:var(--danger);background:#fbede7}.model-panel{padding:16px 32px 0}.model-row{display:flex;gap:14px;align-items:center}.status{display:flex;align-items:center;gap:8px;font-size:12px;color:#6a7464;flex:1;min-width:0;line-height:1.5}.dot{width:7px;height:7px;background:#b4bdab;flex-shrink:0;border-radius:50%}.status.ready .dot{background:#487d56}.status.busy .dot{background:#b7985e;animation:pulse 1.3s ease-in-out infinite}.status.error{color:var(--danger)}.status.error .dot{background:#b55840}.primary{border:0;background:var(--green);color:#fbfcf5;border-radius:7px;padding:10px 16px;font-size:12px;font-weight:550;white-space:nowrap}.primary:hover:not(:disabled){background:#1c4935}.load-button{padding:9px 14px}.settings-toggle{font-size:11px;color:#77806f;cursor:pointer;width:max-content;list-style:none;padding:8px 0}.settings-toggle::-webkit-details-marker{display:none}.settings-toggle:after{content:' +';margin-left:5px}.model-settings[open] .settings-toggle:after{content:' −'}.model-settings{border-bottom:1px solid var(--line);padding-bottom:2px}.settings-grid{display:grid;grid-template-columns:1fr 1fr;align-items:end;gap:18px;padding:11px 0 18px}.field{display:flex;flex-direction:column;gap:7px;min-width:0}.field>label{font-size:11px;color:#6a7663}.field select,.field input[type=number]{font-size:12px;background:white;border:1px solid #d6ddcf;border-radius:6px;color:#40513a;padding:8px;min-width:0;width:100%}.check-field{display:flex;align-items:center;gap:7px;min-height:34px;font-size:12px;color:#55674b}.check-field input{accent-color:var(--green);width:15px;height:15px}.settings-note{grid-column:1/-1;font-size:11px;color:#848c7e;line-height:1.55;margin:-5px 0 0}.download{height:3px;background:#e8ebdf;margin-top:10px;overflow:hidden;border-radius:3px}.download div{height:100%;background:#588165;transition:width .3s}.messages{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scroll-behavior:smooth;padding:25px 34px 12px}.thread{max-width:770px;margin:0 auto}.empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px 0 45px}.hero-symbol{color:#345f43;margin-bottom:21px}.hero-symbol svg{width:55px;height:55px;stroke-width:1.1}.eyebrow{font-size:10px;font-weight:650;letter-spacing:.18em;color:#84917b;margin-bottom:12px}.empty h1{font-family:Georgia,"Times New Roman",serif;font-size:39px;line-height:1.15;font-weight:400;letter-spacing:-.045em;margin:0 0 14px;color:#294232}.empty p{font-size:13px;color:#8b9185;line-height:1.7;max-width:380px;margin:0}.suggestions{display:flex;justify-content:center;gap:9px;margin-top:28px;flex-wrap:wrap}.suggestions button{background:transparent;border:1px solid #e1e5d8;border-radius:7px;padding:10px 12px;font-size:11px;color:#6a7761}.suggestions button:hover{background:#f0f3e9;color:#2c5b3e}.message{margin-bottom:28px;overflow-wrap:anywhere}.message.user{margin-left:auto;max-width:86%;width:fit-content;background:#edf0e6;border:1px solid #e5e9da;border-radius:15px 15px 3px 15px;padding:13px 17px;color:#3a4c33}.message.user .message-body{white-space:pre-wrap;font-size:14px;line-height:1.7}.assistant-head{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#3c5b3f;margin-bottom:10px}.assistant-head svg{width:19px;height:19px}.message.assistant{padding:0 5px 0 2px}.message-body{font-size:14px;line-height:1.8;color:#3d4937}.message-body>:first-child{margin-top:0}.message-body>:last-child{margin-bottom:0}.message-body p{margin:0 0 13px}.message-body h1,.message-body h2,.message-body h3{font-weight:600;letter-spacing:-.025em;color:#2e4231;line-height:1.35;margin:24px 0 12px}.message-body h1{font-size:24px}.message-body h2{font-size:21px}.message-body h3{font-size:17px}.message-body ul,.message-body ol{padding-left:24px;margin:12px 0}.message-body li{margin:5px 0}.message-body a{color:#2b6b4b;text-underline-offset:3px}.message-body blockquote{border-left:3px solid #b8c9ab;margin:16px 0;padding:1px 18px;color:#7a826e}.message-body code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em;background:#edf0e6;border-radius:4px;padding:2px 5px}.code-block{border:1px solid #dee4d4;border-radius:9px;overflow:hidden;margin:14px 0;background:#f3f5ed}.code-head{display:flex;justify-content:space-between;align-items:center;background:#e9eee1;padding:5px 11px;font-family:ui-monospace,monospace;font-size:10px;color:#75816a}.code-head button{font:10px ui-sans-serif,sans-serif;background:transparent;border:0;padding:4px 6px;color:#5a6b4e;border-radius:4px}.code-head button:hover{background:#dbe4ce}.code-block pre{overflow:auto;margin:0;padding:16px 18px;line-height:1.7;white-space:pre}.code-block code{padding:0;background:transparent;border-radius:0;font-size:12px}.message-body table{display:block;border-collapse:collapse;max-width:100%;overflow:auto;font-size:13px;margin:15px 0}.message-body td,.message-body th{border:1px solid #dfe5d6;padding:8px 11px;text-align:left}.message-body th{background:#edf1e5;font-weight:550}.message-body img{max-width:100%;height:auto}.reasoning{margin:0 0 14px;border-left:2px solid #d4dec9;padding-left:13px;color:#838d79}.reasoning summary{list-style:none;cursor:pointer;font-size:11px;color:#7d8d70;padding:1px 0 5px}.reasoning summary::-webkit-details-marker{display:none}.reasoning summary:before{content:'›';display:inline-block;margin-right:7px;transition:transform .12s}.reasoning[open] summary:before{transform:rotate(90deg)}.reasoning .message-body{font-size:12px;line-height:1.75;color:#7d8973}.message-foot{display:flex;align-items:center;gap:10px;margin-top:11px;min-height:24px}.message-foot button{padding:4px;color:#8c9583;min-height:24px;min-width:24px}.message-foot svg{width:14px;height:14px}.metrics{color:#98a18d;font-size:10px;line-height:1.5}.stream-cursor{display:inline-block;width:6px;height:13px;background:#57845d;margin:0 0 -1px 3px;animation:pulse 1s infinite}.error-box{color:var(--danger);font-size:12px;line-height:1.6;background:#faf0e9;border:1px solid #eed6c7;border-radius:7px;padding:10px 13px;margin:0 0 12px;white-space:pre-wrap;overflow-wrap:anywhere}.error-box button{margin-left:9px;background:transparent;border:0;text-decoration:underline;color:inherit}.composer-zone{padding:7px 32px 18px;background:var(--paper)}.composer-wrap{max-width:790px;margin:auto}.composer{position:relative;border:1px solid #cdd7c2;box-shadow:0 4px 16px #34432a06;border-radius:13px;background:white;padding:13px 14px 11px;transition:border-color .15s,box-shadow .15s}.composer:focus-within{border-color:#8ba17e;box-shadow:0 3px 18px #34432a08}textarea{width:100%;resize:none;min-height:53px;max-height:180px;border:0;padding:2px 4px 5px;background:transparent;color:#31452f;line-height:1.65;font-size:14px}textarea::placeholder{color:#a2aa9a}textarea:focus{outline:none}.composer-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:7px}.compose-left{display:flex;align-items:center;gap:6px}.thinking-toggle{display:flex;align-items:center;gap:5px;font-size:11px;padding:7px 10px;border:1px solid #e3e8db;background:#f2f5eb;color:#648154;border-radius:6px}.thinking-toggle[aria-pressed=false]{background:white;border-color:#e6e8e0;color:#969d90}.thinking-toggle svg{width:14px;height:14px}.send-button{border:0;background:var(--green);color:#fff;border-radius:7px;width:34px;height:34px;display:grid;place-items:center}.send-button:hover:not(:disabled){background:#1c4935}.send-button svg{width:19px;height:19px}.send-button.stop svg{width:12px;height:12px;fill:currentColor;stroke-width:0}.generation-settings{position:relative}.generation-settings>summary{list-style:none;display:grid;place-items:center;cursor:pointer;width:32px;height:32px;border-radius:5px;color:#8a9680}.generation-settings>summary::-webkit-details-marker{display:none}.generation-settings>summary:hover{background:#f1f4e9}.generation-panel{position:absolute;bottom:44px;left:-85px;padding:18px;width:260px;border:1px solid var(--line);border-radius:10px;background:var(--paper);box-shadow:0 8px 30px #2d42251c;z-index:5;display:flex;flex-direction:column;gap:16px}.generation-panel label{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:#66765b}.generation-panel output{font-variant-numeric:tabular-nums;color:#405f35}.generation-panel input[type=range]{width:100%;accent-color:#4e7945;margin:10px 0 0}.attachments{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}.attachments:empty{display:none}.attachment{display:flex;align-items:center;gap:7px;border:1px solid #e0e7d5;background:#f5f7ef;padding:6px 7px 6px 10px;border-radius:6px;font-size:11px;color:#6b7e5c;max-width:100%}.attachment span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.attachment button{border:0;background:transparent;padding:1px;color:#7f9170;display:flex}.attachment svg{width:13px;height:13px}.composer-foot{display:flex;justify-content:space-between;gap:10px;padding:10px 5px 0;font-size:10px;color:#a2a897;line-height:1.5}.composer-foot .model-note{color:#8e9982}.runtime-sheet{border:1px solid var(--line);border-radius:15px;padding:29px;max-width:420px;background:var(--paper);color:var(--ink);box-shadow:0 15px 70px #1b321a35}.runtime-sheet::backdrop{background:#172c1b5c;backdrop-filter:blur(3px)}.runtime-sheet h2{font:400 27px Georgia,serif;letter-spacing:-.03em;margin:0 0 13px}.runtime-sheet p{font-size:13px;line-height:1.8;color:#7d8573;margin:0 0 22px}.dialog-actions{display:flex;justify-content:flex-end;gap:9px}.secondary{border:1px solid #d6dfcb;background:transparent;border-radius:7px;padding:9px 14px;font-size:12px}.danger-button{background:#944b38}.danger-button:hover:not(:disabled){background:#7f3d2d}.toast{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);background:#2c4632;color:#f5f7ef;border-radius:8px;padding:10px 16px;font-size:12px;box-shadow:0 4px 18px #28472c20;z-index:10;max-width:calc(100% - 32px);text-align:center}.toast[hidden]{display:none}.app{position:relative;color:var(--ink)}[hidden]{display:none!important}.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}.mobile-scrim{display:none}@keyframes pulse{50%{opacity:.35}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}@media(max-width:900px){.app{grid-template-columns:190px minmax(0,1fr)}.sidebar{padding:25px 13px 18px}.topbar{padding:21px 24px 18px}.model-panel{padding:15px 24px 0}.messages{padding:25px 24px 10px}.composer-zone{padding:7px 24px 16px}.top-actions .button-label{display:none}.settings-grid{gap:12px}.empty h1{font-size:34px}}@media(max-width:768px){.app{display:block;border:0;border-radius:0;height:600px;min-height:0;width:100%}.main{height:100%}.sidebar{position:absolute;left:0;top:0;bottom:0;width:250px;z-index:22;transform:translateX(-100%);transition:transform .2s}.sidebar{visibility:hidden}.app.sidebar-open .sidebar{transform:translateX(0);visibility:visible}.mobile-scrim{position:absolute;inset:0;background:#20331c66;z-index:21;border:0;border-radius:0;width:100%;height:100%}.app.sidebar-open .mobile-scrim{display:block}.topbar{padding:17px 16px 14px;gap:9px}.menu-toggle{display:inline-flex;margin-left:-5px}.title-group{flex:1}.model-title{font-size:13px;gap:5px}.tag{font-size:9px}.subline{font-size:10px}.top-actions{gap:0}.icon-button{padding:6px;min-width:30px}.model-panel{padding:12px 18px 0}.model-row{gap:9px}.status{font-size:11px}.load-button{padding:8px 11px;font-size:11px}.settings-grid{grid-template-columns:1fr 1fr;gap:12px}.settings-grid .check-field{grid-column:1/-1;grid-row:2}.settings-note{margin-top:0}.messages{padding:23px 18px 7px}.empty{padding:10px 0 25px}.empty h1{font-size:33px}.empty p{font-size:12px;max-width:280px}.hero-symbol{margin-bottom:16px}.hero-symbol svg{width:46px;height:46px}.suggestions{max-width:300px;gap:7px;margin-top:22px}.suggestions button{font-size:10px;padding:9px 10px}.composer-zone{padding:7px 12px 14px}.composer{padding:11px}.composer-foot{font-size:9px;padding:9px 4px 0}.composer-foot .keyboard-hint{display:none}.composer-foot .model-note{margin-left:auto}.message.user{max-width:92%;padding:11px 14px}.message-body,.message.user .message-body{font-size:13px}.generation-panel{left:-110px}.runtime-sheet{margin:auto 18px}.metrics{font-size:9px}.model-settings summary{font-size:10px}.brand{font-size:25px}.history button{font-size:13px}}
 .settings-grid{grid-template-columns:1fr 1fr auto}@media(max-width:760px){.settings-grid{grid-template-columns:1fr 1fr}.settings-grid>.check-field{grid-column:1/-1}}
-.settings-toggle{display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap}.settings-toggle:after{display:none}.settings-label:after{content:' +';margin-left:5px}.model-settings[open] .settings-label:after{content:' −'}.context-usage{margin-left:auto;font-size:11px;font-variant-numeric:tabular-nums;letter-spacing:0;color:#78836e}.context-usage.near-limit{color:#9b6b35}.generation-panel{width:280px;gap:14px}.profile-heading{font-size:10px;color:#6b7e5e;font-weight:600;margin:0 0 8px}.sampling-profile{display:grid;grid-template-columns:1fr 1fr;gap:7px 15px;margin:0;padding-top:12px;border-top:1px solid var(--line);font-size:10px}.sampling-profile>div{display:flex;justify-content:space-between;gap:8px;color:#7b8871}.sampling-profile dt,.sampling-profile dd{margin:0}.sampling-profile dd{font-variant-numeric:tabular-nums;color:#4a6540}.persistence-state{display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:#78866e;min-width:0}.persistence-state .save-dot{width:5px;height:5px;border-radius:50%;background:#7e9b6c;flex-shrink:0}.persistence-state[data-status=saving] .save-dot,.persistence-state[data-status=loading] .save-dot{background:#b59c6d;animation:pulse 1.3s infinite}.persistence-state[data-status=error]{color:var(--danger)}.persistence-state[data-status=error] .save-dot{background:#ae644d}.retry-save{background:transparent;border:0;color:inherit;padding:2px 4px;text-decoration:underline;text-underline-offset:3px;font-size:11px;min-height:24px}.persistence-error{font-size:12px;line-height:1.6;color:var(--danger);margin:0 4px 9px;white-space:pre-wrap;overflow-wrap:anywhere}.message-foot{align-items:flex-start}.metrics{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:#7e8c71;padding-top:4px;font-variant-numeric:tabular-nums}.metric{white-space:nowrap}.metric-label{color:#8d9881}.user-actions{display:flex;justify-content:flex-end;margin-top:5px}.edit-message{display:flex;align-items:center;gap:5px;background:transparent;border:0;border-radius:4px;color:#7e8f6e;font-size:10px;padding:4px 1px;min-height:24px}.edit-message svg{width:12px;height:12px}.edit-message:hover:not(:disabled){color:#315c3c}.message.user.editing{width:100%;max-width:100%;background:#f0f3e8;padding:15px 16px}.edit-label{display:block;font-size:11px;font-weight:550;color:#657856;margin-bottom:9px}.edit-input{display:block;min-height:100px;max-height:220px;padding:10px 11px;border:1px solid #cfdac2;border-radius:7px;background:#fff;color:#35482e;font-size:13px;line-height:1.7;resize:vertical}.edit-note{font-size:11px;color:#89957d;margin:9px 0 12px;line-height:1.5}.edit-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}.edit-actions button{font-size:11px;padding:8px 11px}.sidebar-foot{line-height:1.7}@media(max-width:768px){.context-usage{font-size:10px}.metrics{font-size:10px;gap:4px 10px}.generation-panel{left:-110px;width:270px;max-height:calc(100dvh - 170px);overflow:auto}.composer-foot{align-items:center}.composer-foot .model-note{display:none}.message.user.editing{padding:12px}.edit-input{font-size:13px}.edit-note{font-size:10px}.persistence-error{font-size:11px}.retry-save{font-size:10px}}
+.settings-toggle{display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap}.settings-toggle:after{display:none}.settings-label:after{content:' +';margin-left:5px}.model-settings[open] .settings-label:after{content:' −'}.context-usage{margin-left:auto;font-size:11px;font-variant-numeric:tabular-nums;letter-spacing:0;color:#78836e}.context-usage.near-limit{color:#9b6b35}.generation-panel{width:280px;gap:14px}.profile-heading{font-size:10px;color:#6b7e5e;font-weight:600;margin:0 0 8px}.sampling-profile{display:grid;grid-template-columns:1fr 1fr;gap:7px 15px;margin:0;padding-top:12px;border-top:1px solid var(--line);font-size:10px}.sampling-profile>div{display:flex;justify-content:space-between;gap:8px;color:#7b8871}.sampling-profile dt,.sampling-profile dd{margin:0}.sampling-profile dd{font-variant-numeric:tabular-nums;color:#4a6540}.persistence-state{display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:#78866e;min-width:0}.persistence-state .save-dot{width:5px;height:5px;border-radius:50%;background:#7e9b6c;flex-shrink:0}.persistence-state[data-status=saving] .save-dot,.persistence-state[data-status=loading] .save-dot{background:#b59c6d;animation:pulse 1.3s infinite}.persistence-state[data-status=error]{color:var(--danger)}.persistence-state[data-status=error] .save-dot{background:#ae644d}.retry-save{background:transparent;border:0;color:inherit;padding:2px 4px;text-decoration:underline;text-underline-offset:3px;font-size:11px;min-height:24px}.persistence-error{font-size:12px;line-height:1.6;color:var(--danger);margin:0 4px 9px;white-space:pre-wrap;overflow-wrap:anywhere}.message-foot{align-items:flex-start}.metrics{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:#7e8c71;padding-top:4px;font-variant-numeric:tabular-nums}.metric{white-space:nowrap}.metric-label{color:#8d9881}.user-actions{display:flex;justify-content:flex-end;margin-top:5px}.edit-message{display:flex;align-items:center;gap:5px;background:transparent;border:0;border-radius:4px;color:#7e8f6e;font-size:10px;padding:4px 1px;min-height:24px}.edit-message svg{width:12px;height:12px}.edit-message:hover:not(:disabled){color:#315c3c}.message.user.editing{width:100%;max-width:100%;background:#f0f3e8;padding:15px 16px}.edit-label{display:block;font-size:11px;font-weight:550;color:#657856;margin-bottom:9px}.edit-input{display:block;min-height:100px;max-height:220px;padding:10px 11px;border:1px solid #cfdac2;border-radius:7px;background:#fff;color:#35482e;font-size:13px;line-height:1.7;resize:vertical}.edit-note{font-size:11px;color:#89957d;margin:9px 0 12px;line-height:1.5}.edit-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}.edit-actions button{font-size:11px;padding:8px 11px}.sidebar-foot{line-height:1.7}@media(max-width:768px){.context-usage{font-size:10px}.metrics{font-size:10px;gap:4px 10px}.generation-settings{position:static}.generation-panel{left:10px;right:10px;width:auto;bottom:54px;max-height:calc(100dvh - 170px);overflow:auto}.composer-foot{align-items:center}.composer-foot .model-note{display:none}.message.user.editing{padding:12px}.edit-input{font-size:13px}.edit-note{font-size:10px}.persistence-error{font-size:11px}.retry-save{font-size:10px}}
 .math-block{overflow-x:auto;margin:17px 0;padding:3px 0}.math-inline .katex{font-size:1.08em}.math-error{font-family:ui-monospace,monospace;font-size:11px;color:var(--danger);white-space:pre-wrap}.code-toolbar{display:flex;align-items:center;gap:9px}.preview-tabs{display:flex;align-items:center;gap:2px;border:1px solid #d5dfc9;border-radius:5px;padding:2px}.code-head .preview-tabs button{font-size:10px;padding:3px 7px;border-radius:3px}.code-head .preview-tabs button[aria-selected=true]{background:#fbfcf7;color:#36532b;box-shadow:0 1px 3px #26391a09}.code-head .preview-tabs button:disabled{opacity:.4}.code-block code.hljs{padding:0;background:transparent;color:#3f493a}.code-preview{background:white}.preview-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 11px;color:#8b967f;font:10px/1.5 ui-sans-serif,sans-serif;border-bottom:1px solid #e8eddf}.preview-meta button{background:transparent;border:0;font:10px ui-sans-serif,sans-serif;color:#718566;padding:5px}.preview-frame{display:block;border:0;width:100%;height:340px;background:white}.preview-error{font:11px/1.65 ui-sans-serif,sans-serif;color:var(--danger);padding:10px 13px;background:#fdf1e9;border-bottom:1px solid #efdacf;white-space:pre-wrap;overflow-wrap:anywhere}.preview-status{overflow:hidden;text-overflow:ellipsis}.preview-block-note{font:10px/1.5 ui-sans-serif,sans-serif;color:#939e88;margin-top:4px}@media(max-width:768px){.code-head{padding:5px 8px}.code-toolbar{gap:5px}.code-head .preview-tabs button{padding:3px 5px}.preview-frame{height:300px}.preview-meta{font-size:9px}.math-block .katex-display{margin:.4em 0}.message-body .katex-display{max-width:100%;overflow:auto}}
 
 :root[data-theme=dark]{
@@ -203,27 +203,31 @@ html,body{height:100%;overflow:hidden}
 .runtime-sheet{width:calc(100% - 36px);max-width:420px;max-height:calc(100dvh - 36px);overflow:auto}
 @media(min-width:1200px){.topbar{padding-top:25px;padding-bottom:22px}.model-panel{padding-top:18px}.composer-zone{padding-bottom:24px}}
 @media(max-width:900px){.app{grid-template-columns:206px minmax(0,1fr)}}
+.model-selector-field{margin-bottom:14px;max-width:480px}.model-selector-field select{font-size:13px;min-height:38px}.model-selector-field .subline{margin-top:0}.model-selector-field>label{color:var(--muted)}
+.download.indeterminate div{width:38%!important;animation:download-indeterminate 1.4s ease-in-out infinite}
+@keyframes download-indeterminate{0%{transform:translateX(-110%)}100%{transform:translateX(280%)}}
 @media(max-width:768px){
   .app{display:block;height:100vh;height:100dvh;min-height:0}
-  .instance-panel{gap:10px;flex-wrap:wrap;padding-bottom:12px;margin-bottom:12px}
+  .instance-panel{gap:8px;flex-wrap:wrap;padding-bottom:9px;margin-bottom:9px}
   .instance-copy{flex-basis:100%}
   .instance-actions{margin-left:0;width:100%}
-  .instance-actions button{flex:1;min-height:38px}
+  .instance-actions button{flex:1;min-height:36px}
   .instance-heading{font-size:10px}
   .instance-status{font-size:11px;margin-top:4px}
-  .topbar{padding-top:13px;padding-bottom:12px}
-  .messages{padding-top:17px}
+  .model-selector-field{margin-bottom:9px}
+  .model-selector-field select{min-height:34px;padding:6px 8px;font-size:12px}
+  .topbar{padding:13px 16px 12px}
+  .messages{padding:17px 18px 7px}
   .empty{min-height:220px;justify-content:center}
   .empty h1{font-size:31px}
   .suggestions{margin-top:18px}
   .composer-zone{padding-bottom:max(12px,env(safe-area-inset-bottom))}
 }
 @media(max-height:760px){
-  .instance-panel{padding-bottom:10px;margin-bottom:10px}
+  .instance-panel{padding-bottom:8px;margin-bottom:8px}
+  .model-selector-field{margin-bottom:8px}
   .instance-actions button{min-height:32px;padding:6px 10px;font-size:11px}
 }
-
-.model-selector-field{margin-bottom:14px;max-width:480px}.model-selector-field select{font-size:13px;min-height:38px}.model-selector-field .subline{margin-top:0}.model-selector-field>label{color:var(--muted)}
 
 </style>
 <!-- Third-party licenses
@@ -1446,31 +1450,105 @@ async function loadStartupAssets(){
 let instanceState={phase:'unknown',detail:'Checking Colab…',controller_connected:false};
 let instanceConfirmed=false,instanceRequestPending='',signInRequired=false;
 let queuedSubmission=null,resumingActions=false,historyRequest=0,historyLoaded=false;
+const deepseekSamplingProfile={temperature:.6,top_p:.95,top_k:40,min_p:.01,presence_penalty:0,repeat_penalty:1};
 const modelCatalog={
-  'swift-flash-next':{id:'swift-flash-next',name:'Swift-1.5 · Flash-Next',short_name:'Swift',quantization:'IQ3_S'},
-  'deepseek-v4.1-flash':{id:'deepseek-v4.1-flash',name:'DeepSeek V4.1 Flash',short_name:'DeepSeek',quantization:'UD-IQ1_M'}
+  'swift-flash-next':{
+    id:'swift-flash-next',name:'Swift-1.5 · Flash-Next',short_name:'Swift',quantization:'IQ3_S',
+    fixed_settings:false,settings:{context:262144,mtp:true,placement:'cpu'}
+  },
+  'deepseek-v4.1-flash':{
+    id:'deepseek-v4.1-flash',name:'DeepSeek V4.1 Flash',short_name:'DeepSeek',quantization:'UD-IQ1_M',
+    fixed_settings:true,settings:{context:262144,mtp:false,placement:'cpu'},
+    sampling_profiles:{thinking:deepseekSamplingProfile,direct:deepseekSamplingProfile},
+    settings_note:'Accepted g4-ultra896 profile · K28 · batch 4096 / microbatch 896 · F16 KV · at least 500 MiB free VRAM.',
+    selection_note:'g4-ultra896 · 256K context · CPU Engram · MTP off'
+  }
 };
 let modelChoiceExplicit=false,modelChoiceInitialized=false;
+let operationAnchor=null,idleDeadlineAnchor=null,statusTicker=null,lastInstanceError='';
 const modelDrafts=new Map(),modelSettingsDrafts=new Map();
-const deepseekSamplingProfile={temperature:.6,top_p:.95,top_k:40,min_p:.01,presence_penalty:0,repeat_penalty:1};
+
+function syncModelCatalog(models){
+  if(!Array.isArray(models)||!models.length)return;
+  const selector=$('modelSelector');
+  const current=selector.value;
+  for(const item of models){
+    if(!item||typeof item.id!=='string')continue;
+    const existing=modelCatalog[item.id]||{};
+    modelCatalog[item.id]={
+      ...existing,
+      ...item,
+      short_name:item.short_name||existing.short_name||item.name||item.id,
+      quantization:item.quantization??existing.quantization??'',
+      fixed_settings:Boolean(item.fixed_settings),
+      settings:{context:262144,mtp:true,placement:'cpu',...(existing.settings||{}),...(item.settings||{})}
+    };
+  }
+  const desired=models.filter(item=>item&&typeof item.id==='string').map(item=>[item.id,modelCatalog[item.id].name||item.id]);
+  const existingOptions=[...selector.options].map(opt=>[opt.value,opt.textContent]);
+  if(JSON.stringify(desired)!==JSON.stringify(existingOptions)){
+    selector.replaceChildren(...desired.map(([id,label])=>{
+      const opt=document.createElement('option');opt.value=id;opt.textContent=label;return opt;
+    }));
+    if(modelCatalog[current])selector.value=current;
+    else if(desired.length)selector.value=desired[0][0];
+    selector.dataset.viewModel=selector.value;
+  }
+}
 function selectedSamplingProfiles(){
-  if(state?.model===selectedModelId()&&state?.sampling_profiles)return state.sampling_profiles;
-  return selectedModelId()==='deepseek-v4.1-flash'?{thinking:deepseekSamplingProfile,direct:deepseekSamplingProfile}:defaultSamplingProfiles;
+  const id=selectedModelId(),model=modelCatalog[id];
+  if(state?.model===id&&state?.sampling_profiles)return state.sampling_profiles;
+  return model?.sampling_profiles||defaultSamplingProfiles;
 }
 function selectedModelId(){return $('modelSelector').value;}
-function selectedModelMetadata(){return modelCatalog[selectedModelId()];}
+function selectedModelMetadata(){return modelCatalog[selectedModelId()]||{id:selectedModelId(),name:selectedModelId(),short_name:selectedModelId(),quantization:'',fixed_settings:false,settings:{context:262144,mtp:true,placement:'cpu'}};}
+function fixedModelSettings(){
+  const model=selectedModelMetadata();
+  return model.fixed_settings?{...model.settings}:null;
+}
 function activeModelId(){return instanceState.model||'swift-flash-next';}
 function selectedInstanceMatches(){return activeModelId()===selectedModelId();}
-function modelSelectionBlocked(){return Boolean(localAction)||Boolean(instanceRequestPending)||Boolean(instanceState.switching)||['starting','stopping'].includes(instanceState.phase)||Boolean(instanceState.busy)||Boolean(instanceState.runtime_busy)||Boolean(state?.preparation?.running)||Boolean(state?.load_running)||busyPhases.has(state?.phase)||['saving','loading','error'].includes(state?.persistence?.status)||Boolean(state?.releasing)||Boolean(editing)||fileReadPending||hasQueuedSend();}
+function modelViewBlocked(){
+  return Boolean(localAction)||Boolean(instanceRequestPending)||state?.phase==='generating'||state?.persistence?.status==='saving'||Boolean(state?.releasing)||Boolean(editing)||fileReadPending||hasQueuedSend();
+}
+function modelSelectionBlocked(){
+  return modelViewBlocked()||Boolean(instanceState.switching)||['starting','stopping'].includes(instanceState.phase)||Boolean(instanceState.busy)||Boolean(instanceState.runtime_busy)||Boolean(instanceState.active_api_requests)||Boolean(state?.preparation?.running)||Boolean(state?.load_running)||busyPhases.has(state?.phase)||['saving','loading','error'].includes(state?.persistence?.status);
+}
+function formatDuration(totalSeconds){
+  const secs=Math.max(0,Math.floor(totalSeconds));
+  const hours=Math.floor(secs/3600),mins=Math.floor((secs%3600)/60),rem=secs%60;
+  if(hours>0)return `${hours}:${String(mins).padStart(2,'0')}:${String(rem).padStart(2,'0')}`;
+  return `${mins}:${String(rem).padStart(2,'0')}`;
+}
+function formatGiB(bytes){return (bytes/1073741824).toFixed(1)+' GiB';}
+function operationElapsedText(){
+  if(operationAnchor===null||!['starting','stopping'].includes(instanceState.phase))return '';
+  return formatDuration((Date.now()-operationAnchor)/1000);
+}
+function idleRemainingText(){
+  if(instanceState.phase!=='running'||!instanceState.auto_shutdown||idleDeadlineAnchor===null||instanceState.active_api_requests)return '';
+  const rem=Math.max(0,Math.ceil((idleDeadlineAnchor-Date.now())/1000));
+  return formatDuration(rem);
+}
 function renderModelSelection(){
-  const model=selectedModelMetadata(),deepseek=model.id==='deepseek-v4.1-flash';
-  $('modelName').textContent=model.name;$('modelQuantization').textContent=model.quantization;$('promptLabel').textContent='Message '+model.short_name;
-  $('modelSelector').disabled=modelSelectionBlocked();
-  $('placement').closest('.field').hidden=deepseek;$('mtp').closest('.check-field').hidden=deepseek;
-  $('context').disabled=deepseek||$('context').disabled;
-  $('modelSelectionNote').textContent=deepseek?'g4-ultra896 · 256K context · CPU Engram · MTP off': 'Only the selected model will be loaded.';
-  if(deepseek){$('context').value='262144';$('placement').value='cpu';$('mtp').checked=false;$('settingsNote').textContent='Accepted g4-ultra896 profile · K28 · batch 4096 / microbatch 896 · F16 KV · at least 500 MiB free VRAM.';}
-  if(instanceState.phase==='running'&&!selectedInstanceMatches())$('modelSelectionNote').textContent+=' · '+(modelCatalog[activeModelId()]?.name||activeModelId())+' is running. Switch & load saves it before starting this model.';
+  const model=selectedModelMetadata(),fixed=Boolean(model.fixed_settings);
+  $('modelName').textContent=model.name;
+  $('modelQuantization').textContent=model.quantization||'';
+  $('modelQuantization').hidden=!model.quantization;
+  $('promptLabel').textContent='Message '+model.short_name;
+  $('modelSelector').disabled=modelViewBlocked();
+  $('placement').closest('.field').hidden=fixed;$('mtp').closest('.check-field').hidden=fixed;
+  $('context').disabled=fixed||$('context').disabled;
+  $('modelSelectionNote').textContent=model.selection_note||(fixed?'Fixed runtime profile · '+Math.round((model.settings?.context||262144)/1024)+'K context':'Only the selected model will be loaded.');
+  if(fixed&&model.settings){
+    $('context').value=String(model.settings.context);
+    $('placement').value=model.settings.placement;
+    $('mtp').checked=Boolean(model.settings.mtp);
+    $('settingsNote').textContent=model.settings_note||'Fixed model settings are managed automatically.';
+  }
+  if(instanceState.phase==='running'&&!selectedInstanceMatches()){
+    $('modelSelectionNote').textContent+=' · '+(modelCatalog[activeModelId()]?.name||activeModelId())+' is running. Switch & load saves it before starting this model.';
+  }
 }
 function changeModelView(id){
   if(!modelCatalog[id])return;
@@ -1487,14 +1565,18 @@ function changeModelView(id){
   viewRevision++;historyRequest++;historyLoaded=false;runtimeStatusReady=false;
   pendingConversation=null;editing=null;lastError='';lastActionError='';historySignature='';messageSignature='';
   const draft=modelDrafts.get(id);$('prompt').value=draft?.prompt||'';attachments=draft?.attachments||[];renderAttachments();resizePrompt();
-  $('context').value='262144';$('placement').value='cpu';$('mtp').checked=true;settingsDirty=false;
-  const settings=modelSettingsDrafts.get(id);if(settings){$('context').value=String(settings.context);$('placement').value=settings.placement;$('mtp').checked=settings.mtp;settingsDirty=true;}else restoreSettingsCache();
+  const baseSettings=modelCatalog[id]?.settings||{context:262144,placement:'cpu',mtp:true};
+  $('context').value=String(baseSettings.context);$('placement').value=baseSettings.placement;$('mtp').checked=Boolean(baseSettings.mtp);settingsDirty=false;
+  const settings=modelSettingsDrafts.get(id);
+  if(settings&&!modelCatalog[id]?.fixed_settings){$('context').value=String(settings.context);$('placement').value=settings.placement;$('mtp').checked=settings.mtp;settingsDirty=true;}
+  else if(!modelCatalog[id]?.fixed_settings)restoreSettingsCache();
   // Initialize once on selection, before history/runtime replies. Polling must not
   // replace an explicit temperature or another model's pending response settings.
   $('thinking').setAttribute('aria-pressed',String(draft?.generation?.thinking??true));
   $('maxTokens').value=String(draft?.generation?.max_tokens??32768);
   const mode=$('thinking').getAttribute('aria-pressed')==='true'?'thinking':'direct';
-  $('temperature').value=String(draft?.generation?.temperature??(id==='deepseek-v4.1-flash'?deepseekSamplingProfile:defaultSamplingProfiles[mode]).temperature);
+  const profiles=selectedSamplingProfiles();
+  $('temperature').value=String(draft?.generation?.temperature??profiles[mode].temperature);
   $('temperatureValue').textContent=Number($('temperature').value).toFixed(1);
   render({model:id,phase:'idle',messages:[],conversations:[],conversation_id:null,settings:selectedModelSettings(),context_usage:{used_tokens:null},persistence:{status:'loading'}},true);
   renderModelSelection();
@@ -1523,6 +1605,7 @@ async function apiRequest(path,payload){
   if(!response.ok){
     const error=Error(typeof value?.error==='string'?value.error:'The Colab service could not complete this request.');
     error.serverError=true;
+    if(path==='instance'&&value&&instancePhases.has(value.phase)&&typeof value.controller_connected==='boolean')error.instance=value;
     throw error;
   }
   signInRequired=false;
@@ -1538,8 +1621,25 @@ async function rpc(action,payload={}){
 
 function instanceUsable(){return instanceConfirmed&&instanceState.controller_connected&&instanceState.phase==='running'&&selectedInstanceMatches()&&!instanceRequestPending&&!signInRequired;}
 
+function syncTicker(){
+  const needsTick=!signInRequired&&(
+    ['starting','stopping'].includes(instanceState.phase)||
+    (instanceState.phase==='running'&&instanceState.auto_shutdown&&idleDeadlineAnchor!==null&&!instanceState.active_api_requests)
+  );
+  if(needsTick&&!statusTicker&&typeof setInterval==='function'){
+    statusTicker=setInterval(()=>{
+      if(signInRequired){clearInterval(statusTicker);statusTicker=null;return;}
+      renderInstance();
+      if(!instanceUsable())$('statusText').textContent=titleForPhase(state);
+    },1000);
+  }else if(!needsTick&&statusTicker){
+    clearInterval(statusTicker);statusTicker=null;
+  }
+}
+
 function applyInstance(value){
   if(!value||!instancePhases.has(value.phase)||typeof value.controller_connected!=='boolean')throw Error('The Colab controller returned an invalid status.');
+  syncModelCatalog(value.models);
   const previous=instanceState.phase;
   instanceState=value;
   if(!modelChoiceInitialized){
@@ -1550,6 +1650,28 @@ function applyInstance(value){
   instanceConfirmed=true;
   released=value.phase==='stopped';
   releasePending=value.phase==='stopping';
+  if(Number.isFinite(value.operation_elapsed_seconds)){
+    operationAnchor=Date.now()-value.operation_elapsed_seconds*1000;
+  }else if(['starting','stopping'].includes(value.phase)){
+    if(previous!==value.phase||operationAnchor===null)operationAnchor=Date.now();
+  }else{
+    operationAnchor=null;
+  }
+  if(value.phase==='running'&&value.auto_shutdown&&Number.isFinite(value.idle_remaining_seconds)){
+    idleDeadlineAnchor=Date.now()+value.idle_remaining_seconds*1000;
+  }else if(value.phase==='running'&&value.auto_shutdown&&Number.isFinite(value.idle_deadline)){
+    idleDeadlineAnchor=value.idle_deadline*1000;
+  }else{
+    idleDeadlineAnchor=null;
+  }
+  if(value.phase==='error'&&value.error){
+    if(!lastError||lastError===lastInstanceError||previous!=='error'){lastError=value.error;lastInstanceError=value.error;}
+  }else if(lastInstanceError&&lastError===lastInstanceError){
+    lastError='';lastInstanceError='';
+  }
+  if(queuedSubmission&&(value.phase==='error'||value.shutdown_requested||(value.phase==='stopped'&&previous!=='stopped'&&!instanceRequestPending))){
+    cancelQueuedSend(value.error||(value.shutdown_requested?'Shutdown requested. Your draft is still here.':'Colab stopped before your message could be sent. Your draft is still here.'));
+  }
   if(!instanceUsable())runtimeStatusReady=false;
   if(previous!==value.phase){historySignature='';stopping=false;if(value.phase==='stopped')historyLoaded=false;}
   if(value.phase==='stopped'){
@@ -1558,29 +1680,64 @@ function applyInstance(value){
   }else if(value.gpu){
     $('hardware').textContent=typeof value.gpu==='string'?value.gpu:value.gpu.name||'Your dedicated Colab workspace';
   }
+  syncTicker();
   renderInstance();
+}
+
+function renderDownloadBar(s){
+  const dl=(s?.download?.total>0?s.download:null)||(instanceState.phase==='starting'&&selectedInstanceMatches()&&instanceState.download?.total>0?instanceState.download:null);
+  const activeDl=Boolean(dl&&dl.total>0&&(s?.phase==='downloading'||instanceState.notebook_phase==='downloading'||dl.done<dl.total));
+  const startingHere=instanceState.phase==='starting'&&selectedInstanceMatches()&&instanceState.controller_connected;
+  const show=activeDl||startingHere;
+  $('download').hidden=!show;
+  if(!show){
+    $('download').classList.remove('indeterminate');
+    return;
+  }
+  if(activeDl&&dl.done>0){
+    const percentage=Math.min(100,Math.max(0,100*dl.done/dl.total));
+    $('download').classList.remove('indeterminate');
+    $('downloadProgress').style.width=percentage+'%';
+    $('download').setAttribute('aria-label',`Download ${percentage.toFixed(0)}% complete`);
+  }else{
+    $('download').classList.add('indeterminate');
+    $('downloadProgress').style.width='';
+    $('download').setAttribute('aria-label','Operation in progress');
+  }
 }
 
 function renderInstance(){
   const phase=instanceState.phase;
   $('instanceStatus').dataset.phase=signInRequired?'error':instanceConfirmed?phase:'unknown';
-  const label={stopped:'Stopped',starting:'Starting Colab…',running:'Running',stopping:'Saving and shutting down…',error:'Colab needs attention',unknown:'Checking Colab…'}[phase];
+  const label={stopped:'Stopped',starting:instanceState.switching?'Switching models…':'Starting Colab…',running:'Running',stopping:'Saving and shutting down…',error:'Colab needs attention',unknown:'Checking Colab…'}[phase];
   let text=signInRequired?'Sign in to manage your private Colab':!instanceConfirmed?'Colab status unavailable':label;
   if(instanceConfirmed&&!signInRequired){
     if(!instanceState.controller_connected)text+=' · controller disconnected';
+    if(instanceState.switching&&instanceState.selected_model){
+      text+=' · → '+(modelCatalog[instanceState.selected_model]?.short_name||instanceState.selected_model);
+    }
+    if(instanceState.shutdown_requested&&phase!=='stopping')text+=' · shutdown queued';
+    if(instanceState.active_api_requests>0)text+=' · API request active';
+    const elapsed=operationElapsedText();
+    if(elapsed)text+=' · '+elapsed;
+    const rem=idleRemainingText();
+    if(rem)text+=' · auto-shutdown in '+rem;
+    else if(phase==='running'&&instanceState.auto_shutdown===false&&!instanceState.active_api_requests)text+=' · manual shutdown';
     const detail=instanceState.error||instanceState.detail;
     if(detail&&detail!==label)text+=' · '+detail;
   }
   $('instanceText').textContent=text;
   $('instanceSignIn').hidden=!signInRequired;
   const controllable=instanceConfirmed&&instanceState.controller_connected&&!instanceRequestPending&&!signInRequired;
-  $('startColab').disabled=!controllable||!( ['stopped','error','unknown'].includes(phase)||phase==='running'&&!selectedInstanceMatches()&&!modelSelectionBlocked());
-  $('startColab').textContent=instanceRequestPending==='start'?(phase==='unknown'?'Reconnecting…':'Starting…'):phase==='starting'?'Starting…':phase==='unknown'?'Reconnect Colab':phase==='running'&&!selectedInstanceMatches()?'Switch & load':'Start Colab';
-  const shutdownDisabled=!controllable||!['running','error'].includes(phase)||Boolean(localAction)||Boolean(state?.releasing);
+  const apiBusy=Boolean(instanceState.active_api_requests);
+  $('startColab').disabled=!controllable||Boolean(instanceState.shutdown_requested)||!( ['stopped','error','unknown'].includes(phase)||phase==='running'&&!selectedInstanceMatches()&&!modelSelectionBlocked());
+  $('startColab').textContent=instanceRequestPending==='start'?(phase==='unknown'?'Reconnecting…':'Starting…'):phase==='starting'?(instanceState.switching?'Switching…':'Starting…'):phase==='unknown'?'Reconnect Colab':phase==='running'&&!selectedInstanceMatches()?'Switch & load':'Start Colab';
+  const shutdownDisabled=!controllable||!['running','starting','error'].includes(phase)||Boolean(instanceState.shutdown_requested)||apiBusy||Boolean(localAction)||Boolean(state?.releasing);
   $('shutdownColab').disabled=shutdownDisabled;
-  $('shutdownColab').textContent=instanceRequestPending==='shutdown'||phase==='stopping'?'Shutting down…':'Shut down';
+  $('shutdownColab').textContent=instanceRequestPending==='shutdown'||phase==='stopping'?'Shutting down…':instanceState.shutdown_requested?'Shutdown queued…':'Shut down';
   $('release').disabled=shutdownDisabled;
   $('confirmRelease').disabled=shutdownDisabled;
+  renderDownloadBar(state);
 }
 
 function showError(message){
@@ -1613,25 +1770,42 @@ async function refresh(){
     applyInstance(instance);
     revision=viewRevision; // First reconnect can adopt the model assigned by the controller.
     instanceChecked=true;
-    lastError=lastActionError;
+    lastError=lastActionError||(instanceState.phase==='error'?instanceState.error||'':'');
     if(instanceState.phase==='running'&&instanceState.controller_connected&&selectedInstanceMatches()){
       const result=await rpc('status');
       if(revision===viewRevision){connectionLost=false;runtimeStatusReady=true;render(result);await resumeReadyActions();}
       if(busyPhases.has(result.phase)||result.preparation?.running||result.load_running||result.releasing||['saving','loading'].includes(result.persistence?.status))delay=450;
+    }else if(instanceState.phase==='starting'&&instanceState.controller_connected&&selectedInstanceMatches()&&instanceState.notebook_phase){
+      delay=450;
+      try{
+        const result=await rpc('status');
+        if(revision===viewRevision){
+          connectionLost=false;
+          if(result.persistence?.status==='saved')historyLoaded=true;
+          render(result);
+        }
+      }catch(rpcErr){
+        if(rpcErr?.signIn)throw rpcErr;
+        if(state)render(state);
+      }
     }else{
       connectionLost=false;
-      if(['starting','stopping'].includes(instanceState.phase))delay=1500;
+      if(['starting','stopping'].includes(instanceState.phase))delay=450;
       if(state)render(state);
       if(!historyLoaded&&instanceState.controller_connected&&!['stopping'].includes(instanceState.phase)&&pendingConversation?.name!=='new_chat')await browseHistory(pendingConversation?.id||state?.conversation_id||undefined);
     }
   }catch(error){
     if(revision!==viewRevision)return;
-    if(!instanceChecked)instanceConfirmed=false;
+    if(error.instance){
+      try{applyInstance(error.instance);instanceChecked=true;}catch(_){instanceConfirmed=false;}
+    }else if(!instanceChecked){
+      instanceConfirmed=false;
+    }
     connectionLost=true;
     runtimeStatusReady=false;
     showError(error.message);
     $('status').className='status error';
-    $('statusText').textContent=signInRequired?'Sign-in required':instanceConfirmed&&instanceState.phase==='running'?'Colab running · chat connection interrupted':'Colab connection interrupted';
+    $('statusText').textContent=signInRequired?'Sign-in required':instanceConfirmed&&instanceState.phase==='running'?'Colab running · chat connection interrupted':instanceConfirmed&&!instanceState.controller_connected?'Controller offline · Colab status unknown':'Colab connection interrupted';
   }finally{
     polling=false;updateControls();schedule(delay);
   }
@@ -1643,7 +1817,7 @@ async function browseHistory(conversationId){
     const history=await rpc('history',conversationId?{conversation_id:conversationId}:{});
     if(request!==historyRequest||revision!==viewRevision||pendingConversation?.name==='new_chat')return;
     if(!Array.isArray(history.messages)||!Array.isArray(history.conversations))throw Error('Drive returned an invalid chat history.');
-    historyLoaded=true;lastError=lastActionError;
+    historyLoaded=true;lastError=lastActionError||(instanceState.phase==='error'?instanceState.error||'':'');
     render({...state,...history,phase:state?.phase||'idle'},true);
   }catch(error){if(request===historyRequest&&revision===viewRevision)showError(error.message);}
 }
@@ -1654,7 +1828,7 @@ function cancelQueuedSend(message){
   queuedSubmission=null;updateControls();if(message)notify(message);
 }
 async function queueInstanceSend(submission){
-  if(queuedSubmission||releasePending)return;
+  if(queuedSubmission||releasePending||instanceState.shutdown_requested)return;
   if(!instanceConfirmed||!instanceState.controller_connected||signInRequired){showError('Connect to the Colab controller before sending. Your draft is still here.');return;}
   queuedSubmission=submission;updateControls();
   notify('Message queued. It will send once Colab and your selected chat are ready.');
@@ -1689,13 +1863,32 @@ function titleForPhase(s){
   if(uiAssetError)return'Chat assets could not load';
   if(signInRequired)return'Sign in again to continue';
   if(!instanceConfirmed)return'Checking Colab connection…';
+  if(!instanceState.controller_connected)return'Controller disconnected · Colab may still be running';
   if(instanceState.phase==='stopped')return'Colab is stopped · start it to chat';
   if(instanceState.phase==='running'&&!selectedInstanceMatches())return'Selected model is not loaded · switch & load to chat';
-  if(instanceState.phase==='starting')return'Colab is starting · your model will load automatically';
-  if(instanceState.phase==='stopping')return'Saving your chats and environment before shutdown…';
+  if(instanceState.phase==='starting'){
+    const elapsed=operationElapsedText();
+    const suffix=elapsed?' · '+elapsed:'';
+    if(instanceState.shutdown_requested)return'Shutdown queued · saving and releasing after startup'+suffix;
+    if(instanceState.switching){
+      const target=modelCatalog[instanceState.selected_model]?.name||instanceState.selected_model||'selected model';
+      return`Switching to ${target} · ${instanceState.detail||'saving previous model…'}${suffix}`;
+    }
+    if(!selectedInstanceMatches()){
+      const activeName=modelCatalog[activeModelId()]?.name||activeModelId();
+      return`${activeName} is starting · ${instanceState.detail||'loading…'}${suffix}`;
+    }
+    const dl=(s?.download?.total>0?s.download:null)||(instanceState.download?.total>0?instanceState.download:null);
+    const dlText=(dl&&dl.total>0&&dl.done>0)?` (${Math.min(100,Math.round(100*dl.done/dl.total))}% · ${formatGiB(dl.done)} / ${formatGiB(dl.total)})`:'';
+    const detail=(s?.detail&&s.detail!=='Checking runtime…'&&s.phase!=='idle'?s.detail:instanceState.detail)||'Starting Colab…';
+    return detail+dlText+suffix;
+  }
+  if(instanceState.phase==='stopping'){
+    const elapsed=operationElapsedText();
+    return(instanceState.detail||'Saving your chats and environment before shutdown…')+(elapsed?' · '+elapsed:'');
+  }
   if(instanceState.phase==='error')return instanceState.error||instanceState.detail||'Colab needs attention';
-  if(instanceState.phase==='unknown')return instanceState.controller_connected?'Reconnect Colab to attach its API':'Waiting for Colab status…';
-  if(!instanceState.controller_connected)return'Controller disconnected · Colab may still be running';
+  if(instanceState.phase==='unknown')return'Reconnect Colab to attach its API';
   if(s?.released)return'Chat has finished · waiting for Colab status';
   return notebookTitleForPhase(s);
 }
@@ -1712,23 +1905,42 @@ function updateControls(){
     for(const id of settingsIds)$(id).disabled=releasePending;
     for(const id of ['attach','thinking','maxTokens','temperature'])$(id).disabled=releasePending||Boolean(localAction)||(id==='attach'&&Boolean(editing));
     $('newChat').disabled=Boolean(localAction)||state?.phase==='generating';
-    const canSend=uiAssetsReady&&hasInput()&&!releasePending&&!fileReadPending&&!localAction&&!editing&&!instanceRequestPending;
+    const canSend=uiAssetsReady&&hasInput()&&!releasePending&&!instanceState.shutdown_requested&&!instanceState.active_api_requests&&!fileReadPending&&!localAction&&!editing&&!instanceRequestPending;
     $('send').disabled=!canSend;
     $('send').classList.toggle('stop',false);
     $('send').replaceChildren(icon(sendSvg));
-    const sendTitle=canSend?(instanceState.phase==='stopped'?'Start Colab and send':'Colab starting · click to send'):'Start Colab to chat';
+    const sendTitle=canSend?(
+      instanceState.phase==='stopped'?'Start Colab and send':
+      instanceState.phase==='running'&&!selectedInstanceMatches()?'Switch model and send':
+      instanceState.phase==='unknown'&&instanceState.controller_connected?'Reconnect Colab and send':
+      'Queue message to send when ready'
+    ):'Start Colab to chat';
     $('send').title=sendTitle;
     $('send').setAttribute('aria-label',sendTitle);
     for(const button of $('thread').querySelectorAll('.edit-message,.edit-save'))button.disabled=true;
     const editInput=$('thread').querySelector('.edit-input');if(editInput)editInput.disabled=true;
     $('statusText').textContent=titleForPhase(state);
     $('status').className='status '+(['starting','stopping'].includes(instanceState.phase)?'busy':instanceState.phase==='error'?'error':'');
-    $('settingsNote').textContent='Choose settings before starting Colab. An existing instance keeps its current model until you apply and reload.';
-    $('composerNote').textContent=instanceState.phase==='stopped'?(hasInput()?'Colab is stopped · click Send or Start Colab to begin':'Colab is stopped · start it to chat'):instanceState.phase==='stopping'?'Saving before shutdown':instanceState.phase==='starting'?'Starting your private Colab…':'Waiting for the Colab connection';
-    if(state?.persistence?.status!=='error'&&!historyLoaded){
+    if(!selectedModelMetadata().fixed_settings){
+      $('settingsNote').textContent=instanceState.phase==='starting'
+        ?(hasQueuedSend()?'Queued message uses the settings captured when you clicked Send.':'Colab is starting with the requested settings. Changes made now can be applied after it is ready.')
+        :'Choose settings before starting Colab. An existing instance keeps its current model until you apply and reload.';
+    }
+    $('composerNote').textContent=instanceState.shutdown_requested?'Shutdown queued · saving and releasing after startup':
+      instanceState.active_api_requests>0?'API request in progress · wait before sending':
+      instanceState.phase==='stopped'?(hasInput()?'Colab is stopped · click Send or Start Colab to begin':'Colab is stopped · start it to chat'):
+      instanceState.phase==='stopping'?'Saving before shutdown':
+      instanceState.phase==='starting'?'Colab is starting · you can browse chats or draft your next message':
+      instanceState.phase==='error'?'Colab needs attention · retry Start or Shut down above':
+      instanceState.phase==='running'&&!selectedInstanceMatches()?'Another model is running · click Send or Switch & load to switch':
+      instanceState.phase==='unknown'&&instanceState.controller_connected?'Colab is allocated · click Reconnect Colab or Send to attach':
+      'Waiting for the Colab connection';
+    if(state?.persistence?.status!=='error'&&!['saved','saving'].includes(state?.persistence?.status)&&!historyLoaded){
       $('persistenceState').dataset.status='offline';
       $('persistenceText').textContent=instanceState.phase==='stopped'?'Saved chats stay in Drive':'Drive sync connects with Colab';
     }
+  }else if(instanceState.active_api_requests>0){
+    $('composerNote').textContent='API request in progress · wait before sending';
   }
   if(instanceConfirmed&&instanceState.phase==='stopped'){
     $('hardware').textContent='Your dedicated Colab workspace';
@@ -1754,9 +1966,9 @@ async function instanceAction(action,startSettings){
     if(action==='shutdown')cancelQueuedSend();
     applyInstance(await apiRequest('instance/'+action,action==='start'?{model:selectedModelId(),settings:startSettings||selectedModelSettings()}:{}));
     if(state)render(state);
-    notify(reconnect?'Colab reconnect requested':action==='start'?'Colab start requested':'Colab shutdown requested');
+    notify(reconnect?'Colab reconnect requested':action==='start'?'Colab start requested':instanceState.phase==='starting'?'Shutdown queued after startup':'Colab shutdown requested');
     return true;
-  }catch(error){showError(error.message);return false;}
+  }catch(error){lastActionError=error.message;showError(error.message);return false;}
   finally{instanceRequestPending='';updateControls();schedule(100);}
 }
 
@@ -1764,20 +1976,29 @@ function connectInstanceControls(){
   $('modelSelector').dataset.viewModel=selectedModelId();
   $('modelSelector').onchange=async()=>{
     const id=selectedModelId(),previous=$('modelSelector').dataset.viewModel;
-    if(modelSelectionBlocked()){$('modelSelector').value=previous;return;}
+    if(modelViewBlocked()){$('modelSelector').value=previous;return;}
     modelChoiceExplicit=true;changeModelView(id);
     await browseHistory();schedule(100);
   };
   $('loadModel').onclick=()=>selectedInstanceMatches()?action('load',selectedModelSettings()):instanceAction('start');
   $('startColab').onclick=()=>instanceAction('start');
-  $('release').onclick=$('shutdownColab').onclick=()=>$('releaseDialog').showModal();
+  const openShutdownDialog=()=>{
+    const copy=$('releaseDialog').querySelector('p');
+    if(copy){
+      copy.textContent=instanceState.phase==='starting'
+        ?'Colab is currently starting. Queuing shutdown will save your chats and environment and release the VM once startup reaches a safe point.'
+        :'Your chats and environment are saved before shutdown. This VM’s model cache will be removed. You can start a new instance from this page.';
+    }
+    $('releaseDialog').showModal();
+  };
+  $('release').onclick=$('shutdownColab').onclick=openShutdownDialog;
   $('releaseDialog').addEventListener('close',()=>{
     if($('releaseDialog').returnValue==='release')instanceAction('shutdown');
   });
 }
 
 function notebookTitleForPhase(s){if(uiAssetError)return'Chat assets could not load';if(!uiAssetsReady)return'Preparing chat interface…';if(!runtimeStatusReady)return'Connecting to runtime…';if(s.released)return'Runtime released';if(s.phase==='error')return s.release_requested?'Release could not finish · runtime kept':'Model needs attention';if(localAction==='release'||s.releasing||releasePending)return s.detail||'Saving environment before release…';if(localAction==='load')return'Preparing model…';if(stopping&&s.phase==='generating')return'Stopping generation…';if(s.detail)return s.detail;return{idle:'Not loaded · ready when you are',preparing:'Preparing environment…',downloading:'Downloading model weights…',loading:'Loading model into memory…',ready:'Model ready',generating:modelPresentation().short_name+' is thinking…'}[s.phase]||'Connected';}
-function selectedModelSettings(){if(typeof selectedModelId==='function'&&selectedModelId()==='deepseek-v4.1-flash')return{context:262144,mtp:false,placement:'cpu'};return{context:Number($('context').value),mtp:$('mtp').checked,placement:$('placement').value};}
+function selectedModelSettings(){if(typeof fixedModelSettings==='function'){const fixed=fixedModelSettings();if(fixed)return fixed;}if(typeof selectedModelId==='function'&&selectedModelId()==='deepseek-v4.1-flash')return{context:262144,mtp:false,placement:'cpu'};return{context:Number($('context').value),mtp:$('mtp').checked,placement:$('placement').value};}
 function modelSettingsEqual(selected,active){return Boolean(active)&&selected.context===Number(active.context)&&selected.mtp===Boolean(active.mtp)&&selected.placement===active.placement;}
 function settingsMatch(){return modelSettingsEqual(selectedModelSettings(),state?.settings);}
 function generationPayload(){const payload={thinking:$('thinking').getAttribute('aria-pressed')==='true',max_tokens:Number($('maxTokens').value),temperature:Number($('temperature').value)};if($('systemPrompt'))payload.system_prompt=$('systemPrompt').value.trim();return payload;}
@@ -1842,7 +2063,7 @@ async function selectChat(id){
   if(localAction||state?.phase==='generating'||editing)return;
   if(!(state?.conversations||[]).some(chat=>chat.id===id))return;
   beginConversationIntent('select_chat',id);
-  if(conversationOnline())await syncConversationIntent();
+  if(conversationOnline()&&!isBusy())await syncConversationIntent();
   else if(typeof browseHistory==='function')await browseHistory(id);
 }
 function renderHistory(){const signature=JSON.stringify([state.conversations,state.conversation_id,Boolean(localAction)||state?.phase==='generating']);if(signature===historySignature)return;historySignature=signature;$('history').replaceChildren();for(const conversation of state.conversations||[]){const button=element('button',conversation.id===state.conversation_id?'active':'',conversation.title||'New conversation');button.title=conversation.title||'New conversation';button.disabled=Boolean(localAction)||state?.phase==='generating'||Boolean(editing);if(conversation.id===state.conversation_id)button.setAttribute('aria-current','page');button.onclick=()=>selectChat(conversation.id);$('history').append(button);}}
@@ -1973,32 +2194,60 @@ function renderMessages(){
       const key=String(message.id??index),renderSignature=JSON.stringify([message,Boolean(editing&&editing.messageId===message.id),rendererVersion]),previous=oldArticles.get(key);
       desiredIds.add(key);
       if(previous?.dataset.renderSignature===renderSignature)return;
-      const assistant=message.role==='assistant',article=element('article','message '+(assistant?'assistant':'user'));
+      const assistant=message.role==='assistant',editingThis=!assistant&&editing&&editing.messageId===message.id;
+      const canUpdateInPlace=Boolean(previous)&&assistant&&previous.classList.contains('assistant')&&!previous.classList.contains('editing')&&!editingThis;
+      const article=canUpdateInPlace?previous:element('article','message '+(assistant?'assistant':'user'));
       article.setAttribute('aria-label',assistant?modelPresentation().short_name+' response':'Your message');article.dataset.messageId=key;article.dataset.renderSignature=renderSignature;
-      const placeArticle=()=>{if(previous)previous.replaceWith(article);else $('thread').append(article);};
-      if(!assistant&&editing&&editing.messageId===message.id){renderEditor(article);placeArticle();return;}
-      if(assistant){const head=element('div','assistant-head');head.append(icon(starSvg),document.createTextNode(modelPresentation().short_name));article.append(head);}
-      if(message.reasoning){
-        const details=element('details','reasoning');details.dataset.messageId=message.id||String(index);details.open=opened.includes(details.dataset.messageId);
-        const summary=element('summary','',message.status==='streaming'&&!message.content?'Thinking…':'Thinking'),reasoning=element('div','message-body');
-        renderMarkdown(reasoning,message.reasoning,{allowPreview:false});details.append(summary,reasoning);article.append(details);
-      }
-      const body=element('div','message-body');if(assistant)renderMarkdown(body,message.content||'',{complete:message.status!=='streaming'});else body.textContent=message.content||'';
-      if(assistant&&message.status==='streaming'){const cursor=element('span','stream-cursor');cursor.setAttribute('aria-label','Generating');body.append(cursor);}
-      article.append(body);
-      if(assistant&&message.error){const error=element('div','error-box message-error',message.error);error.style.marginTop='12px';article.append(error);}
+      const placeArticle=()=>{if(canUpdateInPlace)return;if(previous)previous.replaceWith(article);else $('thread').append(article);};
+      if(editingThis){renderEditor(article);placeArticle();return;}
       if(assistant){
-        const foot=element('div','message-foot'),copy=element('button','icon-button');copy.setAttribute('aria-label','Copy response');copy.title='Copy response';copy.append(icon(copySvg));copy.onclick=()=>copyText(message.content||'',copy);
-        foot.append(copy,renderMetrics(message));article.append(foot);
-      }else if(message.id){
-        const actions=element('div','user-actions'),edit=element('button','edit-message');edit.dataset.messageId=message.id;edit.setAttribute('aria-label','Edit message');edit.append(icon(editSvg),document.createTextNode('Edit'));edit.onclick=()=>beginEdit(message);actions.append(edit);article.append(actions);
+        let head=canUpdateInPlace?[...article.children].find(node=>node.classList.contains('assistant-head')):null;
+        if(!head){head=element('div','assistant-head');head.append(icon(starSvg),document.createTextNode(modelPresentation().short_name));article.append(head);}
+        else head.lastChild.nodeValue=modelPresentation().short_name;
+        const reasoningBodySig=JSON.stringify([message.reasoning||'',rendererVersion]);
+        const reasoningSummary=message.status==='streaming'&&!message.content?'Thinking…':'Thinking';
+        let details=canUpdateInPlace?[...article.children].find(node=>node.classList.contains('reasoning')):null;
+        if(message.reasoning){
+          if(!details){
+            details=element('details','reasoning');details.dataset.messageId=message.id||String(index);details.open=opened.includes(details.dataset.messageId);
+            details.append(element('summary','',reasoningSummary),element('div','message-body'));
+            const existingBody=[...article.children].find(node=>node.classList.contains('message-body'));
+            if(existingBody)article.insertBefore(details,existingBody);else article.append(details);
+          }else{details.firstElementChild.textContent=reasoningSummary;}
+          if(details.dataset.reasoningBodySig!==reasoningBodySig){
+            renderMarkdown(details.lastElementChild,message.reasoning,{allowPreview:false});
+            details.dataset.reasoningBodySig=reasoningBodySig;
+          }
+        }else if(details){details.remove();}
+        const bodySig=JSON.stringify([message.content||'',message.status==='streaming',rendererVersion]);
+        let body=canUpdateInPlace?[...article.children].find(node=>node.classList.contains('message-body')):null;
+        if(!body){body=element('div','message-body');const existingFoot=[...article.children].find(node=>node.classList.contains('message-foot')||node.classList.contains('message-error'));if(existingFoot)article.insertBefore(body,existingFoot);else article.append(body);}
+        if(body.dataset.bodySig!==bodySig){
+          renderMarkdown(body,message.content||'',{complete:message.status!=='streaming'});
+          if(message.status==='streaming'){const cursor=element('span','stream-cursor');cursor.setAttribute('aria-label','Generating');body.append(cursor);}
+          body.dataset.bodySig=bodySig;
+        }
+        let errorNode=canUpdateInPlace?[...article.children].find(node=>node.classList.contains('message-error')):null;
+        if(message.error){
+          if(!errorNode){errorNode=element('div','error-box message-error',message.error);errorNode.style.marginTop='12px';const existingFoot=[...article.children].find(node=>node.classList.contains('message-foot'));if(existingFoot)article.insertBefore(errorNode,existingFoot);else article.append(errorNode);}
+          else if(errorNode.textContent!==message.error)errorNode.textContent=message.error;
+        }else if(errorNode){errorNode.remove();}
+        let foot=canUpdateInPlace?[...article.children].find(node=>node.classList.contains('message-foot')):null;
+        if(!foot){foot=element('div','message-foot');const copy=element('button','icon-button');copy.setAttribute('aria-label','Copy response');copy.title='Copy response';copy.append(icon(copySvg));foot.append(copy,renderMetrics(message));article.append(foot);}
+        else{foot.lastElementChild.replaceWith(renderMetrics(message));}
+        foot.firstElementChild.onclick=()=>copyText(message.content||'',foot.firstElementChild);
+      }else{
+        const body=element('div','message-body');body.textContent=message.content||'';article.append(body);
+        if(message.id){
+          const actions=element('div','user-actions'),edit=element('button','edit-message');edit.dataset.messageId=message.id;edit.setAttribute('aria-label','Edit message');edit.append(icon(editSvg),document.createTextNode('Edit'));edit.onclick=()=>beginEdit(message);actions.append(edit);article.append(actions);
+        }
       }
       placeArticle();
     });
     for(const [id,node]of oldArticles)if(!desiredIds.has(id))node.remove();
   }
   for(const [id,session]of previewSessions)if(!session.iframe.isConnected)previewSessions.delete(id);
-  if(!editing&&(nearBottom||switched))scroller.scrollTop=scroller.scrollHeight;
+  if(!editing&&(nearBottom||switched)){const prevBehavior=scroller.style.scrollBehavior;scroller.style.scrollBehavior='auto';scroller.scrollTop=scroller.scrollHeight;scroller.style.scrollBehavior=prevBehavior;}
 }
 async function action(name,payload={},after){if(localAction||!instanceUsable())return false;viewRevision++;lastError='';lastActionError='';localAction=name;updateControls();try{const result=await rpc(name,payload);connectionLost=false;runtimeStatusReady=true;localAction='';if(name==='load')settingsDirty=!modelSettingsEqual(selectedModelSettings(),result.settings);if(after)after(result);if(result.phase)render(result);schedule(100);return true;}catch(error){connectionLost=!error.serverError;lastActionError=error.message;showError(error.message);return false;}finally{localAction='';updateControls();if(state)renderHistory();}}
 function setSidebar(open){$('app').classList.toggle('sidebar-open',open);$('menuToggle').setAttribute('aria-expanded',String(open));if(!open&&document.activeElement?.closest('.sidebar'))$('menuToggle').focus();}
@@ -2041,7 +2290,7 @@ applyTheme(getPreferredTheme());
 $('newChat').onclick=async()=>{
   if(localAction||state?.phase==='generating'||editing)return;
   systemPromptDrafts.delete(promptDraftKey(null));beginConversationIntent('new_chat');
-  $('prompt').focus();if(conversationOnline())await syncConversationIntent();
+  $('prompt').focus();if(conversationOnline()&&!isBusy())await syncConversationIntent();
 };$('menuToggle').onclick=()=>setSidebar(!$('app').classList.contains('sidebar-open'));$('closeSidebar').onclick=()=>setSidebar(false);document.addEventListener('keydown',event=>{if(event.key==='Escape')setSidebar(false);});
 $('attach').onclick=()=>$('fileInput').click();$('fileInput').onchange=()=>attachFiles($('fileInput').files);$('exportMarkdown').onclick=()=>exportChat('md');$('exportJson').onclick=()=>exportChat('json');$('retrySave').onclick=()=>action('retry_save');
 connectInstanceControls();
